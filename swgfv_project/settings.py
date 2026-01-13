@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -7,18 +8,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY / DEBUG / HOSTS
 # =========================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
-DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
+DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
-# Permite hosts desde env, y en Render agrega automáticamente el hostname si existe
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
     if h.strip()
 ]
 
+# Render pone este hostname automáticamente (swgfv-web.onrender.com)
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-if render_host:
+if render_host and render_host not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(render_host)
+
+# Si usas Render y no configuraste DJANGO_ALLOWED_HOSTS, al menos deja abierto a Render
+# (opcional, pero ayuda cuando te olvidas de poner la variable)
+if render_host and not os.getenv("DJANGO_ALLOWED_HOSTS"):
+    ALLOWED_HOSTS = ["127.0.0.1", "localhost", render_host]
 
 # =========================
 # APPS
@@ -38,7 +44,7 @@ INSTALLED_APPS = [
 # =========================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # <-- IMPORTANTE para Render
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # IMPORTANT for Render
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -74,16 +80,29 @@ WSGI_APPLICATION = "swgfv_project.wsgi.application"
 # =========================
 # DATABASE
 # =========================
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "swgfv"),
-        "USER": os.getenv("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "Alfredo*14"),
-        "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+# En Render debe existir DATABASE_URL (la pegas en Environment Variables)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
     }
-}
+else:
+    # Local (tu PC). NO hardcodees password aquí; úsala desde .env
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "swgfv"),
+            "USER": os.getenv("POSTGRES_USER", "postgres"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+            "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        }
+    }
 
 # =========================
 # PASSWORD VALIDATORS
@@ -107,14 +126,11 @@ USE_TZ = True
 # STATIC FILES
 # =========================
 STATIC_URL = "/static/"
-
-# En Render (producción) collectstatic copiará todo aquí
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# NO pongas STATICFILES_DIRS si NO tienes una carpeta /static en la raíz.
-# Tus estáticos están en core/static/... y Django los detecta automáticamente.
+# No declares STATICFILES_DIRS si no tienes /static en la raíz.
+# Tus estáticos están en core/static/... y Django los detecta.
 
-# Whitenoise: sirve estáticos en producción
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # =========================
@@ -122,3 +138,16 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # =========================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_AGE = 60 * 60 * 8
+
+# =========================
+# (RECOMENDADO) SECURITY EN PRODUCCIÓN
+# =========================
+# Si estás en Render (o DEBUG=0), activa settings típicos de prod
+if not DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        f"https://{h}" for h in ALLOWED_HOSTS if h not in ("127.0.0.1", "localhost")
+    ]
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = os.getenv("DJANGO_SECURE_SSL_REDIRECT", "1") == "1"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
