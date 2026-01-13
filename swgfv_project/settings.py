@@ -8,17 +8,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY / DEBUG / HOSTS
 # =========================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
-DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 
+# En Render pon DJANGO_DEBUG=False (texto). Esto lo soporta.
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes", "on")
+
+# Hosts permitidos desde variable
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
     if h.strip()
 ]
 
+# Render hostname automático
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-if render_host:
+if render_host and render_host not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(render_host)
+
+# CSRF (muy recomendado en producción)
+CSRF_TRUSTED_ORIGINS = []
+if render_host:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{render_host}")
 
 # =========================
 # APPS
@@ -72,15 +81,30 @@ TEMPLATES = [
 WSGI_APPLICATION = "swgfv_project.wsgi.application"
 
 # =========================
-# DATABASE (RENDER)
+# DATABASE
 # =========================
-DATABASES = {
-    "default": dj_database_url.config(
-        default="sqlite:///" + str(BASE_DIR / "db.sqlite3"),
-        conn_max_age=600,
-        ssl_require=True
-    )
-}
+# Render normalmente provee DATABASE_URL. Si existe, úsala.
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    # Fallback local
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "swgfv"),
+            "USER": os.getenv("POSTGRES_USER", "postgres"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+            "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        }
+    }
 
 # =========================
 # PASSWORD VALIDATORS
