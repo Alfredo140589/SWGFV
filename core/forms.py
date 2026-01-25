@@ -12,14 +12,22 @@ class LoginForm(forms.Form):
         max_length=150,
         required=True,
         widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Ingrese su usuario"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ingrese su usuario",
+                "autocomplete": "username",
+            }
         ),
     )
     password = forms.CharField(
         label="Contraseña",
         required=True,
         widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Ingrese su contraseña"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Ingrese su contraseña",
+                "autocomplete": "current-password",
+            }
         ),
     )
 
@@ -32,14 +40,22 @@ class UsuarioCreateForm(forms.ModelForm):
         label="Contraseña",
         required=True,
         widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Contraseña"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Contraseña",
+                "autocomplete": "new-password",
+            }
         ),
     )
     password_confirm = forms.CharField(
         label="Confirmar contraseña",
         required=True,
         widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Confirmar contraseña"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Confirmar contraseña",
+                "autocomplete": "new-password",
+            }
         ),
     )
 
@@ -55,11 +71,31 @@ class UsuarioCreateForm(forms.ModelForm):
             "Activo",
         ]
         widgets = {
-            "Nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Paterno": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
-            "Telefono": forms.TextInput(attrs={"class": "form-control"}),
-            "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
+            "Nombre": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre(s)", "maxlength": "100"}
+            ),
+            "Apellido_Paterno": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Apellido paterno", "maxlength": "100"}
+            ),
+            "Apellido_Materno": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Apellido materno", "maxlength": "100"}
+            ),
+            "Telefono": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Teléfono",
+                    "inputmode": "tel",
+                    "autocomplete": "tel",
+                    "maxlength": "20",
+                }
+            ),
+            "Correo_electronico": forms.EmailInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Correo electrónico",
+                    "autocomplete": "email",
+                }
+            ),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
             "Activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -96,14 +132,18 @@ class UsuarioSearchForm(forms.Form):
         label="Buscar por ID",
         required=False,
         widget=forms.NumberInput(
-            attrs={"class": "form-control", "placeholder": "ID del usuario"}
+            attrs={"class": "form-control", "placeholder": "ID del usuario", "inputmode": "numeric"}
         ),
     )
     buscar_correo = forms.EmailField(
         label="Buscar por correo",
         required=False,
         widget=forms.EmailInput(
-            attrs={"class": "form-control", "placeholder": "Correo electrónico"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Correo electrónico",
+                "autocomplete": "email",
+            }
         ),
     )
 
@@ -126,14 +166,22 @@ class UsuarioUpdateForm(forms.ModelForm):
         label="Nueva contraseña (opcional)",
         required=False,
         widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Nueva contraseña"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Nueva contraseña",
+                "autocomplete": "new-password",
+            }
         ),
     )
     new_password_confirm = forms.CharField(
         label="Confirmar nueva contraseña",
         required=False,
         widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Confirmar nueva contraseña"}
+            attrs={
+                "class": "form-control",
+                "placeholder": "Confirmar nueva contraseña",
+                "autocomplete": "new-password",
+            }
         ),
     )
 
@@ -149,11 +197,31 @@ class UsuarioUpdateForm(forms.ModelForm):
             "Activo",
         ]
         widgets = {
-            "Nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Paterno": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
-            "Telefono": forms.TextInput(attrs={"class": "form-control"}),
-            "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
+            "Nombre": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre(s)", "maxlength": "100"}
+            ),
+            "Apellido_Paterno": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Apellido paterno", "maxlength": "100"}
+            ),
+            "Apellido_Materno": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Apellido materno", "maxlength": "100"}
+            ),
+            "Telefono": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Teléfono",
+                    "inputmode": "tel",
+                    "autocomplete": "tel",
+                    "maxlength": "20",
+                }
+            ),
+            "Correo_electronico": forms.EmailInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Correo electrónico",
+                    "autocomplete": "email",
+                }
+            ),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
             "Activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -166,9 +234,7 @@ class UsuarioUpdateForm(forms.ModelForm):
         # Si el usuario intenta cambiar password, ambos deben venir y coincidir
         if p1 or p2:
             if not p1 or not p2:
-                raise forms.ValidationError(
-                    "Para cambiar la contraseña, llena ambos campos."
-                )
+                raise forms.ValidationError("Para cambiar la contraseña, llena ambos campos.")
             if p1 != p2:
                 self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
 

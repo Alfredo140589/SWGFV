@@ -24,11 +24,25 @@ def login_view(request):
         if form.is_valid():
             usuario = form.cleaned_data["usuario"]
             password = form.cleaned_data["password"]
+
+            # 1) Autenticación local (tu lógica actual)
             user = authenticate_local(usuario, password)
 
             if user:
+                # 2) Guardas lo que ya guardabas
                 request.session["usuario"] = user.username
                 request.session["tipo"] = user.role  # "Administrador" o "General"
+
+                # 3) NUEVO: guardar el ID del usuario real de tu tabla "usuarios"
+                # Suponiendo que "usuario" es el Correo_electronico
+                try:
+                    u = Usuario.objects.get(Correo_electronico=usuario)
+                    request.session["id_usuario"] = u.ID_Usuario
+                except Usuario.DoesNotExist:
+                    # Si por alguna razón authenticate_local da OK pero no existe en BD
+                    messages.error(request, "El usuario autenticó, pero no existe en la base de datos.")
+                    return redirect("core:login")
+
                 return redirect("core:menu_principal")
 
             messages.error(request, "Usuario o contraseña incorrectos. Intente de nuevo.")
@@ -36,6 +50,7 @@ def login_view(request):
             messages.error(request, "Revise el formulario e intente nuevamente.")
 
     return render(request, "core/login.html", {"form": form})
+
 
 
 # ------------------------
