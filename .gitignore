@@ -1,12 +1,13 @@
-# Variables de entorno (NO subir a GitHub)
-.env
-
-# Entornos virtuales
+# Entorno virtual
 .venv/
 
-# Cache de Python
+# Python cache
 __pycache__/
 *.pyc
 
-# Archivos de PyCharm
-.idea/
+# Base de datos local
+db.sqlite3
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

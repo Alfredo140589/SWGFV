@@ -83,9 +83,10 @@ WSGI_APPLICATION = "swgfv_project.wsgi.application"
 # =========================
 # DATABASE
 # =========================
-# Render normalmente provee DATABASE_URL. Si existe, úsala.
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 if DATABASE_URL:
+    # Producción (Render)
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -94,17 +95,14 @@ if DATABASE_URL:
         )
     }
 else:
-    # Fallback local
+    # Local (sin Postgres): SQLite
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("POSTGRES_DB", "swgfv"),
-            "USER": os.getenv("POSTGRES_USER", "postgres"),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
-            "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
-            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
 
 # =========================
 # PASSWORD VALIDATORS
