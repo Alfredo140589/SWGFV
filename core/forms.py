@@ -267,3 +267,101 @@ class UsuarioUpdateForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+from .models import Proyecto
+
+
+# ======================================================
+# ALTA DE PROYECTO
+# ======================================================
+class ProyectoCreateForm(forms.ModelForm):
+    class Meta:
+        model = Proyecto
+        fields = [
+            "Nombre_Proyecto",
+            "Nombre_Empresa",
+            "Direccion",
+            "Coordenadas",
+            "Voltaje_Nominal",
+            "Numero_Fases",
+        ]
+        widgets = {
+            "Nombre_Proyecto": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}
+            ),
+            "Nombre_Empresa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}
+            ),
+            "Direccion": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Dirección"}
+            ),
+            "Coordenadas": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)",
+                }
+            ),
+            "Voltaje_Nominal": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Voltaje nominal"}
+            ),
+            "Numero_Fases": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "max": 3}
+            ),
+        }
+
+    def clean_Numero_Fases(self):
+        fases = self.cleaned_data.get("Numero_Fases")
+        if fases is None:
+            return fases
+        if fases < 1 or fases > 3:
+            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
+        return fases
+from django.core.validators import MinValueValidator, MaxValueValidator
+from .models import Proyecto
+
+
+# ======================================================
+# ALTA DE PROYECTO
+# ======================================================
+class ProyectoCreateForm(forms.ModelForm):
+    class Meta:
+        model = Proyecto
+        fields = [
+            "Nombre_Proyecto",
+            "Nombre_Empresa",
+            "Direccion",
+            "Coordenadas",
+            "Voltaje_Nominal",
+            "Numero_Fases",
+        ]
+        widgets = {
+            "Nombre_Proyecto": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}
+            ),
+            "Nombre_Empresa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}
+            ),
+            "Direccion": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Dirección"}
+            ),
+            "Coordenadas": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)",
+                }
+            ),
+            "Voltaje_Nominal": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Voltaje nominal"}
+            ),
+            "Numero_Fases": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "max": 3}
+            ),
+        }
+
+    def clean_Numero_Fases(self):
+        fases = self.cleaned_data.get("Numero_Fases")
+        if fases is None:
+            return fases
+        if fases < 1 or fases > 3:
+            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
+        return fases
