@@ -4,7 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 # =========================
-# MODELO USUARIO (tabla usuarios)
+# MODELO USUARIO
 # =========================
 class Usuario(models.Model):
     ID_Usuario = models.AutoField(primary_key=True)
@@ -22,6 +22,7 @@ class Usuario(models.Model):
         ("General", "General"),
     )
     Tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default="General")
+
     Activo = models.BooleanField(default=True)
 
     class Meta:
@@ -38,12 +39,10 @@ class Usuario(models.Model):
 
 
 # =========================
-# MODELO PROYECTO (tabla proyectos)
+# MODELO PROYECTO (TABLA proyectos)
 # =========================
 class Proyecto(models.Model):
-    ID_Proyecto = models.AutoField(primary_key=True)
-
-    # Un usuario tiene muchos proyectos
+    # Django crea automáticamente el PK "id"
     ID_Usuario = models.ForeignKey(
         Usuario,
         on_delete=models.CASCADE,
@@ -56,6 +55,7 @@ class Proyecto(models.Model):
     Direccion = models.CharField(max_length=255)
     Coordenadas = models.CharField(max_length=50)
     Voltaje_Nominal = models.CharField(max_length=20)
+
     Numero_Fases = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(3)]
     )
