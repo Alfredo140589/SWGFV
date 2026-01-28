@@ -8,6 +8,9 @@ __pycache__/
 # Base de datos local
 db.sqlite3
 
+# Variables de entorno (NUNCA subir)
+.env
+
 # Archivos del sistema
 .DS_Store
 Thumbs.db
