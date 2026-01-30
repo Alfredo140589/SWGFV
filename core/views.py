@@ -4,10 +4,10 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
-from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm
+from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm, ProyectoCreateForm
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
-from .models import Usuario
+from .models import Usuario, Proyecto
 
 
 # ------------------------
@@ -15,6 +15,7 @@ from .models import Usuario
 # ------------------------
 @require_http_methods(["GET", "POST"])
 def login_view(request):
+    # Si ya hay sesión, manda al menú
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
@@ -22,26 +23,32 @@ def login_view(request):
 
     if request.method == "POST":
         if form.is_valid():
-            usuario = form.cleaned_data["usuario"]
+            usuario_input = form.cleaned_data["usuario"]  # normalmente correo
             password = form.cleaned_data["password"]
 
             # 1) Autenticación local (tu lógica actual)
-            user = authenticate_local(usuario, password)
+            user_auth = authenticate_local(usuario_input, password)
 
-            if user:
-                # 2) Guardas lo que ya guardabas
-                request.session["usuario"] = user.username
-                request.session["tipo"] = user.role  # "Administrador" o "General"
-
-                # 3) NUEVO: guardar el ID del usuario real de tu tabla "usuarios"
-                # Suponiendo que "usuario" es el Correo_electronico
+            if user_auth:
+                # 2) Buscar el usuario real en tu tabla "usuarios"
+                #    (asumimos que el login es por Correo_electronico)
                 try:
-                    u = Usuario.objects.get(Correo_electronico=usuario)
-                    request.session["id_usuario"] = u.ID_Usuario
+                    u = Usuario.objects.get(Correo_electronico=usuario_input)
                 except Usuario.DoesNotExist:
-                    # Si por alguna razón authenticate_local da OK pero no existe en BD
-                    messages.error(request, "El usuario autenticó, pero no existe en la base de datos.")
+                    messages.error(
+                        request,
+                        "El usuario autenticó, pero no existe en la base de datos.",
+                    )
                     return redirect("core:login")
+
+                if not u.Activo:
+                    messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+                    return redirect("core:login")
+
+                # 3) Guardar sesión consistente con tu BD
+                request.session["usuario"] = u.Correo_electronico   # ✅ correo real
+                request.session["tipo"] = u.Tipo                    # ✅ "Administrador" o "General"
+                request.session["id_usuario"] = u.ID_Usuario        # ✅ FK para proyectos
 
                 return redirect("core:menu_principal")
 
@@ -50,7 +57,6 @@ def login_view(request):
             messages.error(request, "Revise el formulario e intente nuevamente.")
 
     return render(request, "core/login.html", {"form": form})
-
 
 
 # ------------------------
@@ -81,15 +87,66 @@ def ayuda_view(request):
 
 
 # =========================================================
-#                    MÓDULOS (PLACEHOLDERS)
+#                    MÓDULOS
 # =========================================================
 
 # ------------------------
 # Módulo Proyecto
 # ------------------------
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def proyecto_alta(request):
-    return render(request, "core/pages/proyecto_alta.html")
+    """
+    Alta REAL de proyecto:
+    - Guarda en la tabla 'proyectos'
+    - Asigna automáticamente el ID_Usuario del que inició sesión
+    """
+    # Datos de sesión para mostrar en el template
+    session_usuario = request.session.get("usuario")
+    session_tipo = request.session.get("tipo")
+    session_id_usuario = request.session.get("id_usuario")
+
+    # Validación fuerte de sesión
+    if not session_id_usuario:
+        messages.error(request, "Sesión incompleta. Inicia sesión nuevamente.")
+        return redirect("core:logout")
+
+    # Traer usuario real
+    user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
+    if not user:
+        messages.error(request, "No se encontró el usuario en la base de datos. Inicia sesión de nuevo.")
+        return redirect("core:logout")
+
+    if not user.Activo:
+        messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+        return redirect("core:logout")
+
+    # Formulario
+    form = ProyectoCreateForm(request.POST or None)
+
+    if request.method == "POST":
+        if form.is_valid():
+            proyecto = form.save(commit=False)
+
+            # Relación: el proyecto pertenece al usuario logueado
+            proyecto.ID_Usuario = user
+
+            proyecto.save()
+
+            messages.success(request, "✅ Proyecto registrado correctamente.")
+            return redirect("core:proyecto_alta")
+        else:
+            messages.error(request, "Revisa el formulario e intenta nuevamente.")
+
+    return render(
+        request,
+        "core/pages/proyecto_alta.html",
+        {
+            "form": form,
+            "session_usuario": session_usuario,
+            "session_tipo": session_tipo,
+        },
+    )
 
 
 @require_session_login
@@ -182,7 +239,7 @@ def cuenta_view(request):
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
     """
-    Alta REAL en la tabla Usuario (PostgreSQL).
+    Alta REAL en la tabla Usuario.
     Guarda y hashea la contraseña.
     """
     form = UsuarioCreateForm(request.POST or None)

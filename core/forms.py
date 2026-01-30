@@ -76,6 +76,9 @@ class UsuarioCreateForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        """
+        Guarda contraseña hasheada en el campo Contrasena usando set_password() del modelo Usuario.
+        """
         user: Usuario = super().save(commit=False)
         raw_password = self.cleaned_data.get("password")
         user.set_password(raw_password)
@@ -83,6 +86,36 @@ class UsuarioCreateForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+# ======================================================
+# FORM DE BÚSQUEDA (para Modificación)
+# ======================================================
+class UsuarioSearchForm(forms.Form):
+    buscar_id = forms.IntegerField(
+        label="Buscar por ID",
+        required=False,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "placeholder": "ID del usuario"}
+        ),
+    )
+    buscar_correo = forms.EmailField(
+        label="Buscar por correo",
+        required=False,
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "Correo electrónico"}
+        ),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        buscar_id = cleaned.get("buscar_id")
+        buscar_correo = cleaned.get("buscar_correo")
+
+        if not buscar_id and not buscar_correo:
+            raise ValidationError("Ingresa un ID o un correo para buscar.")
+
+        return cleaned
 
 
 # ======================================================
@@ -130,15 +163,21 @@ class UsuarioUpdateForm(forms.ModelForm):
         p1 = cleaned.get("new_password")
         p2 = cleaned.get("new_password_confirm")
 
+        # Si intenta cambiar contraseña, ambos deben venir y coincidir
         if p1 or p2:
             if not p1 or not p2:
-                raise forms.ValidationError("Para cambiar la contraseña, llena ambos campos.")
+                raise forms.ValidationError(
+                    "Para cambiar la contraseña, llena ambos campos."
+                )
             if p1 != p2:
                 self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
 
         return cleaned
 
     def clean_Correo_electronico(self):
+        """
+        Evita el error de 'correo ya existe' cuando el usuario no cambia su propio correo.
+        """
         correo = self.cleaned_data["Correo_electronico"]
         qs = Usuario.objects.filter(Correo_electronico=correo)
 
@@ -150,6 +189,9 @@ class UsuarioUpdateForm(forms.ModelForm):
         return correo
 
     def save(self, commit=True):
+        """
+        Si viene nueva contraseña, se hashea y se guarda.
+        """
         user: Usuario = super().save(commit=False)
         new_password = self.cleaned_data.get("new_password")
 
@@ -160,8 +202,6 @@ class UsuarioUpdateForm(forms.ModelForm):
             user.save()
         return user
 
-from .models import Proyecto
-
 
 # ======================================================
 # ALTA DE PROYECTO
@@ -169,6 +209,8 @@ from .models import Proyecto
 class ProyectoCreateForm(forms.ModelForm):
     class Meta:
         model = Proyecto
+        # IMPORTANTE: NO incluimos ID_Usuario en el form.
+        # Se asigna en la vista con el usuario en sesión.
         fields = [
             "Nombre_Proyecto",
             "Nombre_Empresa",
@@ -188,7 +230,10 @@ class ProyectoCreateForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "Dirección"}
             ),
             "Coordenadas": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Latitud, Longitud"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)",
+                }
             ),
             "Voltaje_Nominal": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Voltaje nominal"}
@@ -205,3 +250,13 @@ class ProyectoCreateForm(forms.ModelForm):
         if fases < 1 or fases > 3:
             raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
         return fases
+
+    def clean_Coordenadas(self):
+        """
+        Opcional: valida que tenga coma. Ej: "19.43, -99.13"
+        No convierte a float, solo valida formato básico.
+        """
+        coord = (self.cleaned_data.get("Coordenadas") or "").strip()
+        if "," not in coord:
+            raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
+        return coord
