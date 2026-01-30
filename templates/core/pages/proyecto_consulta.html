@@ -1,9 +1,106 @@
 {% extends "core/base.html" %}
+{% load static %}
+
 {% block title %}SWGFV - Consulta de Proyectos{% endblock %}
 
 {% block content %}
-<div class="container my-4">
+<header class="swgfv-header">
+  <div class="container-fluid py-2">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <img class="brand-logo" src="{% static 'core/img/logo1.png' %}" alt="Logo Fortia Pv">
+        <h1 class="brand-title">SWGFV - Sistema web de gestión de proyectos fotovoltaicos</h1>
+      </div>
 
+      <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center gap-2 ms-md-auto">
+        <div class="text-md-end">
+          <div class="fw-bold text-primary-emphasis">Usuario: {{ session_usuario }}</div>
+          <div class="fw-bold text-primary-emphasis">Tipo: {{ session_tipo }}</div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-swgfv" href="{% url 'core:ayuda' %}">Ayuda</a>
+          <button class="btn btn-swgfv" id="cerrarSesionBtn" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg swgfv-nav">
+    <div class="container-fluid">
+      <button class="navbar-toggler bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#swgfvNavbar">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="swgfvNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Proyectos</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{% url 'core:proyecto_alta' %}">Alta</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:proyecto_consulta' %}">Consulta</a></li>
+              {% if session_tipo == "Administrador" %}
+                <li><a class="dropdown-item" href="{% url 'core:proyecto_modificacion' %}">Modificación</a></li>
+              {% endif %}
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Dimensionamiento</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{% url 'core:dimensionamiento_calculo_modulos' %}">Cálculo de módulos</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:dimensionamiento_dimensionamiento' %}">Dimensionamiento</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Cálculos</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{% url 'core:calculo_dc' %}">Corriente continua</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:calculo_ac' %}">Corriente alterna</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:calculo_caida_tension' %}">Caída de tensión</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Recursos</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{% url 'core:recursos_conceptos' %}">Conceptos</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:recursos_tablas' %}">Tablas</a></li>
+
+              {% if session_tipo == "Administrador" %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'core:recursos_alta_concepto' %}">Alta de Concepto</a></li>
+                <li><a class="dropdown-item" href="{% url 'core:recursos_modificacion_concepto' %}">Modificación de Concepto</a></li>
+                <li><a class="dropdown-item" href="{% url 'core:recursos_alta_tabla' %}">Alta de tabla</a></li>
+                <li><a class="dropdown-item" href="{% url 'core:recursos_modificacion_tabla' %}">Modificación de tabla</a></li>
+              {% endif %}
+            </ul>
+          </li>
+
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'core:cuenta' %}">Cuenta</a>
+          </li>
+
+          {% if session_tipo == "Administrador" %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Gestión de usuarios</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{% url 'core:gestion_usuarios_alta' %}">Alta</a></li>
+              <li><a class="dropdown-item" href="{% url 'core:gestion_usuarios_modificacion' %}">Modificación</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+        </ul>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<div class="container my-4">
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -13,57 +110,61 @@
     {% endfor %}
   {% endif %}
 
-  <div class="card shadow-sm border-0">
+  <div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius:12px;">
     <div class="card-body">
-
-      <h2 class="h5 fw-bold text-primary-emphasis mb-3">📋 Consulta de Proyectos</h2>
+      <h2 class="h5 fw-bold text-primary-emphasis mb-3">Consulta de Proyectos</h2>
 
       {% if proyectos %}
-      <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-          <thead class="table-success">
-            <tr>
-              <th>ID</th>
-              <th>Proyecto</th>
-              <th>Empresa</th>
-              <th>Dirección</th>
-              <th>Coordenadas</th>
-              <th>Voltaje</th>
-              <th>Fases</th>
-
-              {% if session_tipo == "Administrador" %}
-              <th>Usuario</th>
-              {% endif %}
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for p in proyectos %}
-            <tr>
-              <td>{{ p.ID_Proyecto }}</td>
-              <td>{{ p.Nombre_Proyecto }}</td>
-              <td>{{ p.Nombre_Empresa|default:"—" }}</td>
-              <td>{{ p.Direccion }}</td>
-              <td>{{ p.Coordenadas }}</td>
-              <td>{{ p.Voltaje_Nominal }}</td>
-              <td>{{ p.Numero_Fases }}</td>
-
-              {% if session_tipo == "Administrador" %}
-              <td>{{ p.ID_Usuario.Correo_electronico }}</td>
-              {% endif %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Proyecto</th>
+                <th>Empresa</th>
+                <th>Dirección</th>
+                <th>Coordenadas</th>
+                <th>Voltaje</th>
+                <th>Fases</th>
+                {% if session_tipo == "Administrador" %}
+                  <th>Usuario</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in proyectos %}
+                <tr>
+                  <td>{{ p.ID_Proyecto }}</td>
+                  <td>{{ p.Nombre_Proyecto }}</td>
+                  <td>{{ p.Nombre_Empresa|default:"-" }}</td>
+                  <td>{{ p.Direccion }}</td>
+                  <td>{{ p.Coordenadas }}</td>
+                  <td>{{ p.Voltaje_Nominal }}</td>
+                  <td>{{ p.Numero_Fases }}</td>
+                  {% if session_tipo == "Administrador" %}
+                    <td>{{ p.ID_Usuario.Correo_electronico }}</td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
         <div class="alert alert-info mb-0">
-          No hay proyectos registrados.
+          No hay proyectos registrados para mostrar.
         </div>
       {% endif %}
-
     </div>
   </div>
-
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("cerrarSesionBtn").addEventListener("click", function() {
+  if (confirm("¿Desea cerrar sesión y regresar al inicio?")) {
+    window.location.href = "{% url 'core:logout' %}";
+  }
+});
+</script>
 {% endblock %}
