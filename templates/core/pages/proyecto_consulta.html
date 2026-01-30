@@ -1,4 +1,69 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+{% extends "core/base.html" %}
+{% block title %}SWGFV - Consulta de Proyectos{% endblock %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block content %}
+<div class="container my-4">
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+
+      <h2 class="h5 fw-bold text-primary-emphasis mb-3">📋 Consulta de Proyectos</h2>
+
+      {% if proyectos %}
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+          <thead class="table-success">
+            <tr>
+              <th>ID</th>
+              <th>Proyecto</th>
+              <th>Empresa</th>
+              <th>Dirección</th>
+              <th>Coordenadas</th>
+              <th>Voltaje</th>
+              <th>Fases</th>
+
+              {% if session_tipo == "Administrador" %}
+              <th>Usuario</th>
+              {% endif %}
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for p in proyectos %}
+            <tr>
+              <td>{{ p.ID_Proyecto }}</td>
+              <td>{{ p.Nombre_Proyecto }}</td>
+              <td>{{ p.Nombre_Empresa|default:"—" }}</td>
+              <td>{{ p.Direccion }}</td>
+              <td>{{ p.Coordenadas }}</td>
+              <td>{{ p.Voltaje_Nominal }}</td>
+              <td>{{ p.Numero_Fases }}</td>
+
+              {% if session_tipo == "Administrador" %}
+              <td>{{ p.ID_Usuario.Correo_electronico }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="alert alert-info mb-0">
+          No hay proyectos registrados.
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
