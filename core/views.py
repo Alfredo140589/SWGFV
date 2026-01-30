@@ -1,3 +1,5 @@
+import logging
+
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
@@ -8,6 +10,9 @@ from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm, ProyectoCrea
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
+
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------
@@ -26,12 +31,11 @@ def login_view(request):
             usuario_input = form.cleaned_data["usuario"]  # normalmente correo
             password = form.cleaned_data["password"]
 
-            # 1) Autenticación local (tu lógica actual)
+            # 1) Autenticación local
             user_auth = authenticate_local(usuario_input, password)
 
             if user_auth:
                 # 2) Buscar el usuario real en tu tabla "usuarios"
-                #    (asumimos que el login es por Correo_electronico)
                 try:
                     u = Usuario.objects.get(Correo_electronico=usuario_input)
                 except Usuario.DoesNotExist:
@@ -42,15 +46,13 @@ def login_view(request):
                     return redirect("core:login")
 
                 if not u.Activo:
-                    messages.error(
-                        request, "Tu usuario está inactivo. Contacta al administrador."
-                    )
+                    messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
                     return redirect("core:login")
 
                 # 3) Guardar sesión consistente con tu BD
-                request.session["usuario"] = u.Correo_electronico  # ✅ correo real
-                request.session["tipo"] = u.Tipo  # ✅ "Administrador" o "General"
-                request.session["id_usuario"] = u.ID_Usuario  # ✅ FK para proyectos
+                request.session["usuario"] = u.Correo_electronico
+                request.session["tipo"] = u.Tipo
+                request.session["id_usuario"] = u.ID_Usuario
 
                 return redirect("core:menu_principal")
 
@@ -89,12 +91,9 @@ def ayuda_view(request):
 
 
 # =========================================================
-#                    MÓDULOS
+#                    MÓDULO PROYECTO
 # =========================================================
 
-# ------------------------
-# Módulo Proyecto
-# ------------------------
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_alta(request):
@@ -113,9 +112,7 @@ def proyecto_alta(request):
 
     user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
     if not user:
-        messages.error(
-            request, "No se encontró el usuario en la base de datos. Inicia sesión de nuevo."
-        )
+        messages.error(request, "No se encontró el usuario en la base de datos. Inicia sesión de nuevo.")
         return redirect("core:logout")
 
     if not user.Activo:
@@ -127,7 +124,7 @@ def proyecto_alta(request):
     if request.method == "POST":
         if form.is_valid():
             proyecto = form.save(commit=False)
-            proyecto.ID_Usuario = user  # ✅ FK
+            proyecto.ID_Usuario = user
             proyecto.save()
 
             messages.success(request, "✅ Proyecto registrado correctamente.")
@@ -150,37 +147,53 @@ def proyecto_alta(request):
 def proyecto_consulta(request):
     """
     Consulta REAL de proyectos:
-    - General: solo sus proyectos
-    - Administrador: todos los proyectos
+    - Usuario General: solo ve sus proyectos
+    - Administrador: ve todos, o filtra por usuario_id
     """
-    session_id_usuario = request.session.get("id_usuario")
-    session_tipo = request.session.get("tipo")
+    try:
+        session_usuario = request.session.get("usuario")
+        session_tipo = request.session.get("tipo")
+        session_id_usuario = request.session.get("id_usuario")
 
-    if not session_id_usuario:
-        messages.error(request, "Sesión inválida. Inicia sesión nuevamente.")
-        return redirect("core:logout")
+        if not session_id_usuario:
+            messages.error(request, "Sesión incompleta. Inicia sesión nuevamente.")
+            return redirect("core:logout")
 
-    if session_tipo == "Administrador":
-        proyectos = (
-            Proyecto.objects.select_related("ID_Usuario")
-            .all()
-            .order_by("-ID_Proyecto")
+        user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
+        if not user:
+            messages.error(request, "No se encontró el usuario en BD. Inicia sesión de nuevo.")
+            return redirect("core:logout")
+
+        if not user.Activo:
+            messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+            return redirect("core:logout")
+
+        filtro_usuario_id = request.GET.get("usuario_id", "").strip()
+
+        if session_tipo == "Administrador":
+            proyectos = Proyecto.objects.select_related("ID_Usuario").all().order_by("-ID_Proyecto")
+            if filtro_usuario_id:
+                proyectos = proyectos.filter(ID_Usuario__ID_Usuario=filtro_usuario_id)
+        else:
+            proyectos = Proyecto.objects.select_related("ID_Usuario").filter(
+                ID_Usuario=user
+            ).order_by("-ID_Proyecto")
+
+        return render(
+            request,
+            "core/pages/proyecto_consulta.html",
+            {
+                "proyectos": proyectos,
+                "session_usuario": session_usuario,
+                "session_tipo": session_tipo,
+                "filtro_usuario_id": filtro_usuario_id,
+            },
         )
-    else:
-        proyectos = (
-            Proyecto.objects.select_related("ID_Usuario")
-            .filter(ID_Usuario_id=session_id_usuario)
-            .order_by("-ID_Proyecto")
-        )
 
-    return render(
-        request,
-        "core/pages/proyecto_consulta.html",
-        {
-            "proyectos": proyectos,
-            "session_tipo": session_tipo,
-        },
-    )
+    except Exception:
+        logger.exception("ERROR en proyecto_consulta")
+        messages.error(request, "Ocurrió un error al cargar la consulta. Revisa Logs en Render.")
+        return redirect("core:menu_principal")
 
 
 @require_admin
@@ -188,9 +201,10 @@ def proyecto_modificacion(request):
     return render(request, "core/pages/proyecto_modificacion.html")
 
 
-# ------------------------
-# Módulo Dimensionamiento
-# ------------------------
+# =========================================================
+# PLACEHOLDERS RESTO MÓDULOS
+# =========================================================
+
 @require_session_login
 def dimensionamiento_calculo_modulos(request):
     return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
@@ -201,9 +215,6 @@ def dimensionamiento_dimensionamiento(request):
     return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
 
 
-# ------------------------
-# Módulo Cálculo
-# ------------------------
 @require_session_login
 def calculo_dc(request):
     return render(request, "core/pages/calculo_dc.html")
@@ -219,9 +230,6 @@ def calculo_caida_tension(request):
     return render(request, "core/pages/calculo_caida_tension.html")
 
 
-# ------------------------
-# Módulo Recursos
-# ------------------------
 @require_session_login
 def recursos_conceptos(request):
     return render(request, "core/pages/recursos_conceptos.html")
@@ -252,24 +260,18 @@ def recursos_modificacion_tabla(request):
     return render(request, "core/pages/recursos_modificacion_tabla.html")
 
 
-# ------------------------
-# Cuenta
-# ------------------------
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")
 
 
 # =========================================================
-#             GESTIÓN DE USUARIOS (REAL CON BD)
+# GESTIÓN DE USUARIOS (BD)
 # =========================================================
+
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
-    """
-    Alta REAL en la tabla Usuario.
-    Guarda y hashea la contraseña.
-    """
     form = UsuarioCreateForm(request.POST or None)
 
     if request.method == "POST":
@@ -289,11 +291,6 @@ def gestion_usuarios_alta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_modificacion(request):
-    """
-    - Búsqueda por ID o por Nombre/Apellidos (GET)
-    - Edición real (POST)
-    - Desactivación (POST) -> Activo=False
-    """
     q_id = request.GET.get("id", "").strip()
     q_nombre = request.GET.get("nombre", "").strip()
     q_ap = request.GET.get("ap", "").strip()
@@ -309,7 +306,6 @@ def gestion_usuarios_modificacion(request):
             seleccionado = Usuario.objects.get(ID_Usuario=q_id)
         except Usuario.DoesNotExist:
             messages.error(request, "Usuario no encontrado por ID.")
-
     elif q_nombre or q_ap or q_am:
         qs = Usuario.objects.all()
         if q_nombre:
@@ -324,9 +320,7 @@ def gestion_usuarios_modificacion(request):
         elif qs.count() == 0:
             messages.error(request, "No se encontró usuario con esos datos.")
         else:
-            messages.info(
-                request, "Se encontraron varios resultados. Selecciona desde la lista."
-            )
+            messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
 
     if seleccionado:
         if request.method == "POST":
