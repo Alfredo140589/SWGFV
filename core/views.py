@@ -4,7 +4,12 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
-from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm, ProyectoCreateForm
+from .forms import (
+    LoginForm,
+    UsuarioCreateForm,
+    UsuarioUpdateForm,
+    ProyectoCreateForm,
+)
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
@@ -46,9 +51,9 @@ def login_view(request):
                     return redirect("core:login")
 
                 # 3) Guardar sesión consistente con tu BD
-                request.session["usuario"] = u.Correo_electronico   # ✅ correo real
-                request.session["tipo"] = u.Tipo                    # ✅ "Administrador" o "General"
-                request.session["id_usuario"] = u.ID_Usuario        # ✅ FK para proyectos
+                request.session["usuario"] = u.Correo_electronico   # correo real
+                request.session["tipo"] = u.Tipo                    # "Administrador" o "General"
+                request.session["id_usuario"] = u.ID_Usuario        # FK para proyectos
 
                 return redirect("core:menu_principal")
 
@@ -101,9 +106,7 @@ def proyecto_alta(request):
     - Guarda en la tabla 'proyectos'
     - Asigna automáticamente el ID_Usuario del que inició sesión
     """
-    # Datos de sesión para mostrar en el template
-    session_usuario = request.session.get("usuario")
-    session_tipo = request.session.get("tipo")
+
     session_id_usuario = request.session.get("id_usuario")
 
     # Validación fuerte de sesión
@@ -134,18 +137,14 @@ def proyecto_alta(request):
             proyecto.save()
 
             messages.success(request, "✅ Proyecto registrado correctamente.")
-            return redirect("core:proyecto_alta")
+            return redirect("core:proyecto_consulta")
         else:
             messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
     return render(
         request,
         "core/pages/proyecto_alta.html",
-        {
-            "form": form,
-            "session_usuario": session_usuario,
-            "session_tipo": session_tipo,
-        },
+        {"form": form},
     )
 
 

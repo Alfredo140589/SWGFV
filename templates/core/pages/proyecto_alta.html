@@ -4,8 +4,7 @@
 {% block title %}SWGFV - Alta de Proyecto{% endblock %}
 
 {% block content %}
-
-<!-- HEADER -->
+<!-- HEADER + NAV (mismo estilo que tu menú) -->
 <header class="swgfv-header">
   <div class="container-fluid py-2">
     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
@@ -30,29 +29,28 @@
     </div>
   </div>
 
-  <!-- NAVBAR RESPONSIVE -->
   <nav class="navbar navbar-expand-lg swgfv-nav">
     <div class="container-fluid">
-      <button class="navbar-toggler bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#swgfvNavbar">
+      <button class="navbar-toggler bg-light" type="button"
+              data-bs-toggle="collapse" data-bs-target="#swgfvNavbar"
+              aria-controls="swgfvNavbar" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
 
       <div class="collapse navbar-collapse" id="swgfvNavbar">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-          <!-- PROYECTOS -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Proyectos</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:proyecto_alta' %}">Alta</a></li>
               <li><a class="dropdown-item" href="{% url 'core:proyecto_consulta' %}">Consulta</a></li>
-              {% if session_tipo == "Administrador" %}
+              {% if session_tipo|trim == "Administrador" %}
                 <li><a class="dropdown-item" href="{% url 'core:proyecto_modificacion' %}">Modificación</a></li>
               {% endif %}
             </ul>
           </li>
 
-          <!-- DIMENSIONAMIENTO -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Dimensionamiento</a>
             <ul class="dropdown-menu">
@@ -61,7 +59,6 @@
             </ul>
           </li>
 
-          <!-- CÁLCULOS -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Cálculos</a>
             <ul class="dropdown-menu">
@@ -71,14 +68,13 @@
             </ul>
           </li>
 
-          <!-- RECURSOS -->
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Recursos</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:recursos_conceptos' %}">Conceptos</a></li>
               <li><a class="dropdown-item" href="{% url 'core:recursos_tablas' %}">Tablas</a></li>
 
-              {% if session_tipo == "Administrador" %}
+              {% if session_tipo|trim == "Administrador" %}
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="{% url 'core:recursos_alta_concepto' %}">Alta de Concepto</a></li>
                 <li><a class="dropdown-item" href="{% url 'core:recursos_modificacion_concepto' %}">Modificación de Concepto</a></li>
@@ -88,13 +84,11 @@
             </ul>
           </li>
 
-          <!-- CUENTA -->
           <li class="nav-item">
             <a class="nav-link" href="{% url 'core:cuenta' %}">Cuenta</a>
           </li>
 
-          <!-- GESTIÓN USUARIOS (ADMIN) -->
-          {% if session_tipo == "Administrador" %}
+          {% if session_tipo|trim == "Administrador" %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Gestión de usuarios</a>
             <ul class="dropdown-menu">
@@ -122,61 +116,63 @@
     {% endfor %}
   {% endif %}
 
-  <div class="card shadow-sm border-0">
-    <div class="card-body">
-      <h2 class="h5 fw-bold text-primary-emphasis mb-3">Alta de Proyecto</h2>
+  <div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius: 12px;">
+    <div class="card-body p-4">
 
-      <form method="POST" novalidate>
+      <h2 class="h4 fw-bold text-primary-emphasis mb-4">Alta de Proyecto</h2>
+
+      <!-- IMPORTANTE: aquí sí se imprimen LOS INPUTS -->
+      <form method="post" novalidate>
         {% csrf_token %}
 
         <div class="row g-3">
           <div class="col-12">
-            <label class="form-label fw-bold text-primary-emphasis">Nombre del proyecto</label>
+            <label class="form-label fw-semibold">{{ form.Nombre_Proyecto.label }}</label>
             {{ form.Nombre_Proyecto }}
-            {% if form.Nombre_Proyecto.errors %}<div class="text-danger">{{ form.Nombre_Proyecto.errors }}</div>{% endif %}
+            {% if form.Nombre_Proyecto.errors %}<div class="text-danger small">{{ form.Nombre_Proyecto.errors }}</div>{% endif %}
           </div>
 
           <div class="col-12">
-            <label class="form-label fw-bold text-primary-emphasis">Empresa (opcional)</label>
+            <label class="form-label fw-semibold">{{ form.Nombre_Empresa.label }}</label>
             {{ form.Nombre_Empresa }}
-            {% if form.Nombre_Empresa.errors %}<div class="text-danger">{{ form.Nombre_Empresa.errors }}</div>{% endif %}
+            {% if form.Nombre_Empresa.errors %}<div class="text-danger small">{{ form.Nombre_Empresa.errors }}</div>{% endif %}
           </div>
 
           <div class="col-12">
-            <label class="form-label fw-bold text-primary-emphasis">Dirección</label>
+            <label class="form-label fw-semibold">{{ form.Direccion.label }}</label>
             {{ form.Direccion }}
-            {% if form.Direccion.errors %}<div class="text-danger">{{ form.Direccion.errors }}</div>{% endif %}
+            {% if form.Direccion.errors %}<div class="text-danger small">{{ form.Direccion.errors }}</div>{% endif %}
           </div>
 
-          <div class="col-12">
-            <label class="form-label fw-bold text-primary-emphasis">Ubicación (Coordenadas)</label>
+          <div class="col-12 col-lg-6">
+            <label class="form-label fw-semibold">{{ form.Coordenadas.label }}</label>
             {{ form.Coordenadas }}
-            {% if form.Coordenadas.errors %}<div class="text-danger">{{ form.Coordenadas.errors }}</div>{% endif %}
+            {% if form.Coordenadas.errors %}<div class="text-danger small">{{ form.Coordenadas.errors }}</div>{% endif %}
           </div>
 
-          <div class="col-md-6">
-            <label class="form-label fw-bold text-primary-emphasis">Voltaje nominal</label>
+          <div class="col-12 col-lg-3">
+            <label class="form-label fw-semibold">{{ form.Voltaje_Nominal.label }}</label>
             {{ form.Voltaje_Nominal }}
-            {% if form.Voltaje_Nominal.errors %}<div class="text-danger">{{ form.Voltaje_Nominal.errors }}</div>{% endif %}
+            {% if form.Voltaje_Nominal.errors %}<div class="text-danger small">{{ form.Voltaje_Nominal.errors }}</div>{% endif %}
           </div>
 
-          <div class="col-md-6">
-            <label class="form-label fw-bold text-primary-emphasis">Número de fases</label>
+          <div class="col-12 col-lg-3">
+            <label class="form-label fw-semibold">{{ form.Numero_Fases.label }}</label>
             {{ form.Numero_Fases }}
-            {% if form.Numero_Fases.errors %}<div class="text-danger">{{ form.Numero_Fases.errors }}</div>{% endif %}
+            {% if form.Numero_Fases.errors %}<div class="text-danger small">{{ form.Numero_Fases.errors }}</div>{% endif %}
           </div>
         </div>
 
-        <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center mt-4">
-          <button type="reset" class="btn btn-danger px-4">Cancelar</button>
-          <button type="submit" class="btn btn-success px-4">Guardar</button>
+        <div class="d-flex gap-2 justify-content-center mt-4">
+          <a href="{% url 'core:menu_principal' %}" class="btn btn-danger">Cancelar</a>
+          <button type="submit" class="btn btn-success">Guardar</button>
         </div>
-
       </form>
+
     </div>
   </div>
-</div>
 
+</div>
 {% endblock %}
 
 {% block scripts %}
