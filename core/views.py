@@ -1,23 +1,57 @@
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 
-from .forms import (
-    LoginForm,
-    UsuarioCreateForm,
-    UsuarioUpdateForm,
-    ProyectoCreateForm,
-)
+from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm, ProyectoCreateForm
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
 
 
-# =========================================================
+# ------------------------
+# DEBUG SESIÓN (TEMPORAL)
+# ------------------------
+@require_session_login
+def debug_sesion(request):
+    """
+    Muestra lo que hay en sesión y si el usuario existe en BD.
+    Úsalo SOLO para depurar.
+    """
+    data = {
+        "session_usuario": request.session.get("usuario"),
+        "session_tipo": request.session.get("tipo"),
+        "session_id_usuario": request.session.get("id_usuario"),
+        "session_keys": list(request.session.keys()),
+    }
+
+    user = None
+    try:
+        if data["session_id_usuario"]:
+            user = Usuario.objects.filter(ID_Usuario=data["session_id_usuario"]).first()
+    except Exception as e:
+        data["error_busqueda_usuario"] = str(e)
+
+    if user:
+        data["usuario_en_bd"] = True
+        data["usuario_bd_ID_Usuario"] = user.ID_Usuario
+        data["usuario_bd_Correo"] = user.Correo_electronico
+        data["usuario_bd_Tipo"] = user.Tipo
+        data["usuario_bd_Activo"] = user.Activo
+    else:
+        data["usuario_en_bd"] = False
+
+    # Devuelve en texto plano para que sea rápido de revisar
+    lines = []
+    for k, v in data.items():
+        lines.append(f"{k}: {v}")
+    return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+# ------------------------
 # LOGIN
-# =========================================================
+# ------------------------
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
@@ -27,7 +61,7 @@ def login_view(request):
 
     if request.method == "POST":
         if form.is_valid():
-            usuario_input = form.cleaned_data["usuario"]
+            usuario_input = form.cleaned_data["usuario"]  # correo
             password = form.cleaned_data["password"]
 
             user_auth = authenticate_local(usuario_input, password)
@@ -36,17 +70,11 @@ def login_view(request):
                 try:
                     u = Usuario.objects.get(Correo_electronico=usuario_input)
                 except Usuario.DoesNotExist:
-                    messages.error(
-                        request,
-                        "El usuario autenticó, pero no existe en la base de datos.",
-                    )
+                    messages.error(request, "El usuario autenticó, pero no existe en la base de datos.")
                     return redirect("core:login")
 
                 if not u.Activo:
-                    messages.error(
-                        request,
-                        "Tu usuario está inactivo. Contacta al administrador.",
-                    )
+                    messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
                     return redirect("core:login")
 
                 request.session["usuario"] = u.Correo_electronico
@@ -55,24 +83,24 @@ def login_view(request):
 
                 return redirect("core:menu_principal")
 
-            messages.error(request, "Usuario o contraseña incorrectos.")
+            messages.error(request, "Usuario o contraseña incorrectos. Intente de nuevo.")
         else:
-            messages.error(request, "Revisa el formulario.")
+            messages.error(request, "Revise el formulario e intente nuevamente.")
 
     return render(request, "core/login.html", {"form": form})
 
 
-# =========================================================
+# ------------------------
 # MENÚ PRINCIPAL
-# =========================================================
+# ------------------------
 @require_session_login
 def menu_principal(request):
     return render(request, "core/menu_principal.html")
 
 
-# =========================================================
-# LOGOUT / AYUDA / RECUPERAR
-# =========================================================
+# ------------------------
+# LOGOUT / RECUPERAR / AYUDA
+# ------------------------
 @require_session_login
 def logout_view(request):
     request.session.flush()
@@ -89,40 +117,25 @@ def ayuda_view(request):
     return render(request, "core/ayuda.html")
 
 
-# =========================================================
-# 🔎 DEBUG SESIÓN (PUNTO 4)
-# =========================================================
-@require_session_login
-def debug_sesion(request):
-    """
-    Vista SOLO para depuración.
-    Muestra exactamente qué hay en la sesión.
-    """
-    return JsonResponse(
-        {
-            "usuario": request.session.get("usuario"),
-            "tipo": request.session.get("tipo"),
-            "id_usuario": request.session.get("id_usuario"),
-        },
-        json_dumps_params={"indent": 2},
-    )
-
-
-# =========================================================
-# MÓDULO PROYECTOS
-# =========================================================
+# ------------------------
+# MÓDULO PROYECTO
+# ------------------------
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_alta(request):
     session_id_usuario = request.session.get("id_usuario")
 
     if not session_id_usuario:
-        messages.error(request, "Sesión inválida. Inicia sesión de nuevo.")
+        messages.error(request, "Sesión incompleta. Inicia sesión nuevamente.")
         return redirect("core:logout")
 
     user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
     if not user:
-        messages.error(request, "Usuario no encontrado.")
+        messages.error(request, "No se encontró el usuario en BD. Inicia sesión de nuevo.")
+        return redirect("core:logout")
+
+    if not user.Activo:
+        messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
         return redirect("core:logout")
 
     form = ProyectoCreateForm(request.POST or None)
@@ -132,46 +145,40 @@ def proyecto_alta(request):
             proyecto = form.save(commit=False)
             proyecto.ID_Usuario = user
             proyecto.save()
-
-            messages.success(request, "Proyecto registrado correctamente.")
+            messages.success(request, "✅ Proyecto registrado correctamente.")
             return redirect("core:proyecto_alta")
         else:
-            messages.error(request, "Revisa el formulario.")
+            messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
     return render(
         request,
         "core/pages/proyecto_alta.html",
         {
             "form": form,
-            "session_usuario": request.session.get("usuario"),
-            "session_tipo": request.session.get("tipo"),
         },
     )
 
 
 @require_session_login
 def proyecto_consulta(request):
-    session_id_usuario = request.session.get("id_usuario")
+    """
+    Consulta real:
+    - Administrador ve todos
+    - General ve solo sus proyectos
+    """
     session_tipo = request.session.get("tipo")
-
-    if not session_id_usuario:
-        messages.error(request, "Sesión inválida.")
-        return redirect("core:logout")
+    session_id_usuario = request.session.get("id_usuario")
 
     if session_tipo == "Administrador":
-        proyectos = Proyecto.objects.select_related("ID_Usuario").all()
+        proyectos = Proyecto.objects.select_related("ID_Usuario").all().order_by("-ID_Proyecto")
     else:
-        proyectos = Proyecto.objects.select_related("ID_Usuario").filter(
-            ID_Usuario_id=session_id_usuario
-        )
+        proyectos = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-ID_Proyecto")
 
     return render(
         request,
         "core/pages/proyecto_consulta.html",
         {
             "proyectos": proyectos,
-            "session_usuario": request.session.get("usuario"),
-            "session_tipo": session_tipo,
         },
     )
 
@@ -181,9 +188,9 @@ def proyecto_modificacion(request):
     return render(request, "core/pages/proyecto_modificacion.html")
 
 
-# =========================================================
-# OTROS MÓDULOS (PLACEHOLDER)
-# =========================================================
+# ------------------------
+# DIMENSIONAMIENTO
+# ------------------------
 @require_session_login
 def dimensionamiento_calculo_modulos(request):
     return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
@@ -194,6 +201,9 @@ def dimensionamiento_dimensionamiento(request):
     return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
 
 
+# ------------------------
+# CÁLCULOS
+# ------------------------
 @require_session_login
 def calculo_dc(request):
     return render(request, "core/pages/calculo_dc.html")
@@ -209,6 +219,9 @@ def calculo_caida_tension(request):
     return render(request, "core/pages/calculo_caida_tension.html")
 
 
+# ------------------------
+# RECURSOS
+# ------------------------
 @require_session_login
 def recursos_conceptos(request):
     return render(request, "core/pages/recursos_conceptos.html")
@@ -239,6 +252,103 @@ def recursos_modificacion_tabla(request):
     return render(request, "core/pages/recursos_modificacion_tabla.html")
 
 
+# ------------------------
+# CUENTA
+# ------------------------
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")
+
+
+# ------------------------
+# GESTIÓN USUARIOS
+# ------------------------
+@require_admin
+@require_http_methods(["GET", "POST"])
+def gestion_usuarios_alta(request):
+    form = UsuarioCreateForm(request.POST or None)
+
+    if request.method == "POST":
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.set_password(form.cleaned_data["password"])
+            obj.save()
+            messages.success(request, "Usuario dado de alta correctamente.")
+            return redirect("core:gestion_usuarios_alta")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    return render(request, "core/pages/gestion_usuarios_alta.html", {"form": form})
+
+
+@require_admin
+@require_http_methods(["GET", "POST"])
+def gestion_usuarios_modificacion(request):
+    q_id = request.GET.get("id", "").strip()
+    q_nombre = request.GET.get("nombre", "").strip()
+    q_ap = request.GET.get("ap", "").strip()
+    q_am = request.GET.get("am", "").strip()
+
+    usuarios = Usuario.objects.all().order_by("ID_Usuario")
+    seleccionado = None
+    form = None
+
+    if q_id:
+        try:
+            seleccionado = Usuario.objects.get(ID_Usuario=q_id)
+        except Usuario.DoesNotExist:
+            messages.error(request, "Usuario no encontrado por ID.")
+    elif q_nombre or q_ap or q_am:
+        qs = Usuario.objects.all()
+        if q_nombre:
+            qs = qs.filter(Nombre__icontains=q_nombre)
+        if q_ap:
+            qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+        if q_am:
+            qs = qs.filter(Apellido_Materno__icontains=q_am)
+
+        if qs.count() == 1:
+            seleccionado = qs.first()
+        elif qs.count() == 0:
+            messages.error(request, "No se encontró usuario con esos datos.")
+        else:
+            messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
+
+    if seleccionado:
+        if request.method == "POST":
+            action = request.POST.get("action", "").strip()
+
+            if action == "deactivate":
+                seleccionado.Activo = False
+                seleccionado.save()
+                messages.success(request, "Usuario desactivado correctamente.")
+                return redirect("core:gestion_usuarios_modificacion")
+
+            form = UsuarioUpdateForm(request.POST, instance=seleccionado)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                new_pass = form.cleaned_data.get("new_password")
+                if new_pass:
+                    obj.set_password(new_pass)
+                obj.save()
+                messages.success(request, "Cambios guardados correctamente.")
+                url = reverse("core:gestion_usuarios_modificacion")
+                return HttpResponseRedirect(f"{url}?id={obj.ID_Usuario}")
+
+            messages.error(request, "Revisa el formulario. Hay errores.")
+        else:
+            form = UsuarioUpdateForm(instance=seleccionado)
+
+    return render(
+        request,
+        "core/pages/gestion_usuarios_modificacion.html",
+        {
+            "usuarios": usuarios,
+            "seleccionado": seleccionado,
+            "form": form,
+            "q_id": q_id,
+            "q_nombre": q_nombre,
+            "q_ap": q_ap,
+            "q_am": q_am,
+        },
+    )
