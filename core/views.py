@@ -126,16 +126,12 @@ def proyecto_alta(request):
     session_id_usuario = request.session.get("id_usuario")
 
     if not session_id_usuario:
-        messages.error(request, "Sesión incompleta. Inicia sesión nuevamente.")
+        messages.error(request, "Sesión inválida. Inicia sesión nuevamente.")
         return redirect("core:logout")
 
-    user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
-    if not user:
-        messages.error(request, "No se encontró el usuario en BD. Inicia sesión de nuevo.")
-        return redirect("core:logout")
-
-    if not user.Activo:
-        messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+    usuario = Usuario.objects.filter(ID_Usuario=session_id_usuario, Activo=True).first()
+    if not usuario:
+        messages.error(request, "Usuario no válido o inactivo.")
         return redirect("core:logout")
 
     form = ProyectoCreateForm(request.POST or None)
@@ -143,42 +139,50 @@ def proyecto_alta(request):
     if request.method == "POST":
         if form.is_valid():
             proyecto = form.save(commit=False)
-            proyecto.ID_Usuario = user
+            proyecto.ID_Usuario = usuario
             proyecto.save()
-            messages.success(request, "✅ Proyecto registrado correctamente.")
-            return redirect("core:proyecto_alta")
+            messages.success(request, "Proyecto registrado correctamente.")
+            return redirect("core:proyecto_consulta")
         else:
-            messages.error(request, "Revisa el formulario e intenta nuevamente.")
+            messages.error(request, "Formulario inválido.")
 
     return render(
         request,
         "core/pages/proyecto_alta.html",
         {
             "form": form,
+            "session_usuario": request.session.get("usuario"),
+            "session_tipo": request.session.get("tipo"),
         },
     )
 
 
 @require_session_login
 def proyecto_consulta(request):
-    """
-    Consulta real:
-    - Administrador ve todos
-    - General ve solo sus proyectos
-    """
-    session_tipo = request.session.get("tipo")
     session_id_usuario = request.session.get("id_usuario")
+    session_tipo = request.session.get("tipo")
+
+    if not session_id_usuario:
+        messages.error(request, "Sesión inválida.")
+        return redirect("core:logout")
+
+    usuario = Usuario.objects.filter(ID_Usuario=session_id_usuario, Activo=True).first()
+    if not usuario:
+        messages.error(request, "Usuario no válido.")
+        return redirect("core:logout")
 
     if session_tipo == "Administrador":
-        proyectos = Proyecto.objects.select_related("ID_Usuario").all().order_by("-ID_Proyecto")
+        proyectos = Proyecto.objects.select_related("ID_Usuario").all()
     else:
-        proyectos = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-ID_Proyecto")
+        proyectos = Proyecto.objects.filter(ID_Usuario=usuario)
 
     return render(
         request,
         "core/pages/proyecto_consulta.html",
         {
             "proyectos": proyectos,
+            "session_usuario": request.session.get("usuario"),
+            "session_tipo": session_tipo,
         },
     )
 
