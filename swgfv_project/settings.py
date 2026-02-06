@@ -25,6 +25,9 @@ CSRF_TRUSTED_ORIGINS = []
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f"https://{render_host}")
 
+# (Opcional recomendado en Render si usas https detrás de proxy)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # =========================
 # APPS
 # =========================
@@ -121,7 +124,9 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# ✅ CLAVE: en DEBUG no uses ManifestStorage
+# ✅ IMPORTANTE:
+# En PRODUCCIÓN (Render) usa Manifest (requiere collectstatic)
+# En LOCAL (DEBUG=True) NO uses Manifest para evitar "Missing staticfiles manifest entry"
 if DEBUG:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 else:
