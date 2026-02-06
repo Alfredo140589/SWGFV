@@ -7,7 +7,6 @@
 <header class="swgfv-header">
   <div class="container-fluid py-2">
     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
-
       <div class="d-flex align-items-center gap-2">
         <img class="brand-logo" src="{% static 'core/img/logo1.png' %}" alt="Logo Fortia Pv">
         <h1 class="brand-title">SWGFV - Sistema web de gestión de proyectos fotovoltaicos</h1>
@@ -25,7 +24,6 @@
           <a class="btn btn-swgfv" href="{% url 'core:logout' %}">Cerrar sesión</a>
         </div>
       </div>
-
     </div>
   </div>
 </header>
@@ -48,7 +46,6 @@
       <form method="post" novalidate>
         {% csrf_token %}
 
-        {# Errores generales del form #}
         {% if form.non_field_errors %}
           <div class="alert alert-danger">
             {{ form.non_field_errors }}
@@ -111,10 +108,10 @@
           <button class="btn btn-swgfv" type="submit">Guardar proyecto</button>
           <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">Ir a consulta</a>
         </div>
-
       </form>
     </div>
   </div>
 
 </div>
 {% endblock %}
+
