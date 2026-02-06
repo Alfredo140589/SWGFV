@@ -8,8 +8,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY / DEBUG / HOSTS
 # =========================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
-
-# Render: pon DJANGO_DEBUG=False en producción
 DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes", "on")
 
 ALLOWED_HOSTS = [
@@ -18,18 +16,17 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
-# Render hostname automático (ej: tuapp.onrender.com)
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if render_host and render_host not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(render_host)
 
-# CSRF Trusted Origins (para POST en producción)
 CSRF_TRUSTED_ORIGINS = []
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f"https://{render_host}")
 
-# Render va detrás de proxy HTTPS
+# Render proxy (importante)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 # =========================
 # APPS
@@ -86,9 +83,7 @@ WSGI_APPLICATION = "swgfv_project.wsgi.application"
 # DATABASE
 # =========================
 DATABASE_URL = os.getenv("DATABASE_URL")
-
 if DATABASE_URL:
-    # Producción (Render)
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -97,7 +92,7 @@ if DATABASE_URL:
         )
     }
 else:
-    # Local: SQLite
+    # LOCAL fallback
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -106,14 +101,11 @@ else:
     }
 
 # =========================
-# PASSWORD VALIDATORS
+# STATIC FILES
 # =========================
-AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
-]
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # =========================
 # I18N / TZ
@@ -124,20 +116,17 @@ USE_I18N = True
 USE_TZ = True
 
 # =========================
-# STATIC FILES
-# =========================
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-# =========================
-# DEFAULTS / SESSION
+# DEFAULTS
 # =========================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_AGE = 60 * 60 * 8
+if render_host:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = False
 
 # =========================
-# LOGGING (para ver errores en Render Logs)
+# LOGGING (para Render logs)
 # =========================
 LOGGING = {
     "version": 1,
@@ -150,7 +139,7 @@ LOGGING = {
         "level": "INFO",
     },
     "loggers": {
-        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": True},
+        "core": {"handlers": ["console"], "level": "INFO", "propagate": True},
     },
 }

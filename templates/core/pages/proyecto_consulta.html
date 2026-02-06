@@ -42,8 +42,8 @@
   <div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius:12px;">
     <div class="card-body">
       <h2 class="h5 fw-bold text-primary-emphasis mb-3">Consulta de Proyectos</h2>
+        {% if session_tipo == "Administrador" %}
 
-      {% if session_tipo == "Administrador" %}
       <form class="row g-2 mb-3" method="get">
         <div class="col-12 col-md-4">
           <input type="number" name="usuario_id" class="form-control"
