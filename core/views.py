@@ -118,7 +118,7 @@ def ayuda_view(request):
 
 
 # ------------------------
-# MÓDULO PROYECTO
+# Módulo Proyecto
 # ------------------------
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -141,10 +141,10 @@ def proyecto_alta(request):
             proyecto = form.save(commit=False)
             proyecto.ID_Usuario = usuario
             proyecto.save()
-            messages.success(request, "Proyecto registrado correctamente.")
+            messages.success(request, "✅ Proyecto registrado correctamente.")
             return redirect("core:proyecto_consulta")
         else:
-            messages.error(request, "Formulario inválido.")
+            messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
     return render(
         request,
@@ -163,18 +163,27 @@ def proyecto_consulta(request):
     session_tipo = request.session.get("tipo")
 
     if not session_id_usuario:
-        messages.error(request, "Sesión inválida.")
+        messages.error(request, "Sesión inválida. Inicia sesión nuevamente.")
         return redirect("core:logout")
 
     usuario = Usuario.objects.filter(ID_Usuario=session_id_usuario, Activo=True).first()
     if not usuario:
-        messages.error(request, "Usuario no válido.")
+        messages.error(request, "Usuario no válido o inactivo.")
         return redirect("core:logout")
 
+    # Admin ve todos / General ve solo los suyos
     if session_tipo == "Administrador":
-        proyectos = Proyecto.objects.select_related("ID_Usuario").all()
+        proyectos = (
+            Proyecto.objects.select_related("ID_Usuario")
+            .all()
+            .order_by("-id")  # ✅ PK real
+        )
     else:
-        proyectos = Proyecto.objects.filter(ID_Usuario=usuario)
+        proyectos = (
+            Proyecto.objects.select_related("ID_Usuario")
+            .filter(ID_Usuario_id=session_id_usuario)
+            .order_by("-id")  # ✅ PK real
+        )
 
     return render(
         request,
@@ -185,11 +194,6 @@ def proyecto_consulta(request):
             "session_tipo": session_tipo,
         },
     )
-
-
-@require_admin
-def proyecto_modificacion(request):
-    return render(request, "core/pages/proyecto_modificacion.html")
 
 
 # ------------------------

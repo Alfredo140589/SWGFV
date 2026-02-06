@@ -45,7 +45,7 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:proyecto_alta' %}">Alta</a></li>
               <li><a class="dropdown-item" href="{% url 'core:proyecto_consulta' %}">Consulta</a></li>
-              {% if session_tipo|trim == "Administrador" %}
+              {% if session_tipo == "Administrador" %}
                 <li><a class="dropdown-item" href="{% url 'core:proyecto_modificacion' %}">Modificación</a></li>
               {% endif %}
             </ul>
