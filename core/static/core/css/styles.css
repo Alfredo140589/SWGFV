@@ -1,46 +1,41 @@
 /* core/static/core/css/styles.css */
-/* CSS global del sistema SWGFV (estable para Render/WhiteNoise) */
+/* CSS global del sistema SWGFV */
 
 :root{
   --swgfv-primary:#001F3F;
   --swgfv-primary-2:#0b2f5b;
   --swgfv-accent:#0d6efd;
-  --swgfv-bg:#f6f7fb;
+
+  --swgfv-bg:#f4f6fb;
+  --swgfv-card:#ffffff;
+  --swgfv-border:#e6e9f2;
   --swgfv-text:#0f172a;
-  --swgfv-border:rgba(15, 23, 42, 0.10);
+  --swgfv-muted:#64748b;
 }
 
-/* Base */
 html, body{
   height: 100%;
 }
 
 body{
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: var(--swgfv-text);
   background: var(--swgfv-bg);
+  color: var(--swgfv-text);
 }
 
-/* Utilidades */
-.shadow-soft{
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-}
-
-.rounded-12{
-  border-radius: 12px;
-}
-
-/* HEADER */
+/* --------------------------
+   HEADER
+--------------------------- */
 .swgfv-header{
   background-color: rgba(255,255,255,0.97);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
   position: sticky;
   top: 0;
-  z-index: 1030; /* arriba del contenido */
+  z-index: 1030; /* arriba de cards y dropdowns */
 }
 
 .brand-logo{
-  height: 70px;
+  height: 64px;
   width: auto;
 }
 
@@ -48,19 +43,22 @@ body{
   margin: 0;
   color: var(--swgfv-primary);
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1.2;
 }
 
-/* NAVBAR */
+/* --------------------------
+   NAVBAR
+--------------------------- */
 .swgfv-nav{
   border-top: 1px solid var(--swgfv-border);
+  background: transparent;
 }
 
 .swgfv-nav .navbar-nav .nav-link{
   color: var(--swgfv-primary);
   font-weight: 700;
-  padding: 0.75rem 0.9rem;
+  padding: .6rem .9rem;
 }
 
 .swgfv-nav .navbar-nav .nav-link:hover,
@@ -68,84 +66,92 @@ body{
   color: var(--swgfv-accent);
 }
 
-.swgfv-nav .navbar-nav .nav-link.active{
-  color: var(--swgfv-accent);
-}
-
-/* Dropdown */
 .swgfv-nav .dropdown-menu{
   border: 1px solid var(--swgfv-border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
   border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.10);
-  padding: 0.35rem;
+  padding: .35rem;
 }
 
 .swgfv-nav .dropdown-item{
   border-radius: 10px;
+  padding: .55rem .75rem;
   font-weight: 600;
-  padding: 0.55rem 0.7rem;
+  color: var(--swgfv-text);
 }
 
-.swgfv-nav .dropdown-item:hover,
-.swgfv-nav .dropdown-item:focus{
+.swgfv-nav .dropdown-item:hover{
   background: rgba(13,110,253,0.10);
   color: var(--swgfv-primary);
 }
 
-/* Toggler (mobile) */
+/* Botón hamburguesa (toggler) */
 .navbar-toggler{
   border: 1px solid var(--swgfv-border);
-  border-radius: 10px;
-  padding: 0.4rem 0.55rem;
+  border-radius: 12px;
+  padding: .45rem .6rem;
+  background: #fff;
 }
 
 .navbar-toggler:focus{
-  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.20);
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.20);
 }
 
-/* Botón principal */
+/* --------------------------
+   BOTONES SWGFV
+--------------------------- */
 .btn-swgfv{
   background-color: var(--swgfv-primary);
-  color: #fff !important;
+  color: #fff;
   border: none;
   font-weight: 700;
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
+  border-radius: 12px;
+  padding: .6rem 1.0rem;
 }
 
-.btn-swgfv:hover,
-.btn-swgfv:focus{
+.btn-swgfv:hover{
   background-color: var(--swgfv-primary-2);
-  color: #fff !important;
+  color: #fff;
 }
 
-/* Botón secundario (opcional) */
-.btn-swgfv-outline{
-  background: transparent;
-  color: var(--swgfv-primary) !important;
-  border: 1px solid var(--swgfv-border);
-  font-weight: 700;
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
+.btn-swgfv:focus{
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.20);
 }
 
-.btn-swgfv-outline:hover{
-  background: rgba(0,31,63,0.06);
-}
-
-/* Cards */
-.welcome-card,
+/* --------------------------
+   CARDS / CONTENEDORES
+--------------------------- */
 .card{
+  border: 1px solid var(--swgfv-border);
+  border-radius: 16px;
+}
+
+.welcome-card{
   background: rgba(255,255,255,0.97);
+  border-radius: 16px;
+}
+
+/* --------------------------
+   FORMULARIOS
+--------------------------- */
+.form-label{
+  color: var(--swgfv-text);
+}
+
+.form-control, .form-select{
   border-radius: 12px;
   border: 1px solid var(--swgfv-border);
+  padding: .6rem .75rem;
 }
 
-.card .card-body{
-  padding: 1.1rem;
+.form-control:focus, .form-select:focus{
+  border-color: rgba(13,110,253,0.45);
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
 }
 
-/* Tablas */
+/* --------------------------
+   TABLAS
+--------------------------- */
 .table{
   border-color: var(--swgfv-border);
 }
@@ -155,35 +161,16 @@ body{
   font-weight: 800;
 }
 
-/* Alerts */
+/* --------------------------
+   ALERTAS
+--------------------------- */
 .alert{
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
-/* Inputs / Forms */
-.form-control,
-.form-select{
-  border-radius: 10px;
-  border-color: var(--swgfv-border);
-}
-
-.form-control:focus,
-.form-select:focus{
-  border-color: rgba(13,110,253,0.55);
-  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
-}
-
-/* Links */
-a{
-  text-decoration: none;
-}
-
-a:hover{
-  text-decoration: none;
-}
-
-/* Pequeñas mejoras responsive */
-@media (max-width: 576px){
-  .brand-logo{ height: 56px; }
-  .brand-title{ font-size: 0.95rem; }
+/* --------------------------
+   UTILIDADES
+--------------------------- */
+.text-muted{
+  color: var(--swgfv-muted) !important;
 }
