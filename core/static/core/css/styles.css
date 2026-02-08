@@ -1,0 +1,52 @@
+/* core/static/core/css/styles.css */
+/* CSS base del sistema SWGFV */
+
+:root{
+  --swgfv-primary:#001F3F;
+  --swgfv-accent:#0d6efd;
+}
+
+body{
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Header */
+.swgfv-header{
+  background-color: rgba(255,255,255,0.95);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.brand-logo{
+  height: 70px;
+  width: auto;
+}
+
+.brand-title{
+  margin: 0;
+  color: var(--swgfv-primary);
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+/* Navbar */
+.swgfv-nav .nav-link{
+  color: var(--swgfv-primary);
+  font-weight: 600;
+}
+
+.swgfv-nav .nav-link:hover{
+  color: var(--swgfv-accent);
+}
+
+/* Botón principal del sistema */
+.btn-swgfv{
+  background-color: var(--swgfv-primary);
+  color: #fff;
+  border: none;
+}
+
+.btn-swgfv:hover{
+  background-color: #0b2f5b;
+  color: #fff;
+}
