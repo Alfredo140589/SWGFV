@@ -1,91 +1,63 @@
 {% extends "core/layout.html" %}
+{% load static %}
 
 {% block title %}SWGFV - Alta de Proyecto{% endblock %}
 
 {% block page_content %}
-<div class="container my-4">
 
-  {% if messages %}
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius: 12px;">
+  <div class="card-body">
+    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Alta de Proyecto</h2>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="row g-3">
+
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Nombre del proyecto</label>
+          {{ form.Nombre_Proyecto }}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Empresa</label>
+          {{ form.Nombre_Empresa }}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-bold">Dirección</label>
+          {{ form.Direccion }}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Coordenadas</label>
+          {{ form.Coordenadas }}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold">Voltaje</label>
+          {{ form.Voltaje_Nominal }}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-bold">Fases</label>
+          {{ form.Numero_Fases }}
+        </div>
+
       </div>
-    {% endfor %}
-  {% endif %}
 
-  <div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius: 12px;">
-    <div class="card-body">
-      <h2 class="h5 fw-bold text-primary-emphasis mb-3">Alta de Proyecto</h2>
-
-      <form method="post" novalidate>
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
-
-        <div class="row g-3">
-
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-bold" for="{{ form.Nombre_Proyecto.id_for_label }}">Nombre del proyecto</label>
-            {{ form.Nombre_Proyecto }}
-            {% if form.Nombre_Proyecto.errors %}
-              <div class="text-danger small">{{ form.Nombre_Proyecto.errors }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-bold" for="{{ form.Nombre_Empresa.id_for_label }}">Empresa (opcional)</label>
-            {{ form.Nombre_Empresa }}
-            {% if form.Nombre_Empresa.errors %}
-              <div class="text-danger small">{{ form.Nombre_Empresa.errors }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-12">
-            <label class="form-label fw-bold" for="{{ form.Direccion.id_for_label }}">Dirección</label>
-            {{ form.Direccion }}
-            {% if form.Direccion.errors %}
-              <div class="text-danger small">{{ form.Direccion.errors }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-bold" for="{{ form.Coordenadas.id_for_label }}">Coordenadas</label>
-            {{ form.Coordenadas }}
-            {% if form.Coordenadas.errors %}
-              <div class="text-danger small">{{ form.Coordenadas.errors }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" for="{{ form.Voltaje_Nominal.id_for_label }}">Voltaje nominal</label>
-            {{ form.Voltaje_Nominal }}
-            {% if form.Voltaje_Nominal.errors %}
-              <div class="text-danger small">{{ form.Voltaje_Nominal.errors }}</div>
-            {% endif %}
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" for="{{ form.Numero_Fases.id_for_label }}">Número de fases</label>
-            {{ form.Numero_Fases }}
-            {% if form.Numero_Fases.errors %}
-              <div class="text-danger small">{{ form.Numero_Fases.errors }}</div>
-            {% endif %}
-          </div>
-
-        </div>
-
-        <div class="d-flex gap-2 mt-4">
-          <button class="btn btn-swgfv" type="submit">Guardar proyecto</button>
-          <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">Ir a consulta</a>
-        </div>
-      </form>
-    </div>
+      <div class="mt-4 d-flex gap-2">
+        <button class="btn btn-swgfv" type="submit">Guardar</button>
+        <a href="{% url 'core:proyecto_consulta' %}" class="btn btn-secondary">Consulta</a>
+      </div>
+    </form>
   </div>
-
 </div>
+
 {% endblock %}
