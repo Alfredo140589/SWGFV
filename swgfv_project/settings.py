@@ -9,12 +9,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # =========================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes", "on")
+DEBUG = True
+
 
 ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
-    if h.strip()
+    "swgfv-web.onrender.com",
+    "localhost",
+    "127.0.0.1",
+    "testserver",  # necesario para Client() en shell/pruebas internas
 ]
 
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
