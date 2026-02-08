@@ -1,52 +1,53 @@
 /* core/static/core/css/styles.css */
-/* CSS global del sistema SWGFV */
+/* SWGFV - Look tipo "antes": fondo visible + navbar verde + panel blanco */
 
 :root{
-  --swgfv-primary:#001F3F;
-  --swgfv-primary-2:#0b2f5b;
-  --swgfv-accent:#0d6efd;
-
-  --swgfv-bg:#f4f6fb;
-  --swgfv-card:#ffffff;
-  --swgfv-border:#e6e9f2;
-  --swgfv-text:#0f172a;
-  --swgfv-muted:#64748b;
+  --swgfv-primary:#001F3F;      /* azul marino */
+  --swgfv-accent:#18b89b;       /* verde navbar */
+  --swgfv-accent-dark:#129c83;  /* hover */
+  --swgfv-text:#0b1220;
 }
 
-html, body{
-  height: 100%;
-}
+*{ box-sizing: border-box; }
+
+html, body{ height: 100%; }
 
 body{
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: var(--swgfv-bg);
-  color: var(--swgfv-text);
-}
-body{
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: var(--swgfv-text);
 
-  /* Fondo con imagen (recupera look "como antes") */
-  background-image:
-    linear-gradient(rgba(244,246,251,0.92), rgba(244,246,251,0.92)),
-    url("../img/imagen2.jpg");
+  /* Fondo tipo captura */
+  background-color: #e9eef6;
+  background-image: url("../img/fondo.jpg");
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   background-attachment: fixed;
 }
-/* --------------------------
+
+/* IMPORTANTE:
+   Antes tu velo blanco era muy fuerte (0.45).
+   Lo bajamos para que la imagen se vea como en tu captura. */
+body::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.20); /* MÁS ligero */
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* =========================
    HEADER
---------------------------- */
+   ========================= */
 .swgfv-header{
-  background-color: rgba(255,255,255,0.97);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
-  position: sticky;
-  top: 0;
-  z-index: 1030; /* arriba de cards y dropdowns */
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
 }
 
 .brand-logo{
-  height: 64px;
+  height: 60px;
   width: auto;
 }
 
@@ -58,130 +59,152 @@ body{
   line-height: 1.2;
 }
 
-/* --------------------------
-   NAVBAR
---------------------------- */
-.swgfv-nav{
-  border-top: 1px solid var(--swgfv-border);
-  background: transparent;
+/* Botones superiores */
+.btn-swgfv{
+  background: var(--swgfv-accent) !important; /* antes eran verdes */
+  color: #fff !important;
+  border: none !important;
+  border-radius: 10px;
+  padding: .6rem 1.1rem;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.10);
 }
 
-.swgfv-nav .navbar-nav .nav-link{
-  color: var(--swgfv-primary);
-  font-weight: 700;
-  padding: .6rem .9rem;
+.btn-swgfv:hover{
+  background: var(--swgfv-accent-dark) !important;
+  color: #fff !important;
+}
+
+/* =========================
+   NAVBAR (FORZADA)
+   ========================= */
+.swgfv-nav{
+  background: var(--swgfv-accent) !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+}
+
+/* fuerza el color en links aunque Bootstrap meta estilos */
+.swgfv-nav .navbar-nav .nav-link,
+.swgfv-nav .navbar-nav .nav-link:visited{
+  color: #fff !important;
+  font-weight: 800;
+  padding: 1rem 1.15rem;
 }
 
 .swgfv-nav .navbar-nav .nav-link:hover,
 .swgfv-nav .navbar-nav .nav-link:focus{
-  color: var(--swgfv-accent);
+  color: #fff !important;
+  opacity: .92;
 }
 
+/* dropdown */
 .swgfv-nav .dropdown-menu{
-  border: 1px solid var(--swgfv-border);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
-  border-radius: 12px;
-  padding: .35rem;
+  border: none !important;
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0,0,0,0.18);
+  padding: .55rem;
 }
 
 .swgfv-nav .dropdown-item{
-  border-radius: 10px;
-  padding: .55rem .75rem;
-  font-weight: 600;
-  color: var(--swgfv-text);
+  border-radius: 12px;
+  font-weight: 700;
+  padding: .6rem .8rem;
 }
 
 .swgfv-nav .dropdown-item:hover{
-  background: rgba(13,110,253,0.10);
-  color: var(--swgfv-primary);
+  background: rgba(24,184,155,0.16);
 }
 
-/* Botón hamburguesa (toggler) */
+/* Toggler */
 .navbar-toggler{
-  border: 1px solid var(--swgfv-border);
-  border-radius: 12px;
-  padding: .45rem .6rem;
-  background: #fff;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.navbar-toggler-icon{
+  filter: invert(1);
 }
 
-.navbar-toggler:focus{
-  box-shadow: 0 0 0 .2rem rgba(13,110,253,.20);
+/* =========================
+   CONTENIDO / LAYOUT
+   ========================= */
+
+/* tu <div class="container my-4"> */
+.container.my-4{
+  padding-top: 2rem;
+  padding-bottom: 2rem;
 }
 
-/* --------------------------
-   BOTONES SWGFV
---------------------------- */
-.btn-swgfv{
-  background-color: var(--swgfv-primary);
-  color: #fff;
-  border: none;
-  font-weight: 700;
-  border-radius: 12px;
-  padding: .6rem 1.0rem;
+/* Para que el panel se vea centrado y grande como en la captura */
+.container.my-4 .card{
+  max-width: 1200px;     /* panel amplio */
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.btn-swgfv:hover{
-  background-color: var(--swgfv-primary-2);
-  color: #fff;
-}
-
-.btn-swgfv:focus{
-  box-shadow: 0 0 0 .2rem rgba(13,110,253,.20);
-}
-
-/* --------------------------
-   CARDS / CONTENEDORES
---------------------------- */
+/* Cards con efecto “panel blanco” */
 .card{
-  border: 1px solid var(--swgfv-border);
-  border-radius: 16px;
+  border: none !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 45px rgba(0,0,0,0.18) !important;
 }
 
-.welcome-card{
-  background: rgba(255,255,255,0.97);
-  border-radius: 16px;
+.card-body{
+  padding: 2rem !important;
 }
 
-/* --------------------------
-   FORMULARIOS
---------------------------- */
-.form-label{
-  color: var(--swgfv-text);
+/* Títulos grandes como en la imagen */
+.card h1, .card h2, .card h3{
+  color: var(--swgfv-primary);
+  font-weight: 900;
 }
 
+/* Inputs */
 .form-control, .form-select{
-  border-radius: 12px;
-  border: 1px solid var(--swgfv-border);
-  padding: .6rem .75rem;
+  border-radius: 12px !important;
+  padding: .7rem .9rem !important;
+  border: 1px solid rgba(0,0,0,0.12) !important;
 }
 
 .form-control:focus, .form-select:focus{
-  border-color: rgba(13,110,253,0.45);
-  box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
+  border-color: rgba(24,184,155,0.55) !important;
+  box-shadow: 0 0 0 .22rem rgba(24,184,155,0.20) !important;
 }
 
-/* --------------------------
-   TABLAS
---------------------------- */
-.table{
-  border-color: var(--swgfv-border);
-}
-
-.table thead th{
-  color: var(--swgfv-primary);
+/* Botón principal en formularios (Guardar, etc.) */
+.btn.btn-primary{
+  background: var(--swgfv-primary) !important;
+  border: none !important;
+  border-radius: 12px;
+  padding: .65rem 1.2rem;
   font-weight: 800;
 }
 
-/* --------------------------
-   ALERTAS
---------------------------- */
+.btn.btn-primary:hover{
+  background: #0b2f5b !important;
+}
+
+/* Tablas */
+.table{
+  border-radius: 14px;
+  overflow: hidden;
+}
+.table thead th{
+  background: rgba(0,31,63,0.08);
+  color: var(--swgfv-primary);
+  font-weight: 900;
+}
+
+/* Alerts */
 .alert{
   border-radius: 14px;
 }
 
-/* --------------------------
-   UTILIDADES
---------------------------- */
-.text-muted{
-  color: var(--swgfv-muted) !important;
+/* responsive */
+@media (max-width: 768px){
+  .brand-title{ font-size: 1rem; }
+  .swgfv-nav .navbar-nav .nav-link{ padding: .85rem 1rem; }
+  .card-body{ padding: 1.3rem !important; }
 }
