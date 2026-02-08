@@ -120,19 +120,17 @@ TIME_ZONE = "America/Mexico_City"
 USE_I18N = True
 USE_TZ = True
 
-# =========================
-# STATIC FILES
-# =========================
+# --- STATIC FILES (Render + WhiteNoise) ---
+from pathlib import Path
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# ✅ IMPORTANTE:
-# En PRODUCCIÓN (Render) usa Manifest (requiere collectstatic)
-# En LOCAL (DEBUG=True) NO uses Manifest para evitar "Missing staticfiles manifest entry"
-if DEBUG:
-    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
-else:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# ✅ Storage recomendado para evitar errores 500 por "manifest entry"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 # =========================
 # DEFAULTS
