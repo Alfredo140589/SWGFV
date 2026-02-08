@@ -257,6 +257,7 @@ def cuenta_view(request):
 # =========================================================
 #             GESTIÓN DE USUARIOS (REAL CON BD)
 # =========================================================
+
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
@@ -271,7 +272,15 @@ def gestion_usuarios_alta(request):
             return redirect("core:gestion_usuarios_alta")
         messages.error(request, "Revisa el formulario. Hay errores.")
 
-    return render(request, "core/pages/gestion_usuarios_alta.html", {"form": form})
+    return render(
+        request,
+        "core/pages/gestion_usuarios_alta.html",
+        {
+            "form": form,
+            "session_usuario": request.session.get("usuario"),
+            "session_tipo": request.session.get("tipo"),
+        },
+    )
 
 
 @require_admin
@@ -346,5 +355,7 @@ def gestion_usuarios_modificacion(request):
             "q_nombre": q_nombre,
             "q_ap": q_ap,
             "q_am": q_am,
+            "session_usuario": request.session.get("usuario"),
+            "session_tipo": request.session.get("tipo"),
         },
     )

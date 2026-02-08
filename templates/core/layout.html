@@ -1,31 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block head %}
-<style>
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  }
-  .swgfv-header{
-    background-color: rgba(255,255,255,0.95);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  }
-  .brand-logo{
-    height: 70px;
-    width: auto;
-  }
-  .brand-title{
-    margin: 0;
-    color: #001F3F;
-    font-weight: 800;
-    font-size: 1rem;
-    line-height: 1.2;
-  }
-  .navbar-toggler{ border: 0; }
-  .navbar-toggler-icon{ filter: invert(1); }
-</style>
-{% endblock %}
-
 {% block content %}
 <header class="swgfv-header">
   <div class="container-fluid py-2">
@@ -141,6 +116,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ block.super }}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const btn = document.getElementById("cerrarSesionBtn");
