@@ -6,17 +6,14 @@
   body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
-
   .swgfv-header{
     background-color: rgba(255,255,255,0.95);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
   }
-
   .brand-logo{
     height: 70px;
     width: auto;
   }
-
   .brand-title{
     margin: 0;
     color: #001F3F;
@@ -24,23 +21,12 @@
     font-size: 1rem;
     line-height: 1.2;
   }
-
-  .welcome-card{
-    background-color: rgba(255,255,255,0.95);
-    border-radius: 12px;
-  }
-
-  .navbar-toggler{
-    border: 0;
-  }
-  .navbar-toggler-icon{
-    filter: invert(1);
-  }
+  .navbar-toggler{ border: 0; }
+  .navbar-toggler-icon{ filter: invert(1); }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- HEADER + NAVBAR GLOBAL -->
 <header class="swgfv-header">
   <div class="container-fluid py-2">
     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
@@ -57,19 +43,16 @@
         </div>
 
         <div class="d-flex gap-2">
-          <a class="btn btn-swgfv btn-primary" href="{% url 'core:ayuda' %}">Ayuda</a>
-          <button class="btn btn-swgfv btn-danger" id="cerrarSesionBtn" type="button">Cerrar sesión</button>
+          <a class="btn btn-swgfv" href="{% url 'core:ayuda' %}">Ayuda</a>
+          <button class="btn btn-swgfv" id="cerrarSesionBtn" type="button">Cerrar sesión</button>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- NAVBAR RESPONSIVE -->
-  <nav class="navbar navbar-expand-lg bg-dark">
+  <nav class="navbar navbar-expand-lg swgfv-nav">
     <div class="container-fluid">
-      <a class="navbar-brand text-white fw-bold" href="{% url 'core:menu_principal' %}">Menú</a>
-
       <button class="navbar-toggler bg-light" type="button"
               data-bs-toggle="collapse" data-bs-target="#swgfvNavbar"
               aria-controls="swgfvNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -79,9 +62,8 @@
       <div class="collapse navbar-collapse" id="swgfvNavbar">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-          <!-- PROYECTOS -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">Proyectos</a>
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Proyectos</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:proyecto_alta' %}">Alta</a></li>
               <li><a class="dropdown-item" href="{% url 'core:proyecto_consulta' %}">Consulta</a></li>
@@ -91,18 +73,16 @@
             </ul>
           </li>
 
-          <!-- DIMENSIONAMIENTO -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">Dimensionamiento</a>
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Dimensionamiento</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:dimensionamiento_calculo_modulos' %}">Cálculo de módulos</a></li>
               <li><a class="dropdown-item" href="{% url 'core:dimensionamiento_dimensionamiento' %}">Dimensionamiento</a></li>
             </ul>
           </li>
 
-          <!-- CÁLCULOS -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">Cálculos</a>
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Cálculos</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:calculo_dc' %}">Corriente continua</a></li>
               <li><a class="dropdown-item" href="{% url 'core:calculo_ac' %}">Corriente alterna</a></li>
@@ -110,9 +90,8 @@
             </ul>
           </li>
 
-          <!-- RECURSOS -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">Recursos</a>
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Recursos</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:recursos_conceptos' %}">Conceptos</a></li>
               <li><a class="dropdown-item" href="{% url 'core:recursos_tablas' %}">Tablas</a></li>
@@ -127,15 +106,13 @@
             </ul>
           </li>
 
-          <!-- CUENTA -->
           <li class="nav-item">
-            <a class="nav-link text-white" href="{% url 'core:cuenta' %}">Cuenta</a>
+            <a class="nav-link" href="{% url 'core:cuenta' %}">Cuenta</a>
           </li>
 
-          <!-- GESTIÓN USUARIOS (ADMIN) -->
           {% if session_tipo == "Administrador" %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">Gestión de usuarios</a>
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Gestión de usuarios</a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="{% url 'core:gestion_usuarios_alta' %}">Alta</a></li>
               <li><a class="dropdown-item" href="{% url 'core:gestion_usuarios_modificacion' %}">Modificación</a></li>
@@ -149,7 +126,6 @@
   </nav>
 </header>
 
-<!-- CONTENIDO VARIABLE -->
 <div class="container my-4">
   {% if messages %}
     {% for message in messages %}
