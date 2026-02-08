@@ -1,19 +1,42 @@
 /* core/static/core/css/styles.css */
-/* CSS base del sistema SWGFV */
+/* CSS global del sistema SWGFV (estable para Render/WhiteNoise) */
 
 :root{
   --swgfv-primary:#001F3F;
+  --swgfv-primary-2:#0b2f5b;
   --swgfv-accent:#0d6efd;
+  --swgfv-bg:#f6f7fb;
+  --swgfv-text:#0f172a;
+  --swgfv-border:rgba(15, 23, 42, 0.10);
+}
+
+/* Base */
+html, body{
+  height: 100%;
 }
 
 body{
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--swgfv-text);
+  background: var(--swgfv-bg);
 }
 
-/* Header */
+/* Utilidades */
+.shadow-soft{
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.rounded-12{
+  border-radius: 12px;
+}
+
+/* HEADER */
 .swgfv-header{
-  background-color: rgba(255,255,255,0.95);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  background-color: rgba(255,255,255,0.97);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  position: sticky;
+  top: 0;
+  z-index: 1030; /* arriba del contenido */
 }
 
 .brand-logo{
@@ -29,24 +52,138 @@ body{
   line-height: 1.2;
 }
 
-/* Navbar */
-.swgfv-nav .nav-link{
-  color: var(--swgfv-primary);
-  font-weight: 600;
+/* NAVBAR */
+.swgfv-nav{
+  border-top: 1px solid var(--swgfv-border);
 }
 
-.swgfv-nav .nav-link:hover{
+.swgfv-nav .navbar-nav .nav-link{
+  color: var(--swgfv-primary);
+  font-weight: 700;
+  padding: 0.75rem 0.9rem;
+}
+
+.swgfv-nav .navbar-nav .nav-link:hover,
+.swgfv-nav .navbar-nav .nav-link:focus{
   color: var(--swgfv-accent);
 }
 
-/* Botón principal del sistema */
-.btn-swgfv{
-  background-color: var(--swgfv-primary);
-  color: #fff;
-  border: none;
+.swgfv-nav .navbar-nav .nav-link.active{
+  color: var(--swgfv-accent);
 }
 
-.btn-swgfv:hover{
-  background-color: #0b2f5b;
-  color: #fff;
+/* Dropdown */
+.swgfv-nav .dropdown-menu{
+  border: 1px solid var(--swgfv-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.10);
+  padding: 0.35rem;
+}
+
+.swgfv-nav .dropdown-item{
+  border-radius: 10px;
+  font-weight: 600;
+  padding: 0.55rem 0.7rem;
+}
+
+.swgfv-nav .dropdown-item:hover,
+.swgfv-nav .dropdown-item:focus{
+  background: rgba(13,110,253,0.10);
+  color: var(--swgfv-primary);
+}
+
+/* Toggler (mobile) */
+.navbar-toggler{
+  border: 1px solid var(--swgfv-border);
+  border-radius: 10px;
+  padding: 0.4rem 0.55rem;
+}
+
+.navbar-toggler:focus{
+  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.20);
+}
+
+/* Botón principal */
+.btn-swgfv{
+  background-color: var(--swgfv-primary);
+  color: #fff !important;
+  border: none;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+}
+
+.btn-swgfv:hover,
+.btn-swgfv:focus{
+  background-color: var(--swgfv-primary-2);
+  color: #fff !important;
+}
+
+/* Botón secundario (opcional) */
+.btn-swgfv-outline{
+  background: transparent;
+  color: var(--swgfv-primary) !important;
+  border: 1px solid var(--swgfv-border);
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+}
+
+.btn-swgfv-outline:hover{
+  background: rgba(0,31,63,0.06);
+}
+
+/* Cards */
+.welcome-card,
+.card{
+  background: rgba(255,255,255,0.97);
+  border-radius: 12px;
+  border: 1px solid var(--swgfv-border);
+}
+
+.card .card-body{
+  padding: 1.1rem;
+}
+
+/* Tablas */
+.table{
+  border-color: var(--swgfv-border);
+}
+
+.table thead th{
+  color: var(--swgfv-primary);
+  font-weight: 800;
+}
+
+/* Alerts */
+.alert{
+  border-radius: 12px;
+}
+
+/* Inputs / Forms */
+.form-control,
+.form-select{
+  border-radius: 10px;
+  border-color: var(--swgfv-border);
+}
+
+.form-control:focus,
+.form-select:focus{
+  border-color: rgba(13,110,253,0.55);
+  box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+}
+
+/* Links */
+a{
+  text-decoration: none;
+}
+
+a:hover{
+  text-decoration: none;
+}
+
+/* Pequeñas mejoras responsive */
+@media (max-width: 576px){
+  .brand-logo{ height: 56px; }
+  .brand-title{ font-size: 0.95rem; }
 }
