@@ -1,19 +1,74 @@
+from datetime import timedelta
+import random
+
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
+from django.utils import timezone
+from django.core.cache import cache
 
 from .forms import (
     LoginForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
     ProyectoCreateForm,
-    ProyectoUpdateForm,
+    ProyectoUpdateForm,  # <-- IMPORTANTE para edición real del proyecto
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
+
+
+# =========================================================
+#  Helpers: CAPTCHA + Lockout
+# =========================================================
+
+def _captcha_new(request):
+    """
+    Crea un captcha aritmético simple y guarda la respuesta en sesión.
+    """
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    request.session["login_captcha_answer"] = str(a + b)
+    request.session["login_captcha_question"] = f"¿Cuánto es {a} + {b}?"
+    # Para que la sesión se guarde incluso sin cambios visibles
+    request.session.modified = True
+
+
+def _captcha_check(request) -> bool:
+    """
+    Valida captcha contra lo guardado en sesión.
+    """
+    expected = (request.session.get("login_captcha_answer") or "").strip()
+    provided = (request.POST.get("captcha_answer") or "").strip()
+    return bool(expected) and provided == expected
+
+
+def _lock_keys(usuario_input: str, ip: str):
+    """
+    Crea llaves de cache para intentos y bloqueo.
+    """
+    usuario_input = (usuario_input or "").strip().lower()
+    ip = (ip or "").strip()
+    # lock por usuario + ip (más seguro)
+    base = f"login:{usuario_input}:{ip}"
+    return (
+        f"{base}:attempts",
+        f"{base}:locked_until",
+    )
+
+
+def _get_ip(request):
+    """
+    Render/Proxy: prioriza X-Forwarded-For si existe.
+    """
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        # toma la primera IP
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
 
 
 # ------------------------
@@ -21,46 +76,121 @@ from .models import Usuario, Proyecto
 # ------------------------
 @require_http_methods(["GET", "POST"])
 def login_view(request):
+    # Si ya hay sesión, manda al menú
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
+
+    # --- CAPTCHA: en GET generamos pregunta ---
+    if request.method == "GET":
+        a = random.randint(1, 9)
+        b = random.randint(1, 9)
+        request.session["captcha_a"] = a
+        request.session["captcha_b"] = b
+        request.session["captcha_answer"] = a + b
+
+    captcha_question = f"{request.session.get('captcha_a', 1)} + {request.session.get('captcha_b', 1)} = ?"
 
     form = LoginForm(request.POST or None)
 
     if request.method == "POST":
-        if form.is_valid():
-            usuario_input = form.cleaned_data["usuario"]
-            password = form.cleaned_data["password"]
+        usuario_input = (request.POST.get("usuario") or "").strip().lower()
 
+        # --- LOCKOUT por usuario: 3 intentos => 30 minutos ---
+        # Se bloquea "la cuenta" (por usuario ingresado)
+        lock_key = f"login_lock:{usuario_input}"
+        fail_key = f"login_fail:{usuario_input}"
+
+        locked_until_ts = cache.get(lock_key)
+        now_ts = int(timezone.now().timestamp())
+
+        if locked_until_ts and now_ts < int(locked_until_ts):
+            remaining = int(locked_until_ts) - now_ts
+            minutes = max(1, (remaining + 59) // 60)
+            messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
+            # regenerar captcha para evitar reuso
+            a = random.randint(1, 9)
+            b = random.randint(1, 9)
+            request.session["captcha_a"] = a
+            request.session["captcha_b"] = b
+            request.session["captcha_answer"] = a + b
+            captcha_question = f"{a} + {b} = ?"
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+
+        # Validación normal del form (incluye captcha como int)
+        if form.is_valid():
+            # --- Validar captcha contra sesión ---
+            expected = request.session.get("captcha_answer")
+            user_captcha = form.cleaned_data.get("captcha")
+
+            if expected is None or user_captcha != expected:
+                # cuenta como intento fallido
+                fails = int(cache.get(fail_key) or 0) + 1
+                cache.set(fail_key, fails, timeout=30 * 60)
+
+                if fails >= 3:
+                    cache.set(lock_key, now_ts + (30 * 60), timeout=30 * 60)
+                    cache.delete(fail_key)
+                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
+                else:
+                    messages.error(request, f"Verificación incorrecta. Intento {fails}/3.")
+
+                # regenerar captcha
+                a = random.randint(1, 9)
+                b = random.randint(1, 9)
+                request.session["captcha_a"] = a
+                request.session["captcha_b"] = b
+                request.session["captcha_answer"] = a + b
+                captcha_question = f"{a} + {b} = ?"
+                return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+
+            # --- Si captcha ok => autenticar usuario ---
+            password = form.cleaned_data["password"]
             user_auth = authenticate_local(usuario_input, password)
 
             if user_auth:
                 try:
                     u = Usuario.objects.get(Correo_electronico=usuario_input)
                 except Usuario.DoesNotExist:
-                    messages.error(
-                        request,
-                        "El usuario autenticó, pero no existe en la base de datos."
-                    )
-                    return redirect("core:login")
+                    # también cuenta como fallo (evita brute force)
+                    fails = int(cache.get(fail_key) or 0) + 1
+                    cache.set(fail_key, fails, timeout=30 * 60)
+                    messages.error(request, "Usuario o contraseña incorrectos.")
+                else:
+                    if not u.Activo:
+                        messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+                    else:
+                        # ✅ LOGIN OK => limpiar contadores
+                        cache.delete(fail_key)
+                        cache.delete(lock_key)
 
-                if not u.Activo:
-                    messages.error(
-                        request,
-                        "Tu usuario está inactivo. Contacta al administrador."
-                    )
-                    return redirect("core:login")
+                        request.session["usuario"] = u.Correo_electronico
+                        request.session["tipo"] = u.Tipo
+                        request.session["id_usuario"] = u.ID_Usuario
 
-                request.session["usuario"] = u.Correo_electronico
-                request.session["tipo"] = u.Tipo
-                request.session["id_usuario"] = u.ID_Usuario
+                        return redirect("core:menu_principal")
+            else:
+                # fallo de credenciales
+                fails = int(cache.get(fail_key) or 0) + 1
+                cache.set(fail_key, fails, timeout=30 * 60)
 
-                return redirect("core:menu_principal")
-
-            messages.error(request, "Usuario o contraseña incorrectos. Intente de nuevo.")
+                if fails >= 3:
+                    cache.set(lock_key, now_ts + (30 * 60), timeout=30 * 60)
+                    cache.delete(fail_key)
+                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
+                else:
+                    messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/3.")
         else:
             messages.error(request, "Revise el formulario e intente nuevamente.")
 
-    return render(request, "core/login.html", {"form": form})
+        # regenerar captcha al final de POST (éxito ya retornó arriba)
+        a = random.randint(1, 9)
+        b = random.randint(1, 9)
+        request.session["captcha_a"] = a
+        request.session["captcha_b"] = b
+        request.session["captcha_answer"] = a + b
+        captcha_question = f"{a} + {b} = ?"
+
+    return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
 
 # ------------------------
@@ -80,7 +210,7 @@ def logout_view(request):
     return redirect("core:login")
 
 
-@require_session_login
+# OJO: esta vista DEBE ser pública para el link "¿Olvidaste...?"
 def recuperar_view(request):
     return render(request, "core/recuperar.html")
 
@@ -133,10 +263,7 @@ def proyecto_alta(request):
 
     user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
     if not user:
-        messages.error(
-            request,
-            "No se encontró el usuario en la base de datos. Inicia sesión de nuevo."
-        )
+        messages.error(request, "No se encontró el usuario en la base de datos. Inicia sesión de nuevo.")
         return redirect("core:logout")
 
     if not user.Activo:
@@ -194,74 +321,24 @@ def proyecto_consulta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
-    """
-    FASE 2 (REAL): buscar -> listar -> seleccionar -> editar/guardar/eliminar.
-    Evita errores:
-    - ID no numérico
-    - selección inexistente
-    - POST sin id
-    """
-    # -------- 1) Capturar criterios (GET) --------
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
 
-    mostrar_lista = bool(q_id or q_nombre or q_empresa)
+    hay_busqueda = bool(q_id or q_nombre or q_empresa)
 
     proyectos = Proyecto.objects.none()
     seleccionado = None
     form = None
 
-    # -------- 2) Selección segura (GET o POST) --------
-    # En POST no confiamos en querystring; traemos id del hidden input
-    selected_id = (request.POST.get("selected_id") or q_id).strip()
-
-    if selected_id:
-        if not selected_id.isdigit():
-            messages.error(request, "El ID del proyecto debe ser numérico.")
-            selected_id = ""
-        else:
-            seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(selected_id)).first()
-            if not seleccionado:
-                messages.error(request, "El proyecto seleccionado no existe.")
-
-    # -------- 3) Si viene POST y hay seleccionado -> Guardar/Eliminar --------
-    if request.method == "POST":
-        if not seleccionado:
-            messages.error(request, "No hay proyecto seleccionado para modificar.")
-            return redirect("core:proyecto_modificacion")
-
-        action = (request.POST.get("action") or "").strip()
-
-        # Eliminar
-        if action == "delete":
-            pid = seleccionado.id
-            seleccionado.delete()
-            messages.success(request, f"Proyecto ID {pid} eliminado correctamente.")
-            return redirect("core:proyecto_modificacion")
-
-        # Guardar cambios (acción normal)
-        form = ProyectoUpdateForm(request.POST, instance=seleccionado)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Cambios guardados correctamente.")
-            # Volver a abrir la misma selección para que se vea actualizado
-            url = reverse("core:proyecto_modificacion")
-            return HttpResponseRedirect(f"{url}?id={seleccionado.id}")
-        else:
-            messages.error(request, "Revisa el formulario. Hay errores.")
-
-    # -------- 4) Si es GET -> construir lista por búsqueda + form de selección --------
-    # Lista de resultados SOLO después de búsqueda
-    if mostrar_lista:
+    if hay_busqueda:
         qs = Proyecto.objects.select_related("ID_Usuario")
 
-        # Si buscaron por id (q_id) y es válido numérico
         if q_id:
             if q_id.isdigit():
                 qs = qs.filter(id=int(q_id))
             else:
-                messages.error(request, "El ID de búsqueda debe ser numérico.")
+                messages.error(request, "El ID debe ser numérico.")
                 qs = Proyecto.objects.none()
 
         if q_nombre:
@@ -272,16 +349,35 @@ def proyecto_modificacion(request):
 
         proyectos = qs.order_by("-id")
 
-        # Selección automática si solo hay 1 resultado y no había seleccionado aún
-        if not seleccionado and proyectos.count() == 1:
+        if proyectos.count() == 1:
             seleccionado = proyectos.first()
+        elif proyectos.count() == 0:
+            messages.error(request, "No se encontraron proyectos con esos criterios.")
+        else:
+            messages.info(request, "Se encontraron varios proyectos. Selecciona uno.")
 
-        if proyectos.count() == 0:
-            messages.info(request, "No se encontraron proyectos con esos criterios.")
+    # Si viene selección explícita por ?id=xxx, permitimos edición real (POST)
+    # Nota: en tu flujo, "Seleccionar" envía ?id=...
+    if q_id and q_id.isdigit():
+        seleccionado = Proyecto.objects.filter(id=int(q_id)).first()
+        if seleccionado:
+            if request.method == "POST":
+                action = (request.POST.get("action") or "").strip()
 
-    # Si hay seleccionado (GET) -> crear form para mostrar campos
-    if seleccionado and request.method == "GET":
-        form = ProyectoUpdateForm(instance=seleccionado)
+                if action == "delete":
+                    seleccionado.delete()
+                    messages.success(request, "Proyecto eliminado correctamente.")
+                    return redirect("core:proyecto_modificacion")
+
+                form = ProyectoUpdateForm(request.POST, instance=seleccionado)
+                if form.is_valid():
+                    form.save()
+                    messages.success(request, "Cambios guardados correctamente.")
+                    url = reverse("core:proyecto_modificacion")
+                    return HttpResponseRedirect(f"{url}?id={seleccionado.id}")
+                messages.error(request, "Revisa el formulario. Hay errores.")
+            else:
+                form = ProyectoUpdateForm(instance=seleccionado)
 
     return render(
         request,
@@ -293,7 +389,7 @@ def proyecto_modificacion(request):
             "q_id": q_id,
             "q_nombre": q_nombre,
             "q_empresa": q_empresa,
-            "mostrar_lista": mostrar_lista,
+            "mostrar_lista": hay_busqueda,
         },
     )
 

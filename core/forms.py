@@ -23,6 +23,14 @@ class LoginForm(forms.Form):
         ),
     )
 
+    # Captcha simple (la validación fuerte se hace en la vista con session)
+    captcha_answer = forms.CharField(
+        label="Captcha",
+        required=True,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Resuelve la operación"}
+        ),
+    )
 
 # ======================================================
 # ALTA DE USUARIO
