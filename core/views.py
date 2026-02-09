@@ -1,6 +1,4 @@
-from datetime import timedelta
 import random
-
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
@@ -14,7 +12,7 @@ from .forms import (
     UsuarioCreateForm,
     UsuarioUpdateForm,
     ProyectoCreateForm,
-    ProyectoUpdateForm,  # <-- IMPORTANTE para edición real del proyecto
+    ProyectoUpdateForm,
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -22,53 +20,43 @@ from .models import Usuario, Proyecto
 
 
 # =========================================================
-#  Helpers: CAPTCHA + Lockout
+# Helpers: CAPTCHA + LOCKOUT
 # =========================================================
-
-def _captcha_new(request):
-    """
-    Crea un captcha aritmético simple y guarda la respuesta en sesión.
-    """
-    a = random.randint(1, 9)
-    b = random.randint(1, 9)
-    request.session["login_captcha_answer"] = str(a + b)
-    request.session["login_captcha_question"] = f"¿Cuánto es {a} + {b}?"
-    # Para que la sesión se guarde incluso sin cambios visibles
-    request.session.modified = True
+LOCKOUT_MAX_ATTEMPTS = 3
+LOCKOUT_MINUTES = 30
 
 
-def _captcha_check(request) -> bool:
-    """
-    Valida captcha contra lo guardado en sesión.
-    """
-    expected = (request.session.get("login_captcha_answer") or "").strip()
-    provided = (request.POST.get("captcha_answer") or "").strip()
-    return bool(expected) and provided == expected
-
-
-def _lock_keys(usuario_input: str, ip: str):
-    """
-    Crea llaves de cache para intentos y bloqueo.
-    """
-    usuario_input = (usuario_input or "").strip().lower()
-    ip = (ip or "").strip()
-    # lock por usuario + ip (más seguro)
-    base = f"login:{usuario_input}:{ip}"
-    return (
-        f"{base}:attempts",
-        f"{base}:locked_until",
-    )
-
-
-def _get_ip(request):
-    """
-    Render/Proxy: prioriza X-Forwarded-For si existe.
-    """
+def _get_ip(request) -> str:
     xff = request.META.get("HTTP_X_FORWARDED_FOR")
     if xff:
-        # toma la primera IP
         return xff.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "")
+    return request.META.get("REMOTE_ADDR", "") or "unknown"
+
+
+def _cache_keys(usuario_input: str, ip: str):
+    user = (usuario_input or "").strip().lower()
+    ip = (ip or "").strip().lower()
+    base = f"swgfv:login:{user}:{ip}"
+    return f"{base}:attempts", f"{base}:locked_until"
+
+
+def _new_captcha(request) -> str:
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    request.session["captcha_a"] = a
+    request.session["captcha_b"] = b
+    request.session["captcha_answer"] = a + b
+    request.session.modified = True
+    return f"{a} + {b} = ?"
+
+
+def _get_captcha_question(request) -> str:
+    a = request.session.get("captcha_a")
+    b = request.session.get("captcha_b")
+    ans = request.session.get("captcha_answer")
+    if a is None or b is None or ans is None:
+        return _new_captcha(request)
+    return f"{a} + {b} = ?"
 
 
 # ------------------------
@@ -80,116 +68,93 @@ def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
-    # --- CAPTCHA: en GET generamos pregunta ---
-    if request.method == "GET":
-        a = random.randint(1, 9)
-        b = random.randint(1, 9)
-        request.session["captcha_a"] = a
-        request.session["captcha_b"] = b
-        request.session["captcha_answer"] = a + b
-
-    captcha_question = f"{request.session.get('captcha_a', 1)} + {request.session.get('captcha_b', 1)} = ?"
+    # GET: crear captcha si no existe
+    captcha_question = _get_captcha_question(request)
 
     form = LoginForm(request.POST or None)
 
     if request.method == "POST":
-        usuario_input = (request.POST.get("usuario") or "").strip().lower()
+        usuario_input = (request.POST.get("usuario") or "").strip()
+        ip = _get_ip(request)
 
-        # --- LOCKOUT por usuario: 3 intentos => 30 minutos ---
-        # Se bloquea "la cuenta" (por usuario ingresado)
-        lock_key = f"login_lock:{usuario_input}"
-        fail_key = f"login_fail:{usuario_input}"
+        # Valida form primero
+        if not form.is_valid():
+            messages.error(request, "Revise el formulario e intente nuevamente.")
+            captcha_question = _new_captcha(request)
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        locked_until_ts = cache.get(lock_key)
+        # Lockout con cache (usuario + ip)
+        attempts_key, locked_key = _cache_keys(usuario_input, ip)
+        locked_until_ts = cache.get(locked_key)
+
         now_ts = int(timezone.now().timestamp())
-
         if locked_until_ts and now_ts < int(locked_until_ts):
             remaining = int(locked_until_ts) - now_ts
             minutes = max(1, (remaining + 59) // 60)
             messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
-            # regenerar captcha para evitar reuso
-            a = random.randint(1, 9)
-            b = random.randint(1, 9)
-            request.session["captcha_a"] = a
-            request.session["captcha_b"] = b
-            request.session["captcha_answer"] = a + b
-            captcha_question = f"{a} + {b} = ?"
+            captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # Validación normal del form (incluye captcha como int)
-        if form.is_valid():
-            # --- Validar captcha contra sesión ---
-            expected = request.session.get("captcha_answer")
-            user_captcha = form.cleaned_data.get("captcha")
+        # Validar CAPTCHA (tu template usa name="captcha")
+        expected = request.session.get("captcha_answer")
+        provided = form.cleaned_data.get("captcha")  # IntegerField
 
-            if expected is None or user_captcha != expected:
-                # cuenta como intento fallido
-                fails = int(cache.get(fail_key) or 0) + 1
-                cache.set(fail_key, fails, timeout=30 * 60)
+        if expected is None or provided != expected:
+            current = int(cache.get(attempts_key, 0)) + 1
+            cache.set(attempts_key, current, timeout=LOCKOUT_MINUTES * 60)
 
-                if fails >= 3:
-                    cache.set(lock_key, now_ts + (30 * 60), timeout=30 * 60)
-                    cache.delete(fail_key)
-                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
-                else:
-                    messages.error(request, f"Verificación incorrecta. Intento {fails}/3.")
+            if current >= LOCKOUT_MAX_ATTEMPTS:
+                cache.set(locked_key, now_ts + (LOCKOUT_MINUTES * 60), timeout=LOCKOUT_MINUTES * 60)
+                messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
+            else:
+                messages.error(request, f"Verificación incorrecta. Intento {current}/{LOCKOUT_MAX_ATTEMPTS}.")
 
-                # regenerar captcha
-                a = random.randint(1, 9)
-                b = random.randint(1, 9)
-                request.session["captcha_a"] = a
-                request.session["captcha_b"] = b
-                request.session["captcha_answer"] = a + b
-                captcha_question = f"{a} + {b} = ?"
+            captcha_question = _new_captcha(request)
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+
+        # CAPTCHA OK -> autenticar
+        password = form.cleaned_data["password"]
+        user_auth = authenticate_local(usuario_input, password)
+
+        if user_auth:
+            u = Usuario.objects.filter(Correo_electronico__iexact=usuario_input).first()
+            if not u:
+                current = int(cache.get(attempts_key, 0)) + 1
+                cache.set(attempts_key, current, timeout=LOCKOUT_MINUTES * 60)
+                messages.error(request, f"Usuario o contraseña incorrectos. Intento {current}/{LOCKOUT_MAX_ATTEMPTS}.")
+                captcha_question = _new_captcha(request)
                 return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-            # --- Si captcha ok => autenticar usuario ---
-            password = form.cleaned_data["password"]
-            user_auth = authenticate_local(usuario_input, password)
+            if not u.Activo:
+                messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+                captcha_question = _new_captcha(request)
+                return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-            if user_auth:
-                try:
-                    u = Usuario.objects.get(Correo_electronico=usuario_input)
-                except Usuario.DoesNotExist:
-                    # también cuenta como fallo (evita brute force)
-                    fails = int(cache.get(fail_key) or 0) + 1
-                    cache.set(fail_key, fails, timeout=30 * 60)
-                    messages.error(request, "Usuario o contraseña incorrectos.")
-                else:
-                    if not u.Activo:
-                        messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
-                    else:
-                        # ✅ LOGIN OK => limpiar contadores
-                        cache.delete(fail_key)
-                        cache.delete(lock_key)
+            # ✅ LOGIN OK: reset lockout
+            cache.delete(attempts_key)
+            cache.delete(locked_key)
 
-                        request.session["usuario"] = u.Correo_electronico
-                        request.session["tipo"] = u.Tipo
-                        request.session["id_usuario"] = u.ID_Usuario
+            request.session["usuario"] = u.Correo_electronico
+            request.session["tipo"] = u.Tipo
+            request.session["id_usuario"] = u.ID_Usuario
+            request.session.modified = True
 
-                        return redirect("core:menu_principal")
-            else:
-                # fallo de credenciales
-                fails = int(cache.get(fail_key) or 0) + 1
-                cache.set(fail_key, fails, timeout=30 * 60)
+            return redirect("core:menu_principal")
 
-                if fails >= 3:
-                    cache.set(lock_key, now_ts + (30 * 60), timeout=30 * 60)
-                    cache.delete(fail_key)
-                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
-                else:
-                    messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/3.")
+        # Credenciales incorrectas
+        current = int(cache.get(attempts_key, 0)) + 1
+        cache.set(attempts_key, current, timeout=LOCKOUT_MINUTES * 60)
+
+        if current >= LOCKOUT_MAX_ATTEMPTS:
+            cache.set(locked_key, now_ts + (LOCKOUT_MINUTES * 60), timeout=LOCKOUT_MINUTES * 60)
+            messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
         else:
-            messages.error(request, "Revise el formulario e intente nuevamente.")
+            messages.error(request, f"Usuario o contraseña incorrectos. Intento {current}/{LOCKOUT_MAX_ATTEMPTS}.")
 
-        # regenerar captcha al final de POST (éxito ya retornó arriba)
-        a = random.randint(1, 9)
-        b = random.randint(1, 9)
-        request.session["captcha_a"] = a
-        request.session["captcha_b"] = b
-        request.session["captcha_answer"] = a + b
-        captcha_question = f"{a} + {b} = ?"
+        captcha_question = _new_captcha(request)
+        return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
+    # GET normal
     return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
 
@@ -210,7 +175,7 @@ def logout_view(request):
     return redirect("core:login")
 
 
-# OJO: esta vista DEBE ser pública para el link "¿Olvidaste...?"
+# Pública para el link "¿Olvidaste...?"
 def recuperar_view(request):
     return render(request, "core/recuperar.html")
 
@@ -221,7 +186,7 @@ def ayuda_view(request):
 
 
 # ------------------------
-# DEBUG SESIÓN (opcional pero útil)
+# DEBUG SESIÓN (opcional)
 # ------------------------
 def debug_sesion(request):
     session_usuario = request.session.get("usuario")
@@ -247,9 +212,8 @@ def debug_sesion(request):
 
 
 # =========================================================
-#                    MÓDULO PROYECTO
+# MÓDULO PROYECTO
 # =========================================================
-
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_alta(request):
@@ -285,11 +249,7 @@ def proyecto_alta(request):
     return render(
         request,
         "core/pages/proyecto_alta.html",
-        {
-            "form": form,
-            "session_usuario": session_usuario,
-            "session_tipo": session_tipo,
-        },
+        {"form": form, "session_usuario": session_usuario, "session_tipo": session_tipo},
     )
 
 
@@ -310,11 +270,7 @@ def proyecto_consulta(request):
     return render(
         request,
         "core/pages/proyecto_consulta.html",
-        {
-            "proyectos": proyectos,
-            "session_usuario": request.session.get("usuario"),
-            "session_tipo": session_tipo,
-        },
+        {"proyectos": proyectos, "session_usuario": request.session.get("usuario"), "session_tipo": session_tipo},
     )
 
 
@@ -356,8 +312,6 @@ def proyecto_modificacion(request):
         else:
             messages.info(request, "Se encontraron varios proyectos. Selecciona uno.")
 
-    # Si viene selección explícita por ?id=xxx, permitimos edición real (POST)
-    # Nota: en tu flujo, "Seleccionar" envía ?id=...
     if q_id and q_id.isdigit():
         seleccionado = Proyecto.objects.filter(id=int(q_id)).first()
         if seleccionado:
@@ -395,7 +349,7 @@ def proyecto_modificacion(request):
 
 
 # =========================================================
-#                    MÓDULO DIMENSIONAMIENTO
+# MÓDULO DIMENSIONAMIENTO
 # =========================================================
 @require_session_login
 def dimensionamiento_calculo_modulos(request):
@@ -408,7 +362,7 @@ def dimensionamiento_dimensionamiento(request):
 
 
 # =========================================================
-#                    MÓDULO CÁLCULO
+# MÓDULO CÁLCULO
 # =========================================================
 @require_session_login
 def calculo_dc(request):
@@ -426,7 +380,7 @@ def calculo_caida_tension(request):
 
 
 # =========================================================
-#                    MÓDULO RECURSOS
+# MÓDULO RECURSOS
 # =========================================================
 @require_session_login
 def recursos_conceptos(request):
@@ -467,7 +421,7 @@ def cuenta_view(request):
 
 
 # =========================================================
-#             GESTIÓN DE USUARIOS (REAL CON BD)
+# GESTIÓN DE USUARIOS
 # =========================================================
 @require_admin
 @require_http_methods(["GET", "POST"])
