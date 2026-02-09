@@ -62,7 +62,8 @@ class UsuarioCreateForm(forms.ModelForm):
             "Telefono": forms.TextInput(attrs={"class": "form-control"}),
             "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
-            "Activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+
         }
 
     def clean(self):

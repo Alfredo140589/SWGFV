@@ -4,13 +4,39 @@
 
 {% block head %}
 <style>
-  /* Ajustes SOLO para esta página */
+  /* SOLO para esta página (no rompe el resto del sistema) */
+  .section-title{
+    font-weight: 800;
+    color: var(--swgfv-primary);
+    margin: 0;
+    font-size: 1.02rem;
+    letter-spacing: .2px;
+  }
+
+  .section-sub{
+    margin: 0;
+    opacity: .75;
+    font-size: .92rem;
+  }
+
+  .section-divider{
+    height: 1px;
+    background: rgba(0,0,0,0.08);
+    margin: 1rem 0;
+  }
+
+  .swgfv-form-card{
+    border-radius: 18px;
+  }
+
+  /* compacta un poco los campos en pantallas pequeñas */
   @media (max-width: 576px){
     .swgfv-compact .form-control,
     .swgfv-compact .form-select{
       padding-top: .55rem;
       padding-bottom: .55rem;
     }
+
     .swgfv-sticky-actions{
       position: sticky;
       bottom: 0;
@@ -29,14 +55,16 @@
 
 {% block page_content %}
 <main class="container my-4 swgfv-compact">
-  <div class="card shadow-sm bg-glass">
+
+  <div class="card shadow-sm bg-glass swgfv-form-card">
     <div class="card-body p-3 p-md-4">
 
       <!-- Encabezado -->
       <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
-        <h2 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">
-          Alta de Usuario
-        </h2>
+        <div>
+          <h2 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">Alta de Usuario</h2>
+          <p class="m-0 section-sub">Registra usuarios administradores o generales.</p>
+        </div>
 
         <!-- Acciones desktop -->
         <div class="d-none d-md-flex gap-2">
@@ -49,12 +77,30 @@
         </div>
       </div>
 
+      <!-- Mensajes -->
+      {% if messages %}
+        <div class="mb-3">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       <form id="formAltaUsuario" method="POST" novalidate>
         {% csrf_token %}
 
-        <div class="row g-3">
+        <!-- ===== Sección: Estado / Tipo ===== -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <p class="section-title">Estado y tipo</p>
+            <p class="section-sub">Configura el perfil y si estará activo.</p>
+          </div>
+        </div>
 
-          <!-- ID + Tipo + Activo -->
+        <div class="row g-3 mt-1">
           <div class="col-12 col-lg-4">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID (autogenerado)</label>
             <input type="text" class="form-control" value="Se genera automáticamente" readonly>
@@ -67,16 +113,27 @@
           </div>
 
           <div class="col-12 col-lg-3 d-flex align-items-end">
-            <div class="form-check mt-1">
+            <div class="form-check form-switch">
               {{ form.Activo }}
-              <label class="form-check-label fw-bold" style="color: var(--swgfv-primary);">
+              <label class="form-check-label fw-bold ms-1" style="color: var(--swgfv-primary);">
                 Activo
               </label>
               {% if form.Activo.errors %}<div class="text-danger">{{ form.Activo.errors }}</div>{% endif %}
             </div>
           </div>
+        </div>
 
-          <!-- Nombre + Teléfono -->
+        <div class="section-divider"></div>
+
+        <!-- ===== Sección: Datos personales ===== -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <p class="section-title">Datos personales</p>
+            <p class="section-sub">Información básica del usuario.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mt-1">
           <div class="col-12 col-lg-6">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
             {{ form.Nombre }}
@@ -89,7 +146,6 @@
             {% if form.Telefono.errors %}<div class="text-danger">{{ form.Telefono.errors }}</div>{% endif %}
           </div>
 
-          <!-- Apellidos -->
           <div class="col-12 col-lg-6">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
             {{ form.Apellido_Paterno }}
@@ -101,15 +157,25 @@
             {{ form.Apellido_Materno }}
             {% if form.Apellido_Materno.errors %}<div class="text-danger">{{ form.Apellido_Materno.errors }}</div>{% endif %}
           </div>
+        </div>
 
-          <!-- Correo -->
+        <div class="section-divider"></div>
+
+        <!-- ===== Sección: Acceso ===== -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <p class="section-title">Acceso</p>
+            <p class="section-sub">Credenciales para iniciar sesión.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mt-1">
           <div class="col-12">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico (Usuario)</label>
             {{ form.Correo_electronico }}
             {% if form.Correo_electronico.errors %}<div class="text-danger">{{ form.Correo_electronico.errors }}</div>{% endif %}
           </div>
 
-          <!-- Contraseñas -->
           <div class="col-12 col-lg-6">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Contraseña</label>
             {{ form.password }}
@@ -121,18 +187,19 @@
             {{ form.password_confirm }}
             {% if form.password_confirm.errors %}<div class="text-danger">{{ form.password_confirm.errors }}</div>{% endif %}
           </div>
-
         </div>
 
-        <!-- Acciones móvil (sticky abajo) -->
+        <!-- Acciones desktop extra (opcional) -->
+        <div class="d-none d-md-flex justify-content-center gap-2 mt-4">
+          <button type="reset" class="btn btn-outline-secondary px-4">Limpiar</button>
+          <button type="submit" class="btn btn-swgfv px-4">Guardar</button>
+        </div>
+
+        <!-- Acciones móvil sticky -->
         <div class="d-md-none swgfv-sticky-actions mt-4">
           <div class="d-flex gap-2">
-            <button type="reset" class="btn btn-outline-secondary w-50">
-              Limpiar
-            </button>
-            <button type="submit" class="btn btn-swgfv w-50">
-              Guardar
-            </button>
+            <button type="reset" class="btn btn-outline-secondary w-50">Limpiar</button>
+            <button type="submit" class="btn btn-swgfv w-50">Guardar</button>
           </div>
         </div>
 
@@ -140,5 +207,6 @@
 
     </div>
   </div>
+
 </main>
 {% endblock %}
