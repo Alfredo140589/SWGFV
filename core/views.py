@@ -9,6 +9,7 @@ from .forms import (
     UsuarioCreateForm,
     UsuarioUpdateForm,
     ProyectoCreateForm,
+    ProyectoUpdateForm,
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -194,10 +195,17 @@ def proyecto_consulta(request):
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
     """
-    FASE 1 (ACTUAL): búsqueda y lista + selección automática si solo hay 1 resultado.
-    FASE 2 (SIGUIENTE): al seleccionar un proyecto, debajo se mostrará tabla/form
-    para editar/guardar/eliminar.
+    FASE 2: Búsqueda + lista (solo después de buscar) + selección + edición real:
+    - Mostrar formulario con datos del proyecto
+    - Guardar cambios
+    - Cancelar
+    - Eliminar
+    - Reflejar cambios en BD
     """
+    # Mantener variables de sesión para layout (por si algún template las usa)
+    session_usuario = request.session.get("usuario")
+    session_tipo = request.session.get("tipo")
+
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
@@ -206,11 +214,14 @@ def proyecto_modificacion(request):
 
     proyectos = Proyecto.objects.none()
     seleccionado = None
+    form = None
 
+    # ---------------------------
+    # GET: BÚSQUEDA / LISTA
+    # ---------------------------
     if hay_busqueda:
         qs = Proyecto.objects.select_related("ID_Usuario")
 
-        # ID debe ser numérico para evitar errores (id es AutoField/BigAutoField)
         if q_id:
             if q_id.isdigit():
                 qs = qs.filter(id=int(q_id))
@@ -233,16 +244,57 @@ def proyecto_modificacion(request):
         else:
             messages.info(request, "Se encontraron varios proyectos. Selecciona uno.")
 
+    # Si viene ?id= directo, permitir seleccionar aunque no haya filtros
+    if q_id and q_id.isdigit():
+        seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
+
+    # ---------------------------
+    # POST: GUARDAR / ELIMINAR
+    # ---------------------------
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+
+        if not seleccionado:
+            messages.error(request, "Selecciona un proyecto antes de realizar cambios.")
+            return redirect("core:proyecto_modificacion")
+
+        if action == "delete":
+            pid = seleccionado.id
+            seleccionado.delete()
+            messages.success(request, f"✅ Proyecto ID {pid} eliminado correctamente.")
+            return redirect("core:proyecto_modificacion")
+
+        # Guardar (action == save o vacío)
+        form = ProyectoUpdateForm(request.POST, instance=seleccionado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "✅ Cambios guardados correctamente.")
+
+            url = reverse("core:proyecto_modificacion")
+            # Mantener filtros para no perder contexto
+            return HttpResponseRedirect(
+                f"{url}?id={seleccionado.id}&nombre={q_nombre}&empresa={q_empresa}"
+            )
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+    else:
+        # GET con seleccionado -> precargar formulario
+        if seleccionado:
+            form = ProyectoUpdateForm(instance=seleccionado)
+
     return render(
         request,
         "core/pages/proyecto_modificacion.html",
         {
             "proyectos": proyectos,
             "seleccionado": seleccionado,
+            "form": form,
             "q_id": q_id,
             "q_nombre": q_nombre,
             "q_empresa": q_empresa,
             "mostrar_lista": hay_busqueda,
+            "session_usuario": session_usuario,
+            "session_tipo": session_tipo,
         },
     )
 
