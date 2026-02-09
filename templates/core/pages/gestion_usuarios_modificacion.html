@@ -3,43 +3,45 @@
 {% block title %}SWGFV - Modificación de Usuarios{% endblock %}
 
 {% block page_content %}
-<main class="container my-4">
-  <div class="card shadow-sm bg-glass">
-    <div class="card-body p-3 p-md-4">
+<div class="card shadow-sm bg-glass">
+  <div class="card-body p-3 p-md-4">
 
-      <h2 class="text-center mb-4" style="color: var(--swgfv-primary); font-weight: 800;">
-        Modificación de Usuarios
-      </h2>
+    <h2 class="text-center mb-4" style="color: var(--swgfv-primary); font-weight: 800;">
+      Modificación de Usuarios
+    </h2>
 
-      <form method="GET" class="mb-4">
-        <div class="row g-3">
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-            <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID Usuario">
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
-            <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
-            <input type="text" name="ap" value="{{ q_ap }}" class="form-control" placeholder="Apellido Paterno">
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
-            <input type="text" name="am" value="{{ q_am }}" class="form-control" placeholder="Apellido Materno">
-          </div>
+    <!-- BUSQUEDA -->
+    <form method="GET" class="mb-4">
+      <div class="row g-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID Usuario">
         </div>
 
-        <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-          <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
-          <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
+          <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
         </div>
-      </form>
 
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
+          <input type="text" name="ap" value="{{ q_ap }}" class="form-control" placeholder="Apellido Paterno">
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
+          <input type="text" name="am" value="{{ q_am }}" class="form-control" placeholder="Apellido Materno">
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+      </div>
+    </form>
+
+    <!-- LISTA (solo si hubo búsqueda) -->
+    {% if mostrar_lista %}
       <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle">
           <thead>
@@ -74,93 +76,98 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center">No hay usuarios.</td></tr>
+            <tr><td colspan="6" class="text-center">No hay resultados.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+    {% else %}
+      <div class="alert alert-info">
+        Realiza una búsqueda para mostrar usuarios.
+      </div>
+    {% endif %}
 
-      {% if seleccionado and form %}
-        <hr class="mb-4">
+    <!-- EDICION -->
+    {% if seleccionado and form %}
+      <hr class="mb-4">
 
-        <h5 class="mb-3" style="color: var(--swgfv-primary); font-weight: 800;">
-          Editando: ID {{ seleccionado.ID_Usuario }} — {{ seleccionado.Correo_electronico }}
-        </h5>
+      <h5 class="mb-3" style="color: var(--swgfv-primary); font-weight: 800;">
+        Editando: ID {{ seleccionado.ID_Usuario }} — {{ seleccionado.Correo_electronico }}
+      </h5>
 
-        <form method="POST" novalidate>
-          {% csrf_token %}
+      <form method="POST" novalidate>
+        {% csrf_token %}
 
-          <div class="row g-3">
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
-              {{ form.Nombre }}
-              {% if form.Nombre.errors %}<div class="text-danger">{{ form.Nombre.errors }}</div>{% endif %}
-            </div>
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
+            {{ form.Nombre }}
+            {% if form.Nombre.errors %}<div class="text-danger">{{ form.Nombre.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
-              {{ form.Apellido_Paterno }}
-              {% if form.Apellido_Paterno.errors %}<div class="text-danger">{{ form.Apellido_Paterno.errors }}</div>{% endif %}
-            </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
+            {{ form.Apellido_Paterno }}
+            {% if form.Apellido_Paterno.errors %}<div class="text-danger">{{ form.Apellido_Paterno.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
-              {{ form.Apellido_Materno }}
-              {% if form.Apellido_Materno.errors %}<div class="text-danger">{{ form.Apellido_Materno.errors }}</div>{% endif %}
-            </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
+            {{ form.Apellido_Materno }}
+            {% if form.Apellido_Materno.errors %}<div class="text-danger">{{ form.Apellido_Materno.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Teléfono</label>
-              {{ form.Telefono }}
-              {% if form.Telefono.errors %}<div class="text-danger">{{ form.Telefono.errors }}</div>{% endif %}
-            </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Teléfono</label>
+            {{ form.Telefono }}
+            {% if form.Telefono.errors %}<div class="text-danger">{{ form.Telefono.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico</label>
-              {{ form.Correo_electronico }}
-              {% if form.Correo_electronico.errors %}<div class="text-danger">{{ form.Correo_electronico.errors }}</div>{% endif %}
-            </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico</label>
+            {{ form.Correo_electronico }}
+            {% if form.Correo_electronico.errors %}<div class="text-danger">{{ form.Correo_electronico.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12 col-md-4">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Tipo</label>
-              {{ form.Tipo }}
-              {% if form.Tipo.errors %}<div class="text-danger">{{ form.Tipo.errors }}</div>{% endif %}
-            </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Tipo</label>
+            {{ form.Tipo }}
+            {% if form.Tipo.errors %}<div class="text-danger">{{ form.Tipo.errors }}</div>{% endif %}
+          </div>
 
-            <div class="col-12">
-              <div class="form-check">
-                {{ form.Activo }}
-                <label class="form-check-label fw-bold" style="color: var(--swgfv-primary);">Activo</label>
-                {% if form.Activo.errors %}<div class="text-danger">{{ form.Activo.errors }}</div>{% endif %}
-              </div>
-            </div>
-
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nueva contraseña (opcional)</label>
-              {{ form.new_password }}
-              {% if form.new_password.errors %}<div class="text-danger">{{ form.new_password.errors }}</div>{% endif %}
-            </div>
-
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Confirmar nueva contraseña</label>
-              {{ form.new_password_confirm }}
-              {% if form.new_password_confirm.errors %}<div class="text-danger">{{ form.new_password_confirm.errors }}</div>{% endif %}
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.Activo }}
+              <label class="form-check-label fw-bold" style="color: var(--swgfv-primary);">Activo</label>
+              {% if form.Activo.errors %}<div class="text-danger">{{ form.Activo.errors }}</div>{% endif %}
             </div>
           </div>
 
-          <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
-            <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
-            <button type="submit" class="btn btn-swgfv px-4">Guardar</button>
-
-            <button type="submit" name="action" value="deactivate" class="btn btn-warning px-4"
-                    onclick="return confirm('¿Seguro que deseas desactivar este usuario?');">
-              Desactivar
-            </button>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nueva contraseña (opcional)</label>
+            {{ form.new_password }}
+            {% if form.new_password.errors %}<div class="text-danger">{{ form.new_password.errors }}</div>{% endif %}
           </div>
-        </form>
-      {% endif %}
 
-    </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Confirmar nueva contraseña</label>
+            {{ form.new_password_confirm }}
+            {% if form.new_password_confirm.errors %}<div class="text-danger">{{ form.new_password_confirm.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+          <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+          <button type="submit" class="btn btn-swgfv px-4">Guardar</button>
+
+          <button type="submit" name="action" value="deactivate" class="btn btn-warning px-4"
+                  onclick="return confirm('¿Seguro que deseas desactivar este usuario?');">
+            Desactivar
+          </button>
+        </div>
+      </form>
+    {% endif %}
+
   </div>
-</main>
+</div>
 {% endblock %}

@@ -257,7 +257,6 @@ def cuenta_view(request):
 # =========================================================
 #             GESTIÓN DE USUARIOS (REAL CON BD)
 # =========================================================
-
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
@@ -272,15 +271,7 @@ def gestion_usuarios_alta(request):
             return redirect("core:gestion_usuarios_alta")
         messages.error(request, "Revisa el formulario. Hay errores.")
 
-    return render(
-        request,
-        "core/pages/gestion_usuarios_alta.html",
-        {
-            "form": form,
-            "session_usuario": request.session.get("usuario"),
-            "session_tipo": request.session.get("tipo"),
-        },
-    )
+    return render(request, "core/pages/gestion_usuarios_alta.html", {"form": form})
 
 
 @require_admin
@@ -291,32 +282,40 @@ def gestion_usuarios_modificacion(request):
     q_ap = request.GET.get("ap", "").strip()
     q_am = request.GET.get("am", "").strip()
 
-    usuarios = Usuario.objects.all().order_by("ID_Usuario")
+    # Mostrar lista SOLO si hay búsqueda
+    hay_busqueda = bool(q_id or q_nombre or q_ap or q_am)
+
+    # Por defecto no mostramos usuarios
+    usuarios = Usuario.objects.none()
 
     seleccionado = None
     form = None
 
-    if q_id:
-        try:
-            seleccionado = Usuario.objects.get(ID_Usuario=q_id)
-        except Usuario.DoesNotExist:
-            messages.error(request, "Usuario no encontrado por ID.")
-
-    elif q_nombre or q_ap or q_am:
-        qs = Usuario.objects.all()
-        if q_nombre:
-            qs = qs.filter(Nombre__icontains=q_nombre)
-        if q_ap:
-            qs = qs.filter(Apellido_Paterno__icontains=q_ap)
-        if q_am:
-            qs = qs.filter(Apellido_Materno__icontains=q_am)
-
-        if qs.count() == 1:
-            seleccionado = qs.first()
-        elif qs.count() == 0:
-            messages.error(request, "No se encontró usuario con esos datos.")
+    if hay_busqueda:
+        if q_id:
+            try:
+                seleccionado = Usuario.objects.get(ID_Usuario=q_id)
+                usuarios = Usuario.objects.filter(ID_Usuario=q_id)
+            except Usuario.DoesNotExist:
+                messages.error(request, "Usuario no encontrado por ID.")
+                usuarios = Usuario.objects.none()
         else:
-            messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
+            qs = Usuario.objects.all()
+            if q_nombre:
+                qs = qs.filter(Nombre__icontains=q_nombre)
+            if q_ap:
+                qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+            if q_am:
+                qs = qs.filter(Apellido_Materno__icontains=q_am)
+
+            usuarios = qs.order_by("ID_Usuario")
+
+            if usuarios.count() == 1:
+                seleccionado = usuarios.first()
+            elif usuarios.count() == 0:
+                messages.error(request, "No se encontró usuario con esos datos.")
+            else:
+                messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
 
     if seleccionado:
         if request.method == "POST":
@@ -326,7 +325,8 @@ def gestion_usuarios_modificacion(request):
                 seleccionado.Activo = False
                 seleccionado.save()
                 messages.success(request, "Usuario desactivado correctamente.")
-                return redirect("core:gestion_usuarios_modificacion")
+                url = reverse("core:gestion_usuarios_modificacion")
+                return HttpResponseRedirect(f"{url}?id={seleccionado.ID_Usuario}")
 
             form = UsuarioUpdateForm(request.POST, instance=seleccionado)
             if form.is_valid():
@@ -355,7 +355,6 @@ def gestion_usuarios_modificacion(request):
             "q_nombre": q_nombre,
             "q_ap": q_ap,
             "q_am": q_am,
-            "session_usuario": request.session.get("usuario"),
-            "session_tipo": request.session.get("tipo"),
+            "mostrar_lista": hay_busqueda,
         },
     )
