@@ -1,6 +1,5 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, MaxValueValidator
 from .models import Usuario, Proyecto
 
 
@@ -62,8 +61,10 @@ class UsuarioCreateForm(forms.ModelForm):
             "Telefono": forms.TextInput(attrs={"class": "form-control"}),
             "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
-            "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
-
+            # switch bonito (Bootstrap)
+            "Activo": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "role": "switch"}
+            ),
         }
 
     def clean(self):
@@ -73,12 +74,11 @@ class UsuarioCreateForm(forms.ModelForm):
 
         if p1 and p2 and p1 != p2:
             self.add_error("password_confirm", "Las contraseñas no coinciden.")
-
         return cleaned
 
     def save(self, commit=True):
         """
-        Guarda contraseña hasheada en el campo Contrasena usando set_password() del modelo Usuario.
+        Guarda contraseña hasheada usando set_password() del modelo Usuario.
         """
         user: Usuario = super().save(commit=False)
         raw_password = self.cleaned_data.get("password")
@@ -156,7 +156,7 @@ class UsuarioUpdateForm(forms.ModelForm):
             "Telefono": forms.TextInput(attrs={"class": "form-control"}),
             "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
-            "Activo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
 
     def clean(self):
@@ -210,8 +210,6 @@ class UsuarioUpdateForm(forms.ModelForm):
 class ProyectoCreateForm(forms.ModelForm):
     class Meta:
         model = Proyecto
-        # IMPORTANTE: NO incluimos ID_Usuario en el form.
-        # Se asigna en la vista con el usuario en sesión.
         fields = [
             "Nombre_Proyecto",
             "Nombre_Empresa",
@@ -253,11 +251,108 @@ class ProyectoCreateForm(forms.ModelForm):
         return fases
 
     def clean_Coordenadas(self):
-        """
-        Opcional: valida que tenga coma. Ej: "19.43, -99.13"
-        No convierte a float, solo valida formato básico.
-        """
         coord = (self.cleaned_data.get("Coordenadas") or "").strip()
         if "," not in coord:
+            raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
+        return coord
+
+
+# ======================================================
+# MODIFICACIÓN DE PROYECTO
+# ======================================================
+class ProyectoUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Proyecto
+        fields = [
+            "Nombre_Proyecto",
+            "Nombre_Empresa",
+            "Direccion",
+            "Coordenadas",
+            "Voltaje_Nominal",
+            "Numero_Fases",
+        ]
+        widgets = {
+            "Nombre_Proyecto": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}
+            ),
+            "Nombre_Empresa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}
+            ),
+            "Direccion": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Dirección"}
+            ),
+            "Coordenadas": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)",
+                }
+            ),
+            "Voltaje_Nominal": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Voltaje nominal"}
+            ),
+            "Numero_Fases": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "max": 3}
+            ),
+        }
+
+    def clean_Numero_Fases(self):
+        fases = self.cleaned_data.get("Numero_Fases")
+        if fases is None:
+            return fases
+        if fases < 1 or fases > 3:
+            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
+        return fases
+
+    def clean_Coordenadas(self):
+        coord = (self.cleaned_data.get("Coordenadas") or "").strip()
+        if coord and "," not in coord:
+            raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
+        return coord
+class ProyectoUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Proyecto
+        fields = [
+            "Nombre_Proyecto",
+            "Nombre_Empresa",
+            "Direccion",
+            "Coordenadas",
+            "Voltaje_Nominal",
+            "Numero_Fases",
+        ]
+        widgets = {
+            "Nombre_Proyecto": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}
+            ),
+            "Nombre_Empresa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}
+            ),
+            "Direccion": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Dirección"}
+            ),
+            "Coordenadas": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)",
+                }
+            ),
+            "Voltaje_Nominal": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Voltaje nominal"}
+            ),
+            "Numero_Fases": forms.NumberInput(
+                attrs={"class": "form-control", "min": 1, "max": 3}
+            ),
+        }
+
+    def clean_Numero_Fases(self):
+        fases = self.cleaned_data.get("Numero_Fases")
+        if fases is None:
+            return fases
+        if fases < 1 or fases > 3:
+            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
+        return fases
+
+    def clean_Coordenadas(self):
+        coord = (self.cleaned_data.get("Coordenadas") or "").strip()
+        if coord and "," not in coord:
             raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
         return coord
