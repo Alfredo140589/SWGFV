@@ -39,18 +39,28 @@
             {% endif %}
           </tr>
         </thead>
+
         <tbody>
           {% for p in proyectos %}
             <tr>
-              <td>{{ p.ID_Proyecto }}</td>
+              {# ID autogenerado por Django (PK) #}
+              <td class="fw-bold">{{ p.id }}</td>
+
               <td>{{ p.Nombre_Proyecto }}</td>
               <td>{{ p.Nombre_Empresa|default:"-" }}</td>
               <td>{{ p.Direccion }}</td>
               <td>{{ p.Coordenadas }}</td>
               <td>{{ p.Voltaje_Nominal }}</td>
               <td>{{ p.Numero_Fases }}</td>
+
               {% if session_tipo == "Administrador" %}
-                <td>{{ p.ID_Usuario.ID_Usuario }}</td>
+                <td>
+                  {% if p.ID_Usuario %}
+                    {{ p.ID_Usuario.ID_Usuario }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
               {% endif %}
             </tr>
           {% empty %}
