@@ -9,14 +9,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # =========================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 
-DEBUG = True
-
+# Render: DEBUG False por defecto. Local: export DJANGO_DEBUG=1
+DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = [
     "swgfv-web.onrender.com",
     "localhost",
     "127.0.0.1",
-    "testserver",  # necesario para Client() en shell/pruebas internas
+    "testserver",
 ]
 
 render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
@@ -27,7 +27,6 @@ CSRF_TRUSTED_ORIGINS = []
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f"https://{render_host}")
 
-# (Opcional recomendado en Render si usas https detrás de proxy)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # =========================
@@ -120,20 +119,36 @@ TIME_ZONE = "America/Mexico_City"
 USE_I18N = True
 USE_TZ = True
 
-# --- STATIC FILES (Render + WhiteNoise) ---
-from pathlib import Path
-import os
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+# =========================
+# STATIC FILES (Render + WhiteNoise)
+# =========================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-
-# ✅ Storage recomendado para evitar errores 500 por "manifest entry"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+
+# =========================
+# SESSIONS (INACTIVIDAD)
+# =========================
+# ✅ 20 minutos de inactividad => cierre automático
+SESSION_COOKIE_AGE = 20 * 60
+
+# ✅ refresca el contador en cada request (actividad)
+SESSION_SAVE_EVERY_REQUEST = True
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+
+# =========================
+# CACHÉ (opcional)
+# =========================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "swgfv-cache",
+    }
+}
 
 # =========================
 # DEFAULTS
 # =========================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-SESSION_COOKIE_AGE = 60 * 60 * 8
