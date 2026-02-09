@@ -177,9 +177,49 @@ def proyecto_consulta(request):
 
 
 @require_admin
+@require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
-    # Placeholder por ahora: evita que Render truene
-    return render(request, "core/pages/proyecto_modificacion.html")
+    q_id = request.GET.get("id", "").strip()
+    q_nombre = request.GET.get("nombre", "").strip()
+    q_empresa = request.GET.get("empresa", "").strip()
+
+    hay_busqueda = bool(q_id or q_nombre or q_empresa)
+
+    proyectos = Proyecto.objects.none()
+    seleccionado = None
+
+    if hay_busqueda:
+        qs = Proyecto.objects.select_related("ID_Usuario")
+
+        if q_id:
+            qs = qs.filter(id=q_id)
+        if q_nombre:
+            qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+        if q_empresa:
+            qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
+
+        proyectos = qs.order_by("-id")
+
+        if proyectos.count() == 1:
+            seleccionado = proyectos.first()
+        elif proyectos.count() == 0:
+            messages.error(request, "No se encontraron proyectos con esos criterios.")
+        else:
+            messages.info(request, "Se encontraron varios proyectos. Selecciona uno.")
+
+    return render(
+        request,
+        "core/pages/proyecto_modificacion.html",
+        {
+            "proyectos": proyectos,
+            "seleccionado": seleccionado,
+            "q_id": q_id,
+            "q_nombre": q_nombre,
+            "q_empresa": q_empresa,
+            "mostrar_lista": hay_busqueda,
+        },
+    )
+
 
 
 # =========================================================
