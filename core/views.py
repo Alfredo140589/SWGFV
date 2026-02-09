@@ -4,7 +4,12 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 
-from .forms import LoginForm, UsuarioCreateForm, UsuarioUpdateForm, ProyectoCreateForm
+from .forms import (
+    LoginForm,
+    UsuarioCreateForm,
+    UsuarioUpdateForm,
+    ProyectoCreateForm,
+)
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
@@ -31,11 +36,17 @@ def login_view(request):
                 try:
                     u = Usuario.objects.get(Correo_electronico=usuario_input)
                 except Usuario.DoesNotExist:
-                    messages.error(request, "El usuario autenticó, pero no existe en la base de datos.")
+                    messages.error(
+                        request,
+                        "El usuario autenticó, pero no existe en la base de datos."
+                    )
                     return redirect("core:login")
 
                 if not u.Activo:
-                    messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
+                    messages.error(
+                        request,
+                        "Tu usuario está inactivo. Contacta al administrador."
+                    )
                     return redirect("core:login")
 
                 request.session["usuario"] = u.Correo_electronico
@@ -121,7 +132,10 @@ def proyecto_alta(request):
 
     user = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
     if not user:
-        messages.error(request, "No se encontró el usuario en la base de datos. Inicia sesión de nuevo.")
+        messages.error(
+            request,
+            "No se encontró el usuario en la base de datos. Inicia sesión de nuevo."
+        )
         return redirect("core:logout")
 
     if not user.Activo:
@@ -179,9 +193,14 @@ def proyecto_consulta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
-    q_id = request.GET.get("id", "").strip()
-    q_nombre = request.GET.get("nombre", "").strip()
-    q_empresa = request.GET.get("empresa", "").strip()
+    """
+    FASE 1 (ACTUAL): búsqueda y lista + selección automática si solo hay 1 resultado.
+    FASE 2 (SIGUIENTE): al seleccionar un proyecto, debajo se mostrará tabla/form
+    para editar/guardar/eliminar.
+    """
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    q_empresa = (request.GET.get("empresa") or "").strip()
 
     hay_busqueda = bool(q_id or q_nombre or q_empresa)
 
@@ -191,10 +210,17 @@ def proyecto_modificacion(request):
     if hay_busqueda:
         qs = Proyecto.objects.select_related("ID_Usuario")
 
+        # ID debe ser numérico para evitar errores (id es AutoField/BigAutoField)
         if q_id:
-            qs = qs.filter(id=q_id)
+            if q_id.isdigit():
+                qs = qs.filter(id=int(q_id))
+            else:
+                messages.error(request, "El ID debe ser numérico.")
+                qs = Proyecto.objects.none()
+
         if q_nombre:
             qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+
         if q_empresa:
             qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
 
@@ -219,7 +245,6 @@ def proyecto_modificacion(request):
             "mostrar_lista": hay_busqueda,
         },
     )
-
 
 
 # =========================================================
@@ -305,6 +330,7 @@ def gestion_usuarios_alta(request):
     if request.method == "POST":
         if form.is_valid():
             obj = form.save(commit=False)
+            # UsuarioCreateForm ya hashea en save(), pero lo dejamos por seguridad:
             obj.set_password(form.cleaned_data["password"])
             obj.save()
             messages.success(request, "Usuario dado de alta correctamente.")
@@ -317,10 +343,10 @@ def gestion_usuarios_alta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_modificacion(request):
-    q_id = request.GET.get("id", "").strip()
-    q_nombre = request.GET.get("nombre", "").strip()
-    q_ap = request.GET.get("ap", "").strip()
-    q_am = request.GET.get("am", "").strip()
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    q_ap = (request.GET.get("ap") or "").strip()
+    q_am = (request.GET.get("am") or "").strip()
 
     # Mostrar lista SOLO si hay búsqueda
     hay_busqueda = bool(q_id or q_nombre or q_ap or q_am)
@@ -333,12 +359,17 @@ def gestion_usuarios_modificacion(request):
 
     if hay_busqueda:
         if q_id:
-            try:
-                seleccionado = Usuario.objects.get(ID_Usuario=q_id)
-                usuarios = Usuario.objects.filter(ID_Usuario=q_id)
-            except Usuario.DoesNotExist:
-                messages.error(request, "Usuario no encontrado por ID.")
+            # ID debe ser numérico
+            if not q_id.isdigit():
+                messages.error(request, "El ID debe ser numérico.")
                 usuarios = Usuario.objects.none()
+            else:
+                try:
+                    seleccionado = Usuario.objects.get(ID_Usuario=int(q_id))
+                    usuarios = Usuario.objects.filter(ID_Usuario=int(q_id))
+                except Usuario.DoesNotExist:
+                    messages.error(request, "Usuario no encontrado por ID.")
+                    usuarios = Usuario.objects.none()
         else:
             qs = Usuario.objects.all()
             if q_nombre:
@@ -355,11 +386,14 @@ def gestion_usuarios_modificacion(request):
             elif usuarios.count() == 0:
                 messages.error(request, "No se encontró usuario con esos datos.")
             else:
-                messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
+                messages.info(
+                    request,
+                    "Se encontraron varios resultados. Selecciona desde la lista."
+                )
 
     if seleccionado:
         if request.method == "POST":
-            action = request.POST.get("action", "").strip()
+            action = (request.POST.get("action") or "").strip()
 
             if action == "deactivate":
                 seleccionado.Activo = False
