@@ -35,9 +35,9 @@
       </div>
     </form>
 
-    <!-- LISTA -->
+    <!-- LISTA (solo después de búsqueda) -->
     {% if mostrar_lista %}
-      <div class="table-responsive">
+      <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle">
           <thead>
             <tr>
@@ -74,6 +74,75 @@
       <div class="alert alert-info">
         Realiza una búsqueda para mostrar proyectos.
       </div>
+    {% endif %}
+
+    <!-- FORMULARIO DE EDICIÓN -->
+    {% if seleccionado and form %}
+      <hr class="my-4">
+
+      <h5 class="mb-3" style="color: var(--swgfv-primary); font-weight: 800;">
+        Editando: ID {{ seleccionado.id }} — {{ seleccionado.Nombre_Proyecto }}
+      </h5>
+
+      <form method="POST" novalidate>
+        {% csrf_token %}
+        <!-- IMPORTANTÍSIMO: asegura que POST sepa qué proyecto editar/eliminar -->
+        <input type="hidden" name="selected_id" value="{{ seleccionado.id }}">
+
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold">Nombre del proyecto</label>
+            {{ form.Nombre_Proyecto }}
+            {% if form.Nombre_Proyecto.errors %}<div class="text-danger">{{ form.Nombre_Proyecto.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold">Empresa</label>
+            {{ form.Nombre_Empresa }}
+            {% if form.Nombre_Empresa.errors %}<div class="text-danger">{{ form.Nombre_Empresa.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-bold">Dirección</label>
+            {{ form.Direccion }}
+            {% if form.Direccion.errors %}<div class="text-danger">{{ form.Direccion.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-bold">Coordenadas</label>
+            {{ form.Coordenadas }}
+            {% if form.Coordenadas.errors %}<div class="text-danger">{{ form.Coordenadas.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label fw-bold">Voltaje nominal</label>
+            {{ form.Voltaje_Nominal }}
+            {% if form.Voltaje_Nominal.errors %}<div class="text-danger">{{ form.Voltaje_Nominal.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label fw-bold">Número de fases</label>
+            {{ form.Numero_Fases }}
+            {% if form.Numero_Fases.errors %}<div class="text-danger">{{ form.Numero_Fases.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+          <a href="{% url 'core:proyecto_modificacion' %}" class="btn btn-outline-secondary px-4">
+            Cancelar
+          </a>
+
+          <button type="submit" class="btn btn-swgfv px-4">
+            Guardar cambios
+          </button>
+
+          <button type="submit" name="action" value="delete"
+                  class="btn btn-danger px-4"
+                  onclick="return confirm('¿Seguro que deseas eliminar este proyecto? Esta acción no se puede deshacer.');">
+            Eliminar
+          </button>
+        </div>
+      </form>
     {% endif %}
 
   </div>

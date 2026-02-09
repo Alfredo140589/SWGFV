@@ -195,38 +195,73 @@ def proyecto_consulta(request):
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
     """
-    FASE 2: Búsqueda + lista (solo después de buscar) + selección + edición real:
-    - Mostrar formulario con datos del proyecto
-    - Guardar cambios
-    - Cancelar
-    - Eliminar
-    - Reflejar cambios en BD
+    FASE 2 (REAL): buscar -> listar -> seleccionar -> editar/guardar/eliminar.
+    Evita errores:
+    - ID no numérico
+    - selección inexistente
+    - POST sin id
     """
-    # Mantener variables de sesión para layout (por si algún template las usa)
-    session_usuario = request.session.get("usuario")
-    session_tipo = request.session.get("tipo")
-
+    # -------- 1) Capturar criterios (GET) --------
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
 
-    hay_busqueda = bool(q_id or q_nombre or q_empresa)
+    mostrar_lista = bool(q_id or q_nombre or q_empresa)
 
     proyectos = Proyecto.objects.none()
     seleccionado = None
     form = None
 
-    # ---------------------------
-    # GET: BÚSQUEDA / LISTA
-    # ---------------------------
-    if hay_busqueda:
+    # -------- 2) Selección segura (GET o POST) --------
+    # En POST no confiamos en querystring; traemos id del hidden input
+    selected_id = (request.POST.get("selected_id") or q_id).strip()
+
+    if selected_id:
+        if not selected_id.isdigit():
+            messages.error(request, "El ID del proyecto debe ser numérico.")
+            selected_id = ""
+        else:
+            seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(selected_id)).first()
+            if not seleccionado:
+                messages.error(request, "El proyecto seleccionado no existe.")
+
+    # -------- 3) Si viene POST y hay seleccionado -> Guardar/Eliminar --------
+    if request.method == "POST":
+        if not seleccionado:
+            messages.error(request, "No hay proyecto seleccionado para modificar.")
+            return redirect("core:proyecto_modificacion")
+
+        action = (request.POST.get("action") or "").strip()
+
+        # Eliminar
+        if action == "delete":
+            pid = seleccionado.id
+            seleccionado.delete()
+            messages.success(request, f"Proyecto ID {pid} eliminado correctamente.")
+            return redirect("core:proyecto_modificacion")
+
+        # Guardar cambios (acción normal)
+        form = ProyectoUpdateForm(request.POST, instance=seleccionado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Cambios guardados correctamente.")
+            # Volver a abrir la misma selección para que se vea actualizado
+            url = reverse("core:proyecto_modificacion")
+            return HttpResponseRedirect(f"{url}?id={seleccionado.id}")
+        else:
+            messages.error(request, "Revisa el formulario. Hay errores.")
+
+    # -------- 4) Si es GET -> construir lista por búsqueda + form de selección --------
+    # Lista de resultados SOLO después de búsqueda
+    if mostrar_lista:
         qs = Proyecto.objects.select_related("ID_Usuario")
 
+        # Si buscaron por id (q_id) y es válido numérico
         if q_id:
             if q_id.isdigit():
                 qs = qs.filter(id=int(q_id))
             else:
-                messages.error(request, "El ID debe ser numérico.")
+                messages.error(request, "El ID de búsqueda debe ser numérico.")
                 qs = Proyecto.objects.none()
 
         if q_nombre:
@@ -237,50 +272,16 @@ def proyecto_modificacion(request):
 
         proyectos = qs.order_by("-id")
 
-        if proyectos.count() == 1:
+        # Selección automática si solo hay 1 resultado y no había seleccionado aún
+        if not seleccionado and proyectos.count() == 1:
             seleccionado = proyectos.first()
-        elif proyectos.count() == 0:
-            messages.error(request, "No se encontraron proyectos con esos criterios.")
-        else:
-            messages.info(request, "Se encontraron varios proyectos. Selecciona uno.")
 
-    # Si viene ?id= directo, permitir seleccionar aunque no haya filtros
-    if q_id and q_id.isdigit():
-        seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
+        if proyectos.count() == 0:
+            messages.info(request, "No se encontraron proyectos con esos criterios.")
 
-    # ---------------------------
-    # POST: GUARDAR / ELIMINAR
-    # ---------------------------
-    if request.method == "POST":
-        action = (request.POST.get("action") or "").strip()
-
-        if not seleccionado:
-            messages.error(request, "Selecciona un proyecto antes de realizar cambios.")
-            return redirect("core:proyecto_modificacion")
-
-        if action == "delete":
-            pid = seleccionado.id
-            seleccionado.delete()
-            messages.success(request, f"✅ Proyecto ID {pid} eliminado correctamente.")
-            return redirect("core:proyecto_modificacion")
-
-        # Guardar (action == save o vacío)
-        form = ProyectoUpdateForm(request.POST, instance=seleccionado)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "✅ Cambios guardados correctamente.")
-
-            url = reverse("core:proyecto_modificacion")
-            # Mantener filtros para no perder contexto
-            return HttpResponseRedirect(
-                f"{url}?id={seleccionado.id}&nombre={q_nombre}&empresa={q_empresa}"
-            )
-
-        messages.error(request, "Revisa el formulario. Hay errores.")
-    else:
-        # GET con seleccionado -> precargar formulario
-        if seleccionado:
-            form = ProyectoUpdateForm(instance=seleccionado)
+    # Si hay seleccionado (GET) -> crear form para mostrar campos
+    if seleccionado and request.method == "GET":
+        form = ProyectoUpdateForm(instance=seleccionado)
 
     return render(
         request,
@@ -292,9 +293,7 @@ def proyecto_modificacion(request):
             "q_id": q_id,
             "q_nombre": q_nombre,
             "q_empresa": q_empresa,
-            "mostrar_lista": hay_busqueda,
-            "session_usuario": session_usuario,
-            "session_tipo": session_tipo,
+            "mostrar_lista": mostrar_lista,
         },
     )
 
@@ -382,7 +381,6 @@ def gestion_usuarios_alta(request):
     if request.method == "POST":
         if form.is_valid():
             obj = form.save(commit=False)
-            # UsuarioCreateForm ya hashea en save(), pero lo dejamos por seguridad:
             obj.set_password(form.cleaned_data["password"])
             obj.save()
             messages.success(request, "Usuario dado de alta correctamente.")
@@ -400,10 +398,7 @@ def gestion_usuarios_modificacion(request):
     q_ap = (request.GET.get("ap") or "").strip()
     q_am = (request.GET.get("am") or "").strip()
 
-    # Mostrar lista SOLO si hay búsqueda
     hay_busqueda = bool(q_id or q_nombre or q_ap or q_am)
-
-    # Por defecto no mostramos usuarios
     usuarios = Usuario.objects.none()
 
     seleccionado = None
@@ -411,7 +406,6 @@ def gestion_usuarios_modificacion(request):
 
     if hay_busqueda:
         if q_id:
-            # ID debe ser numérico
             if not q_id.isdigit():
                 messages.error(request, "El ID debe ser numérico.")
                 usuarios = Usuario.objects.none()
@@ -438,10 +432,7 @@ def gestion_usuarios_modificacion(request):
             elif usuarios.count() == 0:
                 messages.error(request, "No se encontró usuario con esos datos.")
             else:
-                messages.info(
-                    request,
-                    "Se encontraron varios resultados. Selecciona desde la lista."
-                )
+                messages.info(request, "Se encontraron varios resultados. Selecciona desde la lista.")
 
     if seleccionado:
         if request.method == "POST":
