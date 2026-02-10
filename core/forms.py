@@ -10,18 +10,24 @@ class LoginForm(forms.Form):
         label="Usuario",
         max_length=150,
         required=True,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ingrese su usuario"}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ingrese su usuario"}
+        ),
     )
     password = forms.CharField(
         label="Contraseña",
         required=True,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Ingrese su contraseña"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Ingrese su contraseña"}
+        ),
     )
     # Debe coincidir con name="captcha" en login.html
     captcha = forms.CharField(
         label="Captcha",
         required=True,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Escribe el resultado"}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Escribe el resultado"}
+        ),
     )
 
 
@@ -32,20 +38,26 @@ class PasswordRecoveryRequestForm(forms.Form):
     email = forms.EmailField(
         label="Correo electrónico",
         required=True,
-        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Correo registrado"}),
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "Correo registrado"}
+        ),
     )
 
 
-class PasswordResetConfirmForm(forms.Form):
+class PasswordResetForm(forms.Form):
     new_password = forms.CharField(
         label="Nueva contraseña",
         required=True,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Nueva contraseña"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Nueva contraseña"}
+        ),
     )
     new_password_confirm = forms.CharField(
         label="Confirmar contraseña",
         required=True,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Confirmar contraseña"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Confirmar contraseña"}
+        ),
     )
 
     def clean(self):
@@ -58,7 +70,7 @@ class PasswordResetConfirmForm(forms.Form):
 
 
 # ======================================================
-# ALTA DE USUARIO
+# ALTA / MODIFICACIÓN DE USUARIO
 # ======================================================
 class UsuarioCreateForm(forms.ModelForm):
     password = forms.CharField(
@@ -109,9 +121,6 @@ class UsuarioCreateForm(forms.ModelForm):
         return user
 
 
-# ======================================================
-# MODIFICACIÓN DE USUARIO
-# ======================================================
 class UsuarioUpdateForm(forms.ModelForm):
     new_password = forms.CharField(
         label="Nueva contraseña (opcional)",
@@ -149,21 +158,13 @@ class UsuarioUpdateForm(forms.ModelForm):
         cleaned = super().clean()
         p1 = cleaned.get("new_password")
         p2 = cleaned.get("new_password_confirm")
+
         if p1 or p2:
             if not p1 or not p2:
                 raise forms.ValidationError("Para cambiar la contraseña, llena ambos campos.")
             if p1 != p2:
                 self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
         return cleaned
-
-    def clean_Correo_electronico(self):
-        correo = self.cleaned_data["Correo_electronico"]
-        qs = Usuario.objects.filter(Correo_electronico=correo)
-        if self.instance and getattr(self.instance, "pk", None):
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise forms.ValidationError("Ya existe un usuario con ese correo.")
-        return correo
 
     def save(self, commit=True):
         user: Usuario = super().save(commit=False)
@@ -176,7 +177,7 @@ class UsuarioUpdateForm(forms.ModelForm):
 
 
 # ======================================================
-# ALTA/MODIFICACIÓN DE PROYECTO
+# PROYECTOS
 # ======================================================
 class ProyectoCreateForm(forms.ModelForm):
     class Meta:
@@ -198,51 +199,7 @@ class ProyectoCreateForm(forms.ModelForm):
             "Numero_Fases": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 3}),
         }
 
-    def clean_Numero_Fases(self):
-        fases = self.cleaned_data.get("Numero_Fases")
-        if fases is None:
-            return fases
-        if fases < 1 or fases > 3:
-            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
-        return fases
 
-    def clean_Coordenadas(self):
-        coord = (self.cleaned_data.get("Coordenadas") or "").strip()
-        if "," not in coord:
-            raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
-        return coord
-
-
-class ProyectoUpdateForm(forms.ModelForm):
-    class Meta:
-        model = Proyecto
-        fields = [
-            "Nombre_Proyecto",
-            "Nombre_Empresa",
-            "Direccion",
-            "Coordenadas",
-            "Voltaje_Nominal",
-            "Numero_Fases",
-        ]
-        widgets = {
-            "Nombre_Proyecto": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}),
-            "Nombre_Empresa": forms.TextInput(attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}),
-            "Direccion": forms.TextInput(attrs={"class": "form-control", "placeholder": "Dirección"}),
-            "Coordenadas": forms.TextInput(attrs={"class": "form-control", "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"}),
-            "Voltaje_Nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Voltaje nominal"}),
-            "Numero_Fases": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 3}),
-        }
-
-    def clean_Numero_Fases(self):
-        fases = self.cleaned_data.get("Numero_Fases")
-        if fases is None:
-            return fases
-        if fases < 1 or fases > 3:
-            raise forms.ValidationError("El número de fases debe ser 1, 2 o 3.")
-        return fases
-
-    def clean_Coordenadas(self):
-        coord = (self.cleaned_data.get("Coordenadas") or "").strip()
-        if coord and "," not in coord:
-            raise forms.ValidationError("Formato esperado: Latitud, Longitud (con coma).")
-        return coord
+class ProyectoUpdateForm(ProyectoCreateForm):
+    class Meta(ProyectoCreateForm.Meta):
+        pass

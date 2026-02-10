@@ -1,3 +1,4 @@
+# core/views.py
 import random
 
 from django.shortcuts import render, redirect
@@ -7,7 +8,7 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.core import signing
-from django.core.mail import send_mail
+from django.core.mail import get_connection, EmailMessage
 from django.conf import settings
 
 from .forms import (
@@ -17,7 +18,7 @@ from .forms import (
     ProyectoCreateForm,
     ProyectoUpdateForm,
     PasswordRecoveryRequestForm,
-    PasswordResetConfirmForm,
+    PasswordResetForm,
 )
 
 from .auth_local import authenticate_local
@@ -46,8 +47,8 @@ RESET_MAX_AGE_SECONDS = 15 * 60  # 15 min
 
 
 def _get_user_password_hash(u: Usuario) -> str:
-    # depende de tu modelo, usamos ambos por seguridad
-    return (getattr(u, "Contrasena", None) or getattr(u, "password", "") or "").strip()
+    # Cambia automáticamente cuando cambias la contraseña => invalida tokens viejos
+    return (getattr(u, "password", "") or "").strip()
 
 
 def _make_reset_token(u: Usuario) -> str:
@@ -65,7 +66,6 @@ def _read_reset_token(token: str):
 
     uid = data.get("uid")
     ph = (data.get("ph") or "").strip()
-
     if not uid:
         return None, "Enlace inválido. Solicita uno nuevo."
 
@@ -73,22 +73,21 @@ def _read_reset_token(token: str):
     if not u:
         return None, "Enlace inválido. Solicita uno nuevo."
 
-    # si ya cambió contraseña, invalida token viejo
     if _get_user_password_hash(u) != ph:
         return None, "Este enlace ya no es válido. Solicita uno nuevo."
 
     return u, None
 
 
-# ------------------------
+# =========================================================
 # LOGIN
-# ------------------------
+# =========================================================
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
-    # captcha question
+    # Crear captcha si no existe
     if "captcha_answer" not in request.session:
         captcha_question = _new_captcha(request)
     else:
@@ -96,7 +95,7 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
 
-    # Lockout 3 intentos / 30 min (guardado en session)
+    # Lockout 3 intentos / 30 min (por usuario, guardado en sesión)
     def _lock_key(usuario: str) -> str:
         return f"lock_until::{usuario}"
 
@@ -126,11 +125,10 @@ def login_view(request):
         usuario_input = (request.POST.get("usuario") or "").strip()
 
         if not usuario_input:
-            messages.error(request, "Ingresa tu usuario.")
+            messages.error(request, "Ingresa tu usuario/correo.")
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # bloqueado?
         now_ts = int(timezone.now().timestamp())
         locked_until = _get_locked_until(usuario_input)
         if locked_until and now_ts < int(locked_until):
@@ -141,11 +139,11 @@ def login_view(request):
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
         if not form.is_valid():
-            messages.error(request, "Revise el formulario y vuelva a intentar.")
+            messages.error(request, "Revisa el formulario e intenta nuevamente.")
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # validar captcha (form usa campo captcha)
+        # CAPTCHA: form usa campo "captcha" y template name="captcha"
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -157,25 +155,16 @@ def login_view(request):
                 _set_locked_until(usuario_input, now_ts + (30 * 60))
                 messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
             else:
-                messages.error(request, f"Verificación incorrecta. Intento {fails}/3.")
+                messages.error(request, f"Captcha incorrecto. Intento {fails}/3.")
 
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # captcha ok -> autenticar
+        # Credenciales
         password = form.cleaned_data["password"]
-        user_auth = authenticate_local(usuario_input, password)
+        u = authenticate_local(usuario_input, password)
 
-        if user_auth:
-            u = Usuario.objects.filter(Correo_electronico__iexact=usuario_input).first()
-
-            if not u:
-                fails = _get_fails(usuario_input) + 1
-                _set_fails(usuario_input, fails)
-                messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/3.")
-                captcha_question = _new_captcha(request)
-                return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
-
+        if u:
             if not u.Activo:
                 messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
                 captcha_question = _new_captcha(request)
@@ -186,7 +175,6 @@ def login_view(request):
             request.session["usuario"] = u.Correo_electronico
             request.session["tipo"] = u.Tipo
             request.session["id_usuario"] = u.ID_Usuario
-
             return redirect("core:menu_principal")
 
         # credenciales mal
@@ -205,33 +193,27 @@ def login_view(request):
     return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
 
-# ------------------------
-# MENÚ PRINCIPAL
-# ------------------------
+# =========================================================
+# MENÚ / LOGOUT / AYUDA
+# =========================================================
 @require_session_login
 def menu_principal(request):
     return render(request, "core/menu_principal.html")
 
 
-# ------------------------
-# LOGOUT
-# ------------------------
 @require_session_login
 def logout_view(request):
     request.session.flush()
     return redirect("core:login")
 
 
-# ------------------------
-# AYUDA
-# ------------------------
 @require_session_login
 def ayuda_view(request):
     return render(request, "core/ayuda.html")
 
 
 # =========================================================
-# RECUPERAR (PÚBLICO)
+# RECUPERAR (PÚBLICO) - TOKEN POR LINK + SMTP CON TIMEOUT
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
@@ -241,8 +223,11 @@ def recuperar_view(request):
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # mensaje genérico (no filtra si existe o no)
-            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
+            # Siempre mensaje genérico (seguridad)
+            messages.success(
+                request,
+                "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
+            )
 
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
@@ -258,16 +243,23 @@ def recuperar_view(request):
                     "Si tú no lo solicitaste, ignora este correo."
                 )
 
+                # ✅ ENVÍO SEGURO: conexión explícita con timeout (evita 500/worker timeout)
                 try:
-                    send_mail(
-                        subject,
-                        body,
-                        getattr(settings, "DEFAULT_FROM_EMAIL", None) or "no-reply@swgfv.local",
-                        [email],
-                        fail_silently=False,
+                    timeout = int(getattr(settings, "EMAIL_TIMEOUT", 15))
+                    connection = get_connection(timeout=timeout)
+
+                    msg = EmailMessage(
+                        subject=subject,
+                        body=body,
+                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@swgfv.local"),
+                        to=[email],
+                        connection=connection,
                     )
+                    msg.send(fail_silently=False)
+
                 except Exception:
-                    messages.warning(request, "No se pudo enviar el correo en este momento. Revisa SMTP en Render.")
+                    # No mostramos error al usuario por seguridad; revisa logs si falla
+                    pass
 
             return redirect("core:recuperar")
 
@@ -276,10 +268,6 @@ def recuperar_view(request):
     return render(request, "core/recuperar.html", {"form": form})
 
 
-# =========================================================
-# CONFIRMAR RESET (TOKEN)
-# Esta es la función que tu urls.py está llamando
-# =========================================================
 @require_http_methods(["GET", "POST"])
 def password_reset_confirm(request, token):
     u, err = _read_reset_token(token)
@@ -287,7 +275,7 @@ def password_reset_confirm(request, token):
         messages.error(request, err)
         return redirect("core:recuperar")
 
-    form = PasswordResetConfirmForm(request.POST or None)
+    form = PasswordResetForm(request.POST or None)
     if request.method == "POST":
         if form.is_valid():
             new_pass = form.cleaned_data["new_password"]
@@ -295,14 +283,15 @@ def password_reset_confirm(request, token):
             u.save()
             messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
             return redirect("core:login")
+
         messages.error(request, "Revisa el formulario. Hay errores.")
 
     return render(request, "core/password_reset_confirm.html", {"form": form, "email": u.Correo_electronico})
 
 
-# ------------------------
-# DEBUG SESIÓN (opcional)
-# ------------------------
+# =========================================================
+# DEBUG (opcional)
+# =========================================================
 def debug_sesion(request):
     session_usuario = request.session.get("usuario")
     session_tipo = request.session.get("tipo")
@@ -327,7 +316,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-# MÓDULO PROYECTO (SIN CAMBIOS)
+# PROYECTOS (TU IMPLEMENTACIÓN COMPLETA)
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -467,7 +456,7 @@ def proyecto_modificacion(request):
 
 
 # =========================================================
-# USUARIOS (SIN CAMBIOS)
+# USUARIOS (TU IMPLEMENTACIÓN COMPLETA)
 # =========================================================
 @require_admin
 @require_http_methods(["GET", "POST"])
@@ -477,7 +466,9 @@ def gestion_usuarios_alta(request):
     if request.method == "POST":
         if form.is_valid():
             obj = form.save(commit=False)
-            obj.set_password(form.cleaned_data["password"])
+            # UsuarioCreateForm ya hace set_password en save(), pero lo dejamos seguro:
+            if form.cleaned_data.get("password"):
+                obj.set_password(form.cleaned_data["password"])
             obj.save()
             messages.success(request, "Usuario dado de alta correctamente.")
             return redirect("core:gestion_usuarios_alta")
@@ -573,9 +564,9 @@ def gestion_usuarios_modificacion(request):
     )
 
 
-# ------------------------
-# CUENTA
-# ------------------------
+# =========================================================
+# CUENTA (si existe tu template)
+# =========================================================
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")

@@ -9,7 +9,7 @@ urlpatterns = [
     path("logout/", views.logout_view, name="logout"),
     path("ayuda/", views.ayuda_view, name="ayuda"),
 
-    # Recuperación (token link)
+    # Recuperación (TOKEN LINK)
     path("recuperar/", views.recuperar_view, name="recuperar"),
     path("recuperar/<str:token>/", views.password_reset_confirm, name="password_reset_confirm"),
 
