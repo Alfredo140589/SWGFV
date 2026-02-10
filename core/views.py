@@ -16,8 +16,8 @@ from .forms import (
     UsuarioUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
-    PasswordRecoveryRequestForm,
-    PasswordResetForm,
+    PasswordResetRequestForm,     # ✅ NOMBRES CLÁSICOS
+    PasswordResetConfirmForm,     # ✅ NOMBRES CLÁSICOS
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -32,7 +32,7 @@ def _new_captcha(request):
     b = random.randint(1, 9)
     request.session["captcha_a"] = a
     request.session["captcha_b"] = b
-    request.session["captcha_answer"] = str(a + b)  # guardamos string
+    request.session["captcha_answer"] = str(a + b)
     request.session.modified = True
     return f"{a} + {b} = ?"
 
@@ -44,10 +44,6 @@ signer = TimestampSigner()
 RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
 
 
-def _build_absolute_uri(request, path: str) -> str:
-    return request.build_absolute_uri(path)
-
-
 # ------------------------
 # LOGIN
 # ------------------------
@@ -56,7 +52,7 @@ def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
-    # captcha question
+    # Captcha
     if "captcha_answer" not in request.session:
         captcha_question = _new_captcha(request)
     else:
@@ -108,13 +104,12 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # ✅ Importante: ahora el LoginForm tiene campo "captcha"
         if not form.is_valid():
             messages.error(request, "Revise el formulario y vuelva a intentar.")
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # validar captcha
+        # ✅ tu login.html manda name="captcha"
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -131,7 +126,6 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # captcha ok -> autenticar
         password = form.cleaned_data["password"]
         user_auth = authenticate_local(usuario_input, password)
 
@@ -157,7 +151,6 @@ def login_view(request):
 
             return redirect("core:menu_principal")
 
-        # credenciales mal
         fails = _get_fails(usuario_input) + 1
         _set_fails(usuario_input, fails)
 
@@ -190,49 +183,36 @@ def logout_view(request):
     return redirect("core:login")
 
 
-# ------------------------
-# AYUDA
-# ------------------------
-@require_session_login
-def ayuda_view(request):
-    return render(request, "core/ayuda.html")
-
-
 # =========================================================
-# RECUPERAR (PÚBLICO) - envía link con token
+# RECUPERAR (PÚBLICO) - enviar link con token
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
-    form = PasswordRecoveryRequestForm(request.POST or None)
+    form = PasswordResetRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # ✅ mensaje genérico siempre
+            # Mensaje genérico siempre
             generic_msg = "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
             user = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
 
-            if user:
-                # Si no hay SMTP configurado, no intentes enviar (evita error inmediato)
-                if not getattr(settings, "EMAIL_HOST", "") or not getattr(settings, "EMAIL_HOST_USER", ""):
-                    messages.error(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
-                    messages.success(request, generic_msg)
-                    return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
+            # Siempre mostrar el genérico
+            messages.success(request, generic_msg)
 
+            if user:
                 try:
                     token = signer.sign(str(user.ID_Usuario))
-                    reset_path = reverse("core:reset_password", args=[token])
-                    reset_url = _build_absolute_uri(request, reset_path)
+                    reset_link = request.build_absolute_uri(
+                        reverse("core:reset_password", args=[token])
+                    )
 
-                    subject = "Restablecer contraseña - SWGFV"
+                    subject = "SWGFV - Restablecer contraseña"
                     body = (
-                        f"Hola {user.Nombre},\n\n"
-                        "Recibimos una solicitud para restablecer tu contraseña.\n"
-                        "Da clic en el enlace para crear una nueva contraseña (expira en 30 minutos):\n\n"
-                        f"{reset_url}\n\n"
-                        "Si tú no solicitaste este cambio, ignora este correo.\n\n"
-                        "SWGFV - Fortia PV"
+                        "Se solicitó restablecer tu contraseña.\n\n"
+                        f"Abre este enlace (expira en 30 minutos):\n{reset_link}\n\n"
+                        "Si tú no lo solicitaste, ignora este correo."
                     )
 
                     send_mail(
@@ -244,11 +224,8 @@ def recuperar_view(request):
                     )
                 except Exception:
                     messages.error(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
-                    messages.success(request, generic_msg)
-                    return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
 
-            messages.success(request, generic_msg)
-            return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
+            return redirect("core:recuperar")
 
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
@@ -257,10 +234,6 @@ def recuperar_view(request):
 
 @require_http_methods(["GET", "POST"])
 def reset_password_view(request, token):
-    """
-    Vista compatible con core/urls.py:
-    path("recuperar/<str:token>/", views.reset_password_view, name="reset_password")
-    """
     try:
         user_id = signer.unsign(token, max_age=RESET_MAX_AGE_SECONDS)
     except SignatureExpired:
@@ -275,7 +248,7 @@ def reset_password_view(request, token):
         messages.error(request, "Enlace inválido o usuario no disponible.")
         return redirect("core:recuperar")
 
-    form = PasswordResetForm(request.POST or None)
+    form = PasswordResetConfirmForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
