@@ -16,8 +16,8 @@ from .forms import (
     UsuarioUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
-    PasswordResetRequestForm,     # ✅ NOMBRES CLÁSICOS
-    PasswordResetConfirmForm,     # ✅ NOMBRES CLÁSICOS
+    PasswordRecoveryRequestForm,  # ✅ EXISTE en tu forms.py
+    PasswordResetForm,           # ✅ EXISTE en tu forms.py
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -41,7 +41,7 @@ def _new_captcha(request):
 # Password reset token helpers (firma + expiración)
 # =========================================================
 signer = TimestampSigner()
-RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
+RESET_MAX_AGE_SECONDS = 30 * 60  # 30 minutos
 
 
 # ------------------------
@@ -109,7 +109,7 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # ✅ tu login.html manda name="captcha"
+        # ✅ tu LoginForm usa captcha y tu login.html manda name="captcha"
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -126,11 +126,13 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
+        # captcha ok -> autenticar
         password = form.cleaned_data["password"]
         user_auth = authenticate_local(usuario_input, password)
 
         if user_auth:
             u = Usuario.objects.filter(Correo_electronico__iexact=usuario_input).first()
+
             if not u:
                 fails = _get_fails(usuario_input) + 1
                 _set_fails(usuario_input, fails)
@@ -151,6 +153,7 @@ def login_view(request):
 
             return redirect("core:menu_principal")
 
+        # credenciales incorrectas
         fails = _get_fails(usuario_input) + 1
         _set_fails(usuario_input, fails)
 
@@ -183,27 +186,34 @@ def logout_view(request):
     return redirect("core:login")
 
 
+# ------------------------
+# AYUDA
+# ------------------------
+@require_session_login
+def ayuda_view(request):
+    return render(request, "core/ayuda.html")
+
+
 # =========================================================
 # RECUPERAR (PÚBLICO) - enviar link con token
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
-    form = PasswordResetRequestForm(request.POST or None)
+    form = PasswordRecoveryRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # Mensaje genérico siempre
-            generic_msg = "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
-            user = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
+            # Siempre mensaje genérico (seguridad)
+            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
 
-            # Siempre mostrar el genérico
-            messages.success(request, generic_msg)
-
-            if user:
+            u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
+            if u:
                 try:
-                    token = signer.sign(str(user.ID_Usuario))
+                    # token firmado con expiración
+                    token = signer.sign(str(u.ID_Usuario))
+
                     reset_link = request.build_absolute_uri(
                         reverse("core:reset_password", args=[token])
                     )
@@ -216,10 +226,10 @@ def recuperar_view(request):
                     )
 
                     send_mail(
-                        subject,
-                        body,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [user.Correo_electronico],
+                        subject=subject,
+                        message=body,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[u.Correo_electronico],
                         fail_silently=False,
                     )
                 except Exception:
@@ -243,23 +253,23 @@ def reset_password_view(request, token):
         messages.error(request, "Enlace inválido.")
         return redirect("core:recuperar")
 
-    user = Usuario.objects.filter(ID_Usuario=user_id, Activo=True).first()
-    if not user:
+    u = Usuario.objects.filter(ID_Usuario=user_id, Activo=True).first()
+    if not u:
         messages.error(request, "Enlace inválido o usuario no disponible.")
         return redirect("core:recuperar")
 
-    form = PasswordResetConfirmForm(request.POST or None)
+    form = PasswordResetForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
             new_pass = form.cleaned_data["new_password"]
-            user.set_password(new_pass)
-            user.save()
+            u.set_password(new_pass)
+            u.save()
             messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
             return redirect("core:login")
         messages.error(request, "Revisa el formulario. Hay errores.")
 
-    return render(request, "core/reset_password.html", {"form": form, "email": user.Correo_electronico})
+    return render(request, "core/reset_password.html", {"form": form, "email": u.Correo_electronico})
 
 
 # ------------------------
