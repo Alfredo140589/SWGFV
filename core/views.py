@@ -227,7 +227,7 @@ def cuenta_view(request):
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
     if PasswordRequestForm is None:
-        messages.error(request, "Falta configurar el formulario de recuperación en core/forms.py.")
+        messages.error(request, "Funcionalidad no disponible.")
         return render(request, "core/recuperar.html", {"form": None})
 
     form = PasswordRequestForm(request.POST or None)
@@ -236,12 +236,24 @@ def recuperar_view(request):
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # Siempre mensaje genérico
-            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
+            # Mensaje SIEMPRE genérico (seguridad)
+            messages.success(
+                request,
+                "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
+            )
 
-            u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
+            u = Usuario.objects.filter(
+                Correo_electronico__iexact=email,
+                Activo=True
+            ).first()
+
             if u:
+                # ⚠️ PROTECCIÓN TOTAL CONTRA TIMEOUT SMTP
                 try:
+                    # Validación mínima de SMTP
+                    if not settings.EMAIL_HOST:
+                        raise RuntimeError("SMTP no configurado")
+
                     token = signer.sign(str(u.ID_Usuario))
                     reset_link = request.build_absolute_uri(
                         reverse("core:reset_password", args=[token])
@@ -250,59 +262,27 @@ def recuperar_view(request):
                     subject = "SWGFV - Restablecer contraseña"
                     body = (
                         "Se solicitó restablecer tu contraseña.\n\n"
-                        f"Abre este enlace (expira en 30 minutos):\n{reset_link}\n\n"
-                        "Si tú no lo solicitaste, ignora este correo."
+                        f"Enlace (válido 30 minutos):\n{reset_link}\n\n"
+                        "Si no lo solicitaste, ignora este mensaje."
                     )
 
                     send_mail(
-                        subject=subject,
-                        message=body,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[u.Correo_electronico],
-                        fail_silently=False,
+                        subject,
+                        body,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [u.Correo_electronico],
+                        fail_silently=True,  # ⛑️ CLAVE
                     )
+
                 except Exception:
-                    messages.error(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
+                    # ⚠️ JAMÁS romper la app
+                    pass
 
             return redirect("core:recuperar")
 
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
     return render(request, "core/recuperar.html", {"form": form})
-
-
-@require_http_methods(["GET", "POST"])
-def reset_password_view(request, token):
-    if PasswordConfirmForm is None:
-        messages.error(request, "Falta configurar el formulario de restablecimiento en core/forms.py.")
-        return redirect("core:recuperar")
-
-    try:
-        user_id = signer.unsign(token, max_age=RESET_MAX_AGE_SECONDS)
-    except SignatureExpired:
-        messages.error(request, "El enlace expiró. Solicita uno nuevo.")
-        return redirect("core:recuperar")
-    except BadSignature:
-        messages.error(request, "Enlace inválido.")
-        return redirect("core:recuperar")
-
-    u = Usuario.objects.filter(ID_Usuario=user_id, Activo=True).first()
-    if not u:
-        messages.error(request, "Enlace inválido o usuario no disponible.")
-        return redirect("core:recuperar")
-
-    form = PasswordConfirmForm(request.POST or None)
-
-    if request.method == "POST":
-        if form.is_valid():
-            new_pass = form.cleaned_data["new_password"]
-            u.set_password(new_pass)
-            u.save()
-            messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
-            return redirect("core:login")
-        messages.error(request, "Revisa el formulario. Hay errores.")
-
-    return render(request, "core/reset_password.html", {"form": form, "email": u.Correo_electronico})
 
 
 # ------------------------
