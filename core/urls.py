@@ -8,6 +8,7 @@ urlpatterns = [
     path("menu/", views.menu_principal, name="menu_principal"),
     path("logout/", views.logout_view, name="logout"),
     path("recuperar/", views.recuperar_view, name="recuperar"),
+path("recuperar/<str:token>/", views.password_reset_confirm, name="password_reset_confirm"),
     path("ayuda/", views.ayuda_view, name="ayuda"),
 
     # Debug

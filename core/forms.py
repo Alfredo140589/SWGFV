@@ -15,7 +15,6 @@ class LoginForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Ingrese su usuario"}
         ),
     )
-
     password = forms.CharField(
         label="Contraseña",
         required=True,
@@ -24,19 +23,52 @@ class LoginForm(forms.Form):
         ),
     )
 
-    # ✅ IMPORTANTE: el nombre debe ser EXACTO "captcha"
-    # porque tu login.html envía name="captcha"
-    captcha = forms.IntegerField(
+    # Captcha simple (la validación fuerte se hace en la vista con session)
+    captcha_answer = forms.CharField(
         label="Captcha",
         required=True,
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control",
-                "placeholder": "Escribe el resultado",
-                "inputmode": "numeric",
-            }
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Resuelve la operación"}
         ),
     )
+
+
+# ======================================================
+# RECUPERAR CONTRASEÑA (TOKEN POR LINK)
+# ======================================================
+class PasswordResetRequestForm(forms.Form):
+    email = forms.EmailField(
+        label="Correo electrónico",
+        required=True,
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "correo@ejemplo.com"}
+        ),
+    )
+
+
+class PasswordResetConfirmForm(forms.Form):
+    new_password = forms.CharField(
+        label="Nueva contraseña",
+        required=True,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Nueva contraseña"}
+        ),
+    )
+    new_password_confirm = forms.CharField(
+        label="Confirmar nueva contraseña",
+        required=True,
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Confirmar nueva contraseña"}
+        ),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get("new_password")
+        p2 = cleaned.get("new_password_confirm")
+        if p1 and p2 and p1 != p2:
+            self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
+        return cleaned
 
 
 # ======================================================
@@ -85,6 +117,7 @@ class UsuarioCreateForm(forms.ModelForm):
         cleaned = super().clean()
         p1 = cleaned.get("password")
         p2 = cleaned.get("password_confirm")
+
         if p1 and p2 and p1 != p2:
             self.add_error("password_confirm", "Las contraseñas no coinciden.")
         return cleaned
@@ -96,6 +129,35 @@ class UsuarioCreateForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+# ======================================================
+# FORM DE BÚSQUEDA (para Modificación)
+# ======================================================
+class UsuarioSearchForm(forms.Form):
+    buscar_id = forms.IntegerField(
+        label="Buscar por ID",
+        required=False,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "placeholder": "ID del usuario"}
+        ),
+    )
+    buscar_correo = forms.EmailField(
+        label="Buscar por correo",
+        required=False,
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "Correo electrónico"}
+        ),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        buscar_id = cleaned.get("buscar_id")
+        buscar_correo = cleaned.get("buscar_correo")
+
+        if not buscar_id and not buscar_correo:
+            raise ValidationError("Ingresa un ID o un correo para buscar.")
+        return cleaned
 
 
 # ======================================================
