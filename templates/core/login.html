@@ -12,7 +12,6 @@
     background-color: #001F3F;
   }
 
-  /* Fondo con imagen + overlay */
   .bg-wrap {
     position: fixed;
     inset: 0;
@@ -131,8 +130,8 @@
                 Resuelve: <strong>{{ captcha_question }}</strong>
               </div>
 
-              <label for="id_captcha" class="form-label fw-bold" style="color:#001F3F;">Respuesta:</label>
-              <input type="text" id="id_captcha" name="captcha" class="form-control"
+              <label for="id_captcha_answer" class="form-label fw-bold" style="color:#001F3F;">Respuesta:</label>
+              <input type="text" id="id_captcha_answer" name="captcha_answer" class="form-control"
                      placeholder="Escribe el resultado" required inputmode="numeric">
             </div>
 
@@ -155,4 +154,6 @@
     </div>
   </div>
 </main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

@@ -6,37 +6,19 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
+from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
-from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
-# =========================================================
-# IMPORTS (seguros)
-# =========================================================
 from .forms import (
     LoginForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
+    PasswordRecoveryRequestForm,
+    PasswordResetConfirmForm,
 )
-
-# ✅ Recuperación: soporta distintos nombres sin romper deploy
-try:
-    from .forms import PasswordRecoveryRequestForm as PasswordRequestForm
-except Exception:
-    try:
-        from .forms import PasswordResetRequestForm as PasswordRequestForm
-    except Exception:
-        PasswordRequestForm = None
-
-try:
-    from .forms import PasswordResetForm as PasswordConfirmForm
-except Exception:
-    try:
-        from .forms import PasswordResetConfirmForm as PasswordConfirmForm
-    except Exception:
-        PasswordConfirmForm = None
 
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -57,10 +39,45 @@ def _new_captcha(request):
 
 
 # =========================================================
-# Password reset token helpers
+# Password reset token helpers (firma + expiración)
 # =========================================================
-signer = TimestampSigner()
-RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
+RESET_SALT = "swgfv-reset-v1"
+RESET_MAX_AGE_SECONDS = 15 * 60  # 15 min
+
+
+def _get_user_password_hash(u: Usuario) -> str:
+    # depende de tu modelo, usamos ambos por seguridad
+    return (getattr(u, "Contrasena", None) or getattr(u, "password", "") or "").strip()
+
+
+def _make_reset_token(u: Usuario) -> str:
+    payload = {"uid": int(u.ID_Usuario), "ph": _get_user_password_hash(u)}
+    return signing.dumps(payload, salt=RESET_SALT)
+
+
+def _read_reset_token(token: str):
+    try:
+        data = signing.loads(token, salt=RESET_SALT, max_age=RESET_MAX_AGE_SECONDS)
+    except signing.SignatureExpired:
+        return None, "El enlace expiró. Solicita uno nuevo."
+    except signing.BadSignature:
+        return None, "Enlace inválido. Solicita uno nuevo."
+
+    uid = data.get("uid")
+    ph = (data.get("ph") or "").strip()
+
+    if not uid:
+        return None, "Enlace inválido. Solicita uno nuevo."
+
+    u = Usuario.objects.filter(ID_Usuario=uid).first()
+    if not u:
+        return None, "Enlace inválido. Solicita uno nuevo."
+
+    # si ya cambió contraseña, invalida token viejo
+    if _get_user_password_hash(u) != ph:
+        return None, "Este enlace ya no es válido. Solicita uno nuevo."
+
+    return u, None
 
 
 # ------------------------
@@ -71,7 +88,7 @@ def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
-    # Captcha
+    # captcha question
     if "captcha_answer" not in request.session:
         captcha_question = _new_captcha(request)
     else:
@@ -79,7 +96,7 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
 
-    # Lockout 3 intentos / 30 min (session)
+    # Lockout 3 intentos / 30 min (guardado en session)
     def _lock_key(usuario: str) -> str:
         return f"lock_until::{usuario}"
 
@@ -128,7 +145,7 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # ✅ LoginForm usa campo captcha; login.html manda name="captcha"
+        # validar captcha (form usa campo captcha)
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -172,7 +189,7 @@ def login_view(request):
 
             return redirect("core:menu_principal")
 
-        # credenciales incorrectas
+        # credenciales mal
         fails = _get_fails(usuario_input) + 1
         _set_fails(usuario_input, fails)
 
@@ -213,70 +230,44 @@ def ayuda_view(request):
     return render(request, "core/ayuda.html")
 
 
-# ------------------------
-# CUENTA (✅ faltaba, tu urls la usa)
-# ------------------------
-@require_session_login
-def cuenta_view(request):
-    return render(request, "core/pages/cuenta.html")
-
-
 # =========================================================
-# RECUPERAR (PÚBLICO) - enviar link con token
+# RECUPERAR (PÚBLICO)
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
-    if PasswordRequestForm is None:
-        messages.error(request, "Funcionalidad no disponible.")
-        return render(request, "core/recuperar.html", {"form": None})
-
-    form = PasswordRequestForm(request.POST or None)
+    form = PasswordRecoveryRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # Mensaje SIEMPRE genérico (seguridad)
-            messages.success(
-                request,
-                "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
-            )
+            # mensaje genérico (no filtra si existe o no)
+            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
 
-            u = Usuario.objects.filter(
-                Correo_electronico__iexact=email,
-                Activo=True
-            ).first()
-
+            u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
-                # ⚠️ PROTECCIÓN TOTAL CONTRA TIMEOUT SMTP
+                token = _make_reset_token(u)
+                reset_link = request.build_absolute_uri(
+                    reverse("core:password_reset_confirm", kwargs={"token": token})
+                )
+
+                subject = "SWGFV - Restablecer contraseña"
+                body = (
+                    "Se solicitó restablecer tu contraseña.\n\n"
+                    f"Abre este enlace (expira en 15 minutos):\n{reset_link}\n\n"
+                    "Si tú no lo solicitaste, ignora este correo."
+                )
+
                 try:
-                    # Validación mínima de SMTP
-                    if not settings.EMAIL_HOST:
-                        raise RuntimeError("SMTP no configurado")
-
-                    token = signer.sign(str(u.ID_Usuario))
-                    reset_link = request.build_absolute_uri(
-                        reverse("core:reset_password", args=[token])
-                    )
-
-                    subject = "SWGFV - Restablecer contraseña"
-                    body = (
-                        "Se solicitó restablecer tu contraseña.\n\n"
-                        f"Enlace (válido 30 minutos):\n{reset_link}\n\n"
-                        "Si no lo solicitaste, ignora este mensaje."
-                    )
-
                     send_mail(
                         subject,
                         body,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [u.Correo_electronico],
-                        fail_silently=True,  # ⛑️ CLAVE
+                        getattr(settings, "DEFAULT_FROM_EMAIL", None) or "no-reply@swgfv.local",
+                        [email],
+                        fail_silently=False,
                     )
-
                 except Exception:
-                    # ⚠️ JAMÁS romper la app
-                    pass
+                    messages.warning(request, "No se pudo enviar el correo en este momento. Revisa SMTP en Render.")
 
             return redirect("core:recuperar")
 
@@ -285,8 +276,32 @@ def recuperar_view(request):
     return render(request, "core/recuperar.html", {"form": form})
 
 
+# =========================================================
+# CONFIRMAR RESET (TOKEN)
+# Esta es la función que tu urls.py está llamando
+# =========================================================
+@require_http_methods(["GET", "POST"])
+def password_reset_confirm(request, token):
+    u, err = _read_reset_token(token)
+    if err:
+        messages.error(request, err)
+        return redirect("core:recuperar")
+
+    form = PasswordResetConfirmForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            new_pass = form.cleaned_data["new_password"]
+            u.set_password(new_pass)
+            u.save()
+            messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
+            return redirect("core:login")
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    return render(request, "core/password_reset_confirm.html", {"form": form, "email": u.Correo_electronico})
+
+
 # ------------------------
-# DEBUG SESIÓN
+# DEBUG SESIÓN (opcional)
 # ------------------------
 def debug_sesion(request):
     session_usuario = request.session.get("usuario")
@@ -312,7 +327,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-# PROYECTOS
+# MÓDULO PROYECTO (SIN CAMBIOS)
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -452,7 +467,7 @@ def proyecto_modificacion(request):
 
 
 # =========================================================
-# USUARIOS
+# USUARIOS (SIN CAMBIOS)
 # =========================================================
 @require_admin
 @require_http_methods(["GET", "POST"])
@@ -558,59 +573,9 @@ def gestion_usuarios_modificacion(request):
     )
 
 
-# =========================================================
-# VISTAS “EXTRAS” (para que no truene si existen en menú)
-# =========================================================
+# ------------------------
+# CUENTA
+# ------------------------
 @require_session_login
-def dimensionamiento_calculo_modulos(request):
-    return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
-
-
-@require_session_login
-def dimensionamiento_dimensionamiento(request):
-    return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
-
-
-@require_session_login
-def calculo_dc(request):
-    return render(request, "core/pages/calculo_dc.html")
-
-
-@require_session_login
-def calculo_ac(request):
-    return render(request, "core/pages/calculo_ac.html")
-
-
-@require_session_login
-def calculo_caida_tension(request):
-    return render(request, "core/pages/calculo_caida_tension.html")
-
-
-@require_session_login
-def recursos_conceptos(request):
-    return render(request, "core/pages/recursos_conceptos.html")
-
-
-@require_session_login
-def recursos_tablas(request):
-    return render(request, "core/pages/recursos_tablas.html")
-
-
-@require_admin
-def recursos_alta_concepto(request):
-    return render(request, "core/pages/recursos_alta_concepto.html")
-
-
-@require_admin
-def recursos_modificacion_concepto(request):
-    return render(request, "core/pages/recursos_modificacion_concepto.html")
-
-
-@require_admin
-def recursos_alta_tabla(request):
-    return render(request, "core/pages/recursos_alta_tabla.html")
-
-
-@require_admin
-def recursos_modificacion_tabla(request):
-    return render(request, "core/pages/recursos_modificacion_tabla.html")
+def cuenta_view(request):
+    return render(request, "core/pages/cuenta.html")
