@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
 # =========================================================
-# IMPORTS robustos (evita errores por nombres distintos)
+# IMPORTS (seguros)
 # =========================================================
 from .forms import (
     LoginForm,
@@ -21,14 +21,14 @@ from .forms import (
     ProyectoUpdateForm,
 )
 
-# ✅ Recuperación: soporta diferentes nombres de form sin romper deploy
+# ✅ Recuperación: soporta distintos nombres sin romper deploy
 try:
     from .forms import PasswordRecoveryRequestForm as PasswordRequestForm
 except Exception:
     try:
         from .forms import PasswordResetRequestForm as PasswordRequestForm
     except Exception:
-        PasswordRequestForm = None  # si no existe, la vista mostrará mensaje controlado
+        PasswordRequestForm = None
 
 try:
     from .forms import PasswordResetForm as PasswordConfirmForm
@@ -57,7 +57,7 @@ def _new_captcha(request):
 
 
 # =========================================================
-# Password reset token helpers (firma + expiración)
+# Password reset token helpers
 # =========================================================
 signer = TimestampSigner()
 RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
@@ -128,7 +128,7 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # ✅ LoginForm usa captcha y login.html manda name="captcha"
+        # ✅ LoginForm usa campo captcha; login.html manda name="captcha"
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -213,6 +213,14 @@ def ayuda_view(request):
     return render(request, "core/ayuda.html")
 
 
+# ------------------------
+# CUENTA (✅ faltaba, tu urls la usa)
+# ------------------------
+@require_session_login
+def cuenta_view(request):
+    return render(request, "core/pages/cuenta.html")
+
+
 # =========================================================
 # RECUPERAR (PÚBLICO) - enviar link con token
 # =========================================================
@@ -228,7 +236,7 @@ def recuperar_view(request):
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # Siempre mensaje genérico (seguridad)
+            # Siempre mensaje genérico
             messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
 
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
@@ -298,7 +306,7 @@ def reset_password_view(request, token):
 
 
 # ------------------------
-# DEBUG SESIÓN (opcional)
+# DEBUG SESIÓN
 # ------------------------
 def debug_sesion(request):
     session_usuario = request.session.get("usuario")
@@ -324,7 +332,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-# MÓDULO PROYECTO (SIN CAMBIOS)
+# PROYECTOS
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -464,7 +472,7 @@ def proyecto_modificacion(request):
 
 
 # =========================================================
-# USUARIOS (SIN CAMBIOS)
+# USUARIOS
 # =========================================================
 @require_admin
 @require_http_methods(["GET", "POST"])
@@ -568,3 +576,61 @@ def gestion_usuarios_modificacion(request):
             "mostrar_lista": hay_busqueda,
         },
     )
+
+
+# =========================================================
+# VISTAS “EXTRAS” (para que no truene si existen en menú)
+# =========================================================
+@require_session_login
+def dimensionamiento_calculo_modulos(request):
+    return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
+
+
+@require_session_login
+def dimensionamiento_dimensionamiento(request):
+    return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
+
+
+@require_session_login
+def calculo_dc(request):
+    return render(request, "core/pages/calculo_dc.html")
+
+
+@require_session_login
+def calculo_ac(request):
+    return render(request, "core/pages/calculo_ac.html")
+
+
+@require_session_login
+def calculo_caida_tension(request):
+    return render(request, "core/pages/calculo_caida_tension.html")
+
+
+@require_session_login
+def recursos_conceptos(request):
+    return render(request, "core/pages/recursos_conceptos.html")
+
+
+@require_session_login
+def recursos_tablas(request):
+    return render(request, "core/pages/recursos_tablas.html")
+
+
+@require_admin
+def recursos_alta_concepto(request):
+    return render(request, "core/pages/recursos_alta_concepto.html")
+
+
+@require_admin
+def recursos_modificacion_concepto(request):
+    return render(request, "core/pages/recursos_modificacion_concepto.html")
+
+
+@require_admin
+def recursos_alta_tabla(request):
+    return render(request, "core/pages/recursos_alta_tabla.html")
+
+
+@require_admin
+def recursos_modificacion_tabla(request):
+    return render(request, "core/pages/recursos_modificacion_tabla.html")
