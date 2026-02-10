@@ -1,4 +1,3 @@
-from datetime import timedelta
 import random
 
 from django.shortcuts import render, redirect
@@ -7,10 +6,9 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
-from django.core.cache import cache
-from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
 from .forms import (
     LoginForm,
@@ -18,8 +16,8 @@ from .forms import (
     UsuarioUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
-    PasswordResetRequestForm,
-    PasswordResetConfirmForm,
+    PasswordRecoveryRequestForm,
+    PasswordResetForm,
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -27,64 +25,27 @@ from .models import Usuario, Proyecto
 
 
 # =========================================================
-#  Helpers: CAPTCHA
+# CAPTCHA helper
 # =========================================================
 def _new_captcha(request):
     a = random.randint(1, 9)
     b = random.randint(1, 9)
     request.session["captcha_a"] = a
     request.session["captcha_b"] = b
-    request.session["captcha_answer"] = a + b
+    request.session["captcha_answer"] = str(a + b)  # guardamos string
     request.session.modified = True
     return f"{a} + {b} = ?"
 
 
 # =========================================================
-#  Password reset token helpers (firma + expiración)
+# Password reset token helpers (firma + expiración)
 # =========================================================
-RESET_SALT = "swgfv-reset-v1"
-RESET_MAX_AGE_SECONDS = 15 * 60  # 15 minutos
+signer = TimestampSigner()
+RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
 
-def _get_user_password_hash(u: Usuario) -> str:
-    """
-    Obtiene el hash actual guardado en el usuario.
-    Tu modelo puede usar 'Contrasena' o 'password'. Cubrimos ambos.
-    """
-    return (getattr(u, "Contrasena", None) or getattr(u, "password", "") or "").strip()
 
-def _make_reset_token(u: Usuario) -> str:
-    payload = {
-        "uid": int(u.ID_Usuario),
-        "ph": _get_user_password_hash(u),
-    }
-    return signing.dumps(payload, salt=RESET_SALT)
-
-def _read_reset_token(token: str):
-    """
-    Regresa (usuario, None) si es válido
-    Regresa (None, "mensaje") si no es válido
-    """
-    try:
-        data = signing.loads(token, salt=RESET_SALT, max_age=RESET_MAX_AGE_SECONDS)
-    except signing.SignatureExpired:
-        return None, "El enlace expiró. Solicita uno nuevo."
-    except signing.BadSignature:
-        return None, "Enlace inválido. Solicita uno nuevo."
-
-    uid = data.get("uid")
-    ph = (data.get("ph") or "").strip()
-    if not uid:
-        return None, "Enlace inválido. Solicita uno nuevo."
-
-    u = Usuario.objects.filter(ID_Usuario=uid).first()
-    if not u:
-        return None, "Enlace inválido. Solicita uno nuevo."
-
-    # Si la contraseña cambió, invalidamos token
-    if _get_user_password_hash(u) != ph:
-        return None, "Este enlace ya no es válido (posible cambio de contraseña). Solicita uno nuevo."
-
-    return u, None
+def _build_absolute_uri(request, path: str) -> str:
+    return request.build_absolute_uri(path)
 
 
 # ------------------------
@@ -95,6 +56,7 @@ def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
+    # captcha question
     if "captcha_answer" not in request.session:
         captcha_question = _new_captcha(request)
     else:
@@ -102,7 +64,7 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
 
-    # Lockout (3 intentos / 30 minutos) - por usuario en sesión
+    # Lockout 3 intentos / 30 min (guardado en session)
     def _lock_key(usuario: str) -> str:
         return f"lock_until::{usuario}"
 
@@ -130,14 +92,15 @@ def login_view(request):
 
     if request.method == "POST":
         usuario_input = (request.POST.get("usuario") or "").strip()
+
         if not usuario_input:
             messages.error(request, "Ingresa tu usuario.")
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
+        # bloqueado?
         now_ts = int(timezone.now().timestamp())
         locked_until = _get_locked_until(usuario_input)
-
         if locked_until and now_ts < int(locked_until):
             remaining = int(locked_until) - now_ts
             minutes = max(1, (remaining + 59) // 60)
@@ -145,15 +108,17 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
+        # ✅ Importante: ahora el LoginForm tiene campo "captcha"
         if not form.is_valid():
             messages.error(request, "Revise el formulario y vuelva a intentar.")
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        expected = request.session.get("captcha_answer")
-        user_captcha = form.cleaned_data.get("captcha_answer")
+        # validar captcha
+        expected = (request.session.get("captcha_answer") or "").strip()
+        provided = (form.cleaned_data.get("captcha") or "").strip()
 
-        if expected is None or str(user_captcha).strip() != str(expected).strip():
+        if not expected or provided != expected:
             fails = _get_fails(usuario_input) + 1
             _set_fails(usuario_input, fails)
 
@@ -166,12 +131,12 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
+        # captcha ok -> autenticar
         password = form.cleaned_data["password"]
         user_auth = authenticate_local(usuario_input, password)
 
         if user_auth:
             u = Usuario.objects.filter(Correo_electronico__iexact=usuario_input).first()
-
             if not u:
                 fails = _get_fails(usuario_input) + 1
                 _set_fails(usuario_input, fails)
@@ -192,6 +157,7 @@ def login_view(request):
 
             return redirect("core:menu_principal")
 
+        # credenciales mal
         fails = _get_fails(usuario_input) + 1
         _set_fails(usuario_input, fails)
 
@@ -216,7 +182,7 @@ def menu_principal(request):
 
 
 # ------------------------
-# LOGOUT / AYUDA
+# LOGOUT
 # ------------------------
 @require_session_login
 def logout_view(request):
@@ -224,56 +190,65 @@ def logout_view(request):
     return redirect("core:login")
 
 
+# ------------------------
+# AYUDA
+# ------------------------
 @require_session_login
 def ayuda_view(request):
     return render(request, "core/ayuda.html")
 
 
 # =========================================================
-#  RECUPERAR CONTRASEÑA (PÚBLICO)
+# RECUPERAR (PÚBLICO) - envía link con token
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
-    """
-    Pide correo. Si existe, envía un link con token que expira en 15 minutos.
-    (Siempre responde con mensaje genérico para no revelar si existe o no.)
-    """
-    form = PasswordResetRequestForm(request.POST or None)
+    form = PasswordRecoveryRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
             email = form.cleaned_data["email"].strip()
 
-            # Mensaje genérico (no revelar si existe)
-            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
+            # ✅ mensaje genérico siempre
+            generic_msg = "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
+            user = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
 
-            u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
-            if u:
-                token = _make_reset_token(u)
-                reset_link = request.build_absolute_uri(
-                    reverse("core:password_reset_confirm", kwargs={"token": token})
-                )
-
-                subject = "SWGFV - Restablecer contraseña"
-                body = (
-                    "Se solicitó restablecer tu contraseña.\n\n"
-                    f"Abre este enlace (expira en 15 minutos):\n{reset_link}\n\n"
-                    "Si tú no lo solicitaste, ignora este correo."
-                )
+            if user:
+                # Si no hay SMTP configurado, no intentes enviar (evita error inmediato)
+                if not getattr(settings, "EMAIL_HOST", "") or not getattr(settings, "EMAIL_HOST_USER", ""):
+                    messages.error(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
+                    messages.success(request, generic_msg)
+                    return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
 
                 try:
+                    token = signer.sign(str(user.ID_Usuario))
+                    reset_path = reverse("core:reset_password", args=[token])
+                    reset_url = _build_absolute_uri(request, reset_path)
+
+                    subject = "Restablecer contraseña - SWGFV"
+                    body = (
+                        f"Hola {user.Nombre},\n\n"
+                        "Recibimos una solicitud para restablecer tu contraseña.\n"
+                        "Da clic en el enlace para crear una nueva contraseña (expira en 30 minutos):\n\n"
+                        f"{reset_url}\n\n"
+                        "Si tú no solicitaste este cambio, ignora este correo.\n\n"
+                        "SWGFV - Fortia PV"
+                    )
+
                     send_mail(
                         subject,
                         body,
-                        getattr(settings, "DEFAULT_FROM_EMAIL", None) or "no-reply@swgfv.local",
-                        [email],
+                        settings.DEFAULT_FROM_EMAIL,
+                        [user.Correo_electronico],
                         fail_silently=False,
                     )
                 except Exception:
-                    # No tumbar el flujo por error SMTP
-                    messages.warning(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
+                    messages.error(request, "No se pudo enviar el correo en este momento. Intenta más tarde.")
+                    messages.success(request, generic_msg)
+                    return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
 
-            return redirect("core:recuperar")
+            messages.success(request, generic_msg)
+            return render(request, "core/recuperar.html", {"form": PasswordRecoveryRequestForm()})
 
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
@@ -281,30 +256,37 @@ def recuperar_view(request):
 
 
 @require_http_methods(["GET", "POST"])
-def password_reset_confirm(request, token):
+def reset_password_view(request, token):
     """
-    Valida token y permite establecer nueva contraseña.
+    Vista compatible con core/urls.py:
+    path("recuperar/<str:token>/", views.reset_password_view, name="reset_password")
     """
-    u, err = _read_reset_token(token)
-    if err:
-        messages.error(request, err)
+    try:
+        user_id = signer.unsign(token, max_age=RESET_MAX_AGE_SECONDS)
+    except SignatureExpired:
+        messages.error(request, "El enlace expiró. Solicita uno nuevo.")
+        return redirect("core:recuperar")
+    except BadSignature:
+        messages.error(request, "Enlace inválido.")
         return redirect("core:recuperar")
 
-    form = PasswordResetConfirmForm(request.POST or None)
+    user = Usuario.objects.filter(ID_Usuario=user_id, Activo=True).first()
+    if not user:
+        messages.error(request, "Enlace inválido o usuario no disponible.")
+        return redirect("core:recuperar")
+
+    form = PasswordResetForm(request.POST or None)
+
     if request.method == "POST":
         if form.is_valid():
             new_pass = form.cleaned_data["new_password"]
-            u.set_password(new_pass)
-            u.save()
+            user.set_password(new_pass)
+            user.save()
             messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
             return redirect("core:login")
         messages.error(request, "Revisa el formulario. Hay errores.")
 
-    return render(
-        request,
-        "core/password_reset_confirm.html",
-        {"form": form, "email": u.Correo_electronico},
-    )
+    return render(request, "core/reset_password.html", {"form": form, "email": user.Correo_electronico})
 
 
 # ------------------------
@@ -334,7 +316,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-#                    MÓDULO PROYECTO
+# MÓDULO PROYECTO (SIN CAMBIOS)
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -443,7 +425,6 @@ def proyecto_modificacion(request):
         if seleccionado:
             if request.method == "POST":
                 action = (request.POST.get("action") or "").strip()
-
                 if action == "delete":
                     seleccionado.delete()
                     messages.success(request, "Proyecto eliminado correctamente.")
@@ -475,68 +456,8 @@ def proyecto_modificacion(request):
 
 
 # =========================================================
-#  RESTO DE MÓDULOS (SIN CAMBIOS)
+# USUARIOS (SIN CAMBIOS)
 # =========================================================
-@require_session_login
-def dimensionamiento_calculo_modulos(request):
-    return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
-
-
-@require_session_login
-def dimensionamiento_dimensionamiento(request):
-    return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
-
-
-@require_session_login
-def calculo_dc(request):
-    return render(request, "core/pages/calculo_dc.html")
-
-
-@require_session_login
-def calculo_ac(request):
-    return render(request, "core/pages/calculo_ac.html")
-
-
-@require_session_login
-def calculo_caida_tension(request):
-    return render(request, "core/pages/calculo_caida_tension.html")
-
-
-@require_session_login
-def recursos_conceptos(request):
-    return render(request, "core/pages/recursos_conceptos.html")
-
-
-@require_session_login
-def recursos_tablas(request):
-    return render(request, "core/pages/recursos_tablas.html")
-
-
-@require_admin
-def recursos_alta_concepto(request):
-    return render(request, "core/pages/recursos_alta_concepto.html")
-
-
-@require_admin
-def recursos_modificacion_concepto(request):
-    return render(request, "core/pages/recursos_modificacion_concepto.html")
-
-
-@require_admin
-def recursos_alta_tabla(request):
-    return render(request, "core/pages/recursos_alta_tabla.html")
-
-
-@require_admin
-def recursos_modificacion_tabla(request):
-    return render(request, "core/pages/recursos_modificacion_tabla.html")
-
-
-@require_session_login
-def cuenta_view(request):
-    return render(request, "core/pages/cuenta.html")
-
-
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
