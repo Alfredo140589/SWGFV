@@ -10,15 +10,34 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
+# =========================================================
+# IMPORTS robustos (evita errores por nombres distintos)
+# =========================================================
 from .forms import (
     LoginForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
-    PasswordRecoveryRequestForm,  # ✅ EXISTE en tu forms.py
-    PasswordResetForm,           # ✅ EXISTE en tu forms.py
 )
+
+# ✅ Recuperación: soporta diferentes nombres de form sin romper deploy
+try:
+    from .forms import PasswordRecoveryRequestForm as PasswordRequestForm
+except Exception:
+    try:
+        from .forms import PasswordResetRequestForm as PasswordRequestForm
+    except Exception:
+        PasswordRequestForm = None  # si no existe, la vista mostrará mensaje controlado
+
+try:
+    from .forms import PasswordResetForm as PasswordConfirmForm
+except Exception:
+    try:
+        from .forms import PasswordResetConfirmForm as PasswordConfirmForm
+    except Exception:
+        PasswordConfirmForm = None
+
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto
@@ -41,7 +60,7 @@ def _new_captcha(request):
 # Password reset token helpers (firma + expiración)
 # =========================================================
 signer = TimestampSigner()
-RESET_MAX_AGE_SECONDS = 30 * 60  # 30 minutos
+RESET_MAX_AGE_SECONDS = 30 * 60  # 30 min
 
 
 # ------------------------
@@ -60,7 +79,7 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
 
-    # Lockout 3 intentos / 30 min (guardado en session)
+    # Lockout 3 intentos / 30 min (session)
     def _lock_key(usuario: str) -> str:
         return f"lock_until::{usuario}"
 
@@ -109,7 +128,7 @@ def login_view(request):
             captcha_question = _new_captcha(request)
             return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
 
-        # ✅ tu LoginForm usa captcha y tu login.html manda name="captcha"
+        # ✅ LoginForm usa captcha y login.html manda name="captcha"
         expected = (request.session.get("captcha_answer") or "").strip()
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
@@ -199,7 +218,11 @@ def ayuda_view(request):
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
-    form = PasswordRecoveryRequestForm(request.POST or None)
+    if PasswordRequestForm is None:
+        messages.error(request, "Falta configurar el formulario de recuperación en core/forms.py.")
+        return render(request, "core/recuperar.html", {"form": None})
+
+    form = PasswordRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
@@ -211,9 +234,7 @@ def recuperar_view(request):
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
                 try:
-                    # token firmado con expiración
                     token = signer.sign(str(u.ID_Usuario))
-
                     reset_link = request.build_absolute_uri(
                         reverse("core:reset_password", args=[token])
                     )
@@ -244,6 +265,10 @@ def recuperar_view(request):
 
 @require_http_methods(["GET", "POST"])
 def reset_password_view(request, token):
+    if PasswordConfirmForm is None:
+        messages.error(request, "Falta configurar el formulario de restablecimiento en core/forms.py.")
+        return redirect("core:recuperar")
+
     try:
         user_id = signer.unsign(token, max_age=RESET_MAX_AGE_SECONDS)
     except SignatureExpired:
@@ -258,7 +283,7 @@ def reset_password_view(request, token):
         messages.error(request, "Enlace inválido o usuario no disponible.")
         return redirect("core:recuperar")
 
-    form = PasswordResetForm(request.POST or None)
+    form = PasswordConfirmForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
