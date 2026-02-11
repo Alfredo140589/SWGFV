@@ -455,7 +455,14 @@ def gestion_usuarios_modificacion(request):
         action = (request.POST.get("action") or "").strip().lower()
         current_user_id = request.session.get("id_usuario")
 
-        # 1) Desactivar
+        # 1) Activar
+        if action == "activate":
+            seleccionado.Activo = True
+            seleccionado.save()
+            messages.success(request, "Usuario activado correctamente.")
+            return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
+        # 2) Desactivar
         if action == "deactivate":
             if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
                 messages.error(request, "No puedes desactivarte a ti mismo estando en sesión.")
@@ -466,7 +473,7 @@ def gestion_usuarios_modificacion(request):
             messages.success(request, "Usuario desactivado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
-        # 2) Eliminar (hard delete)
+        # 3) Eliminar (hard delete)
         if action == "delete":
             if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
                 messages.error(request, "No puedes eliminar tu propio usuario estando en sesión.")

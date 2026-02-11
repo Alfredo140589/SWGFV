@@ -200,6 +200,12 @@
               Guardar cambios
             </button>
           {% endif %}
+{% if not seleccionado.Activo %}
+  <button type="submit" name="action" value="activate" class="btn btn-success px-4"
+          onclick="return confirm('¿Deseas activar este usuario?');">
+    Activar
+  </button>
+{% endif %}
 
           <button type="submit" name="action" value="deactivate" class="btn btn-warning px-4"
                   onclick="return confirm('¿Seguro que deseas desactivar este usuario?');">
