@@ -1,15 +1,17 @@
+# core/urls.py
 from django.urls import path
 from . import views
 
 app_name = "core"
 
 urlpatterns = [
+    # Login / sesión
     path("", views.login_view, name="login"),
     path("menu/", views.menu_principal, name="menu_principal"),
     path("logout/", views.logout_view, name="logout"),
     path("ayuda/", views.ayuda_view, name="ayuda"),
 
-    # Recuperación (TOKEN LINK)
+    # Recuperación
     path("recuperar/", views.recuperar_view, name="recuperar"),
     path("recuperar/<str:token>/", views.password_reset_confirm, name="password_reset_confirm"),
 
@@ -24,4 +26,26 @@ urlpatterns = [
 
     # Cuenta
     path("cuenta/", views.cuenta_view, name="cuenta"),
+
+    # ==========================
+    # PÁGINAS DEL MENÚ (placeholders)
+    # Estos names deben EXISTIR porque tus templates hacen {% url 'core:...' %}
+    # ==========================
+
+    # Dimensionamiento
+    path("dimensionamiento/calculo-modulos/", views.dimensionamiento_calculo_modulos, name="dimensionamiento_calculo_modulos"),
+    path("dimensionamiento/", views.dimensionamiento_dimensionamiento, name="dimensionamiento_dimensionamiento"),
+
+    # Cálculos
+    path("calculos/dc/", views.calculo_dc, name="calculo_dc"),
+    path("calculos/ac/", views.calculo_ac, name="calculo_ac"),
+    path("calculos/caida-tension/", views.calculo_caida_tension, name="calculo_caida_tension"),
+
+    # Recursos
+    path("recursos/tablas/", views.recursos_tablas, name="recursos_tablas"),
+    path("recursos/conceptos/", views.recursos_conceptos, name="recursos_conceptos"),
+    path("recursos/alta-concepto/", views.recursos_alta_concepto, name="recursos_alta_concepto"),
+    path("recursos/alta-tabla/", views.recursos_alta_tabla, name="recursos_alta_tabla"),
+    path("recursos/modificacion-concepto/", views.recursos_modificacion_concepto, name="recursos_modificacion_concepto"),
+    path("recursos/modificacion-tabla/", views.recursos_modificacion_tabla, name="recursos_modificacion_tabla"),
 ]

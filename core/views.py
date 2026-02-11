@@ -87,13 +87,11 @@ def login_view(request):
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
-    # Crear captcha si no existe
+    # captcha question
     if "captcha_answer" not in request.session:
         captcha_question = _new_captcha(request)
     else:
         captcha_question = f"{request.session.get('captcha_a')} + {request.session.get('captcha_b')} = ?"
-
-    form = LoginForm(request.POST or None)
 
     # Lockout 3 intentos / 30 min (por usuario, guardado en sesión)
     def _lock_key(usuario: str) -> str:
@@ -122,13 +120,17 @@ def login_view(request):
         request.session.modified = True
 
     if request.method == "POST":
+        # ✅ Validación directa (evita mismatch con LoginForm)
         usuario_input = (request.POST.get("usuario") or "").strip()
+        password = request.POST.get("password") or ""
+        captcha_input = (request.POST.get("captcha") or "").strip()
 
         if not usuario_input:
             messages.error(request, "Ingresa tu usuario/correo.")
             captcha_question = _new_captcha(request)
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+            return render(request, "core/login.html", {"captcha_question": captcha_question})
 
+        # bloqueado?
         now_ts = int(timezone.now().timestamp())
         locked_until = _get_locked_until(usuario_input)
         if locked_until and now_ts < int(locked_until):
@@ -136,18 +138,16 @@ def login_view(request):
             minutes = max(1, (remaining + 59) // 60)
             messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
             captcha_question = _new_captcha(request)
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+            return render(request, "core/login.html", {"captcha_question": captcha_question})
 
-        if not form.is_valid():
-            messages.error(request, "Revisa el formulario e intenta nuevamente.")
+        if not password:
+            messages.error(request, "Ingresa tu contraseña.")
             captcha_question = _new_captcha(request)
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+            return render(request, "core/login.html", {"captcha_question": captcha_question})
 
-        # CAPTCHA: form usa campo "captcha" y template name="captcha"
+        # validar captcha
         expected = (request.session.get("captcha_answer") or "").strip()
-        provided = (form.cleaned_data.get("captcha") or "").strip()
-
-        if not expected or provided != expected:
+        if not expected or captcha_input != expected:
             fails = _get_fails(usuario_input) + 1
             _set_fails(usuario_input, fails)
 
@@ -158,18 +158,19 @@ def login_view(request):
                 messages.error(request, f"Captcha incorrecto. Intento {fails}/3.")
 
             captcha_question = _new_captcha(request)
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+            return render(request, "core/login.html", {"captcha_question": captcha_question})
 
-        # Credenciales
-        password = form.cleaned_data["password"]
+        # autenticar contra core.Usuario
         u = authenticate_local(usuario_input, password)
 
         if u:
+            _reset_fails(usuario_input)
+
             request.session["usuario"] = u.Correo_electronico
             request.session["tipo"] = u.Tipo
             request.session["id_usuario"] = u.ID_Usuario
 
-            # 🔥 Fuerza que Django marque la sesión como modificada y la guarde
+            # ✅ fuerza guardado de sesión
             request.session.modified = True
             request.session.save()
 
@@ -186,9 +187,9 @@ def login_view(request):
             messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/3.")
 
         captcha_question = _new_captcha(request)
-        return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+        return render(request, "core/login.html", {"captcha_question": captcha_question})
 
-    return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
+    return render(request, "core/login.html", {"captcha_question": captcha_question})
 
 
 # =========================================================
@@ -568,3 +569,52 @@ def gestion_usuarios_modificacion(request):
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")
+
+# ==========================
+# PLACEHOLDERS PARA PÁGINAS DEL MENÚ
+# (evita NoReverseMatch y evita que "parezca" que el login no funciona)
+# ==========================
+
+@require_session_login
+def dimensionamiento_calculo_modulos(request):
+    return render(request, "core/pages/dimensionamiento_calculo_modulos.html")
+
+@require_session_login
+def dimensionamiento_dimensionamiento(request):
+    return render(request, "core/pages/dimensionamiento_dimensionamiento.html")
+
+@require_session_login
+def calculo_dc(request):
+    return render(request, "core/pages/calculo_dc.html")
+
+@require_session_login
+def calculo_ac(request):
+    return render(request, "core/pages/calculo_ac.html")
+
+@require_session_login
+def calculo_caida_tension(request):
+    return render(request, "core/pages/calculo_caida_tension.html")
+
+@require_session_login
+def recursos_tablas(request):
+    return render(request, "core/pages/recursos_tablas.html")
+
+@require_session_login
+def recursos_conceptos(request):
+    return render(request, "core/pages/recursos_conceptos.html")
+
+@require_session_login
+def recursos_alta_concepto(request):
+    return render(request, "core/pages/recursos_alta_concepto.html")
+
+@require_session_login
+def recursos_alta_tabla(request):
+    return render(request, "core/pages/recursos_alta_tabla.html")
+
+@require_session_login
+def recursos_modificacion_concepto(request):
+    return render(request, "core/pages/recursos_modificacion_concepto.html")
+
+@require_session_login
+def recursos_modificacion_tabla(request):
+    return render(request, "core/pages/recursos_modificacion_tabla.html")
