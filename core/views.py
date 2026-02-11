@@ -1,6 +1,5 @@
 # core/views.py
 import random
-
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
@@ -386,7 +385,117 @@ def gestion_usuarios_alta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_modificacion(request):
-    return render(request, "core/pages/gestion_usuarios_modificacion.html")
+    """
+    Gestión de usuarios (Admin):
+    - GET con filtros: muestra lista
+    - GET con ?id=: selecciona usuario para editar
+    - POST: guarda cambios del usuario seleccionado
+    - POST action=deactivate: desactiva usuario
+    """
+    # ---------
+    # Query params (búsqueda)
+    # ---------
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    q_ap = (request.GET.get("ap") or "").strip()
+    q_am = (request.GET.get("am") or "").strip()
+
+    # Mostrar lista SOLO si hay búsqueda (no cargar todos por defecto)
+    mostrar_lista = any([q_id, q_nombre, q_ap, q_am])
+
+    usuarios = Usuario.objects.none()
+    if mostrar_lista:
+        qs = Usuario.objects.all().order_by("ID_Usuario")
+
+        if q_id.isdigit():
+            qs = qs.filter(ID_Usuario=int(q_id))
+        elif q_id:
+            # si puso algo no numérico, que no truene y no devuelva todo
+            qs = Usuario.objects.none()
+
+        if q_nombre:
+            qs = qs.filter(Nombre__icontains=q_nombre)
+
+        if q_ap:
+            qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+
+        if q_am:
+            qs = qs.filter(Apellido_Materno__icontains=q_am)
+
+        usuarios = qs
+
+    # ---------
+    # Selección por ID (para editar)
+    # IMPORTANTE: el template usa ?id= para seleccionar
+    # ---------
+    seleccionado = None
+    form = None
+
+    # Si el ?id= es numérico, intentamos seleccionar usuario
+    if q_id.isdigit():
+        seleccionado = Usuario.objects.filter(ID_Usuario=int(q_id)).first()
+        if seleccionado:
+            form = UsuarioUpdateForm(instance=seleccionado)
+
+    # ---------
+    # POST: Guardar cambios o desactivar
+    # ---------
+    if request.method == "POST":
+        # En POST, el usuario seleccionado viene del querystring ?id=
+        post_id = (request.GET.get("id") or "").strip()
+
+        if not post_id.isdigit():
+            messages.error(request, "Selecciona un usuario válido para modificar.")
+            return redirect("core:gestion_usuarios_modificacion")
+
+        seleccionado = Usuario.objects.filter(ID_Usuario=int(post_id)).first()
+        if not seleccionado:
+            messages.error(request, "El usuario seleccionado ya no existe.")
+            return redirect("core:gestion_usuarios_modificacion")
+
+        action = (request.POST.get("action") or "").strip().lower()
+
+        # Desactivar
+        if action == "deactivate":
+            seleccionado.Activo = False
+            seleccionado.save()
+            messages.success(request, "Usuario desactivado correctamente.")
+            return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
+        # Guardar edición normal
+        form = UsuarioUpdateForm(request.POST, instance=seleccionado)
+
+        # Normalizar correo antes de validar (evitar duplicados por mayúsculas)
+        if form.is_valid():
+            email = (form.cleaned_data.get("Correo_electronico") or "").strip().lower()
+
+            # Validar que el correo no esté usado por otro usuario
+            if Usuario.objects.filter(Correo_electronico__iexact=email).exclude(ID_Usuario=seleccionado.ID_Usuario).exists():
+                form.add_error("Correo_electronico", "Ya existe otro usuario con ese correo.")
+            else:
+                # Guardar correo normalizado y resto de campos
+                obj = form.save(commit=False)
+                obj.Correo_electronico = email
+                obj.save()
+                messages.success(request, "Usuario actualizado correctamente.")
+                return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    # ---------
+    # Render
+    # ---------
+    context = {
+        "q_id": q_id,
+        "q_nombre": q_nombre,
+        "q_ap": q_ap,
+        "q_am": q_am,
+        "mostrar_lista": mostrar_lista,
+        "usuarios": usuarios,
+        "seleccionado": seleccionado,
+        "form": form,
+    }
+    return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
 
 @require_session_login
 def cuenta_view(request):
