@@ -1,65 +1,224 @@
 {% extends "core/base.html" %}
 {% load static %}
 
+{% block title %}Sistema Fotovoltaico - Inicio de Sesión{% endblock %}
+
+{% block head %}
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow-x: hidden;
+    background-color: #001F3F;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("{% static 'core/img/imagen1.jpg' %}");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(2px) brightness(1.2);
+    z-index: -2;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.15);
+    z-index: -1;
+  }
+
+  header {
+    width: 100%;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    background-color: rgba(255,255,255,0.95);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    position: fixed;
+    top: 0;
+    z-index: 2;
+  }
+
+  header img {
+    height: 120px;
+    margin-right: 20px;
+  }
+
+  /* ✅ Más ancho/negrita para el título superior */
+  header h1 {
+    font-size: 16px;
+    color: #001F3F;
+    margin: 0;
+    line-height: 1.2;
+    flex: 1;
+    word-wrap: break-word;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .login-container {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    box-shadow: 0 0 20px rgba(0, 0, 50, 0.3);
+    padding: 40px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    margin-top: 180px;
+  }
+
+  /* ✅ Más ancho/negrita para "Inicio de Sesión" */
+  h2 {
+    color: #001F3F;
+    margin-bottom: 20px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+
+  /* ✅ Más ancho/negrita para labels */
+  label {
+    display: block;
+    text-align: left;
+    margin: 10px 0 5px;
+    color: #001F3F;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #001F3F;
+    border-radius: 8px;
+    margin-bottom: 15px;
+  }
+
+  /* Caja captcha como input */
+  .captcha-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:15px;
+  }
+  .captcha-q{
+    flex:0 0 auto;
+    padding: 10px 12px;
+    border: 1px solid #001F3F;
+    border-radius: 8px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color:#001F3F;
+    background: rgba(0,31,63,0.06);
+    min-width: 120px;
+    text-align:center;
+  }
+  .captcha-row input[type="text"]{
+    margin-bottom:0;
+    flex:1 1 auto;
+  }
+
+  button {
+    width: 100%;
+    background-color: #C8102E;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+  }
+  button:hover { background-color: #a10b24; }
+
+  .footer {
+    margin-top: 15px;
+    color: #001F3F;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  .msg{
+    text-align:left;
+    padding:10px 12px;
+    border-radius:8px;
+    margin-bottom:10px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .msg-error{ background:#fde2e2; border:1px solid #f5b5b5; color:#7a0b0b; }
+  .msg-success{ background:#e7f6ea; border:1px solid #bfe7c7; color:#0b4b1f; }
+  .msg-info{ background:#e7f0fb; border:1px solid #b9d0f5; color:#0b2a4a; }
+
+  @media (max-width: 480px) {
+    header h1 { font-size: 14px; }
+    .login-container { padding: 30px; margin-top: 160px; }
+    header img { height: 100px; margin-right: 10px; }
+    .captcha-row{ flex-direction:column; align-items:stretch; }
+    .captcha-q{ width:100%; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container" style="max-width: 520px; margin-top: 60px;">
-  <div class="card shadow-sm">
-    <div class="card-body p-4">
-      <h4 class="mb-3 text-center">Iniciar sesión</h4>
+  <header>
+    <img src="{% static 'core/img/logo1.png' %}" alt="Logo Fortia Pv">
+    <h1>Sistema web de gestión de proyectos fotovoltaicos SWGFV para la empresa Fortia Pv</h1>
+  </header>
 
-      {# Mensajes (errores / success) #}
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %} mb-3" role="alert">
-            {{ message }}
-          </div>
-        {% endfor %}
-      {% endif %}
+  <div class="login-container">
+    <h2>Inicio de Sesión</h2>
 
-      <form method="post" novalidate>
-        {% csrf_token %}
+    {# Mensajes Django #}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="msg {% if 'error' in message.tags %}msg-error{% elif 'success' in message.tags %}msg-success{% else %}msg-info{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <label for="usuario">Usuario:</label>
+      <input id="usuario" type="text" name="usuario" placeholder="Ingrese su usuario"
+             value="{{ request.POST.usuario|default_if_none:'' }}" required>
+
+      <label for="password">Contraseña:</label>
+      <input id="password" type="password" name="password" placeholder="Ingrese su contraseña" required>
+
+      <label>Captcha:</label>
+      <div class="captcha-row">
+        <div class="captcha-q">{{ captcha_question }}</div>
+        <input type="text" name="captcha" placeholder="Respuesta" required>
+      </div>
       <input type="hidden" name="captcha_token" value="{{ captcha_token }}">
 
-        {# Usuario #}
-        <div class="mb-3">
-          <label class="form-label">{{ form.usuario.label }}</label>
-          {{ form.usuario }}
-          {% if form.usuario.errors %}
-            <div class="text-danger small mt-1">{{ form.usuario.errors|striptags }}</div>
-          {% endif %}
-        </div>
+      <button type="submit">Ingresar</button>
 
-        {# Password #}
-        <div class="mb-3">
-          <label class="form-label">{{ form.password.label }}</label>
-          {{ form.password }}
-          {% if form.password.errors %}
-            <div class="text-danger small mt-1">{{ form.password.errors|striptags }}</div>
-          {% endif %}
-        </div>
-
-        {# Captcha question #}
-        <div class="mb-2">
-          <span class="fw-semibold">Captcha:</span>
-          <span>{{ captcha_question }}</span>
-        </div>
-
-        {# Captcha input (usa el field del Form para asegurar name="captcha") #}
-        <div class="mb-3">
-          <label class="form-label">{{ form.captcha.label }}</label>
-          {{ form.captcha }}
-          {% if form.captcha.errors %}
-            <div class="text-danger small mt-1">{{ form.captcha.errors|striptags }}</div>
-          {% endif %}
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100">Ingresar</button>
-      </form>
-
-      <div class="text-center mt-3">
-        <a href="{% url 'core:recuperar' %}">¿Olvidaste tu contraseña?</a>
-      </div>
-    </div>
+      <div class="footer">© 2025 Sistema de Administración Fotovoltaica</div>
+    </form>
   </div>
-</div>
 {% endblock %}
