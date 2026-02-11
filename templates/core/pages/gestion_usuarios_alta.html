@@ -136,6 +136,11 @@
 
       <form id="formAltaUsuario" method="POST" novalidate>
         {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger py-2 mb-2">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
 
         <!-- ===== Estado y tipo ===== -->
         <div class="d-flex align-items-end justify-content-between flex-wrap gap-2">

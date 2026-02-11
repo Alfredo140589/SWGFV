@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
-
+from django.contrib.auth.hashers import make_password, check_password as dj_check_password
 
 # =========================
 # MODELO USUARIO
@@ -28,15 +28,16 @@ class Usuario(models.Model):
     class Meta:
         db_table = "usuarios"
 
-    def set_password(self, raw_password):
+    def set_password(self, raw_password: str):
+        """Guarda contraseña hasheada en el campo Contrasena."""
         self.Contrasena = make_password(raw_password)
 
-    def check_password(self, raw_password):
+    def check_password(self, raw_password: str) -> bool:
+        """Valida contraseña contra el hash guardado en Contrasena."""
         return check_password(raw_password, self.Contrasena)
 
     def __str__(self):
         return f"{self.Nombre} ({self.Tipo})"
-
 
 # =========================
 # MODELO PROYECTO (TABLA proyectos)

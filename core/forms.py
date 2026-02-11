@@ -72,6 +72,10 @@ class PasswordResetForm(forms.Form):
 # ======================================================
 # ALTA / MODIFICACIÓN DE USUARIO
 # ======================================================
+from django import forms
+from .models import Usuario
+
+
 class UsuarioCreateForm(forms.ModelForm):
     password = forms.CharField(
         label="Contraseña",
@@ -104,6 +108,16 @@ class UsuarioCreateForm(forms.ModelForm):
             "Tipo": forms.Select(attrs={"class": "form-select"}),
             "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
+
+    def clean_Correo_electronico(self):
+        email = (self.cleaned_data.get("Correo_electronico") or "").strip().lower()
+        if not email:
+            return email
+
+        # Validación case-insensitive
+        if Usuario.objects.filter(Correo_electronico__iexact=email).exists():
+            raise forms.ValidationError("Ya existe un usuario con ese correo.")
+        return email
 
     def clean(self):
         cleaned = super().clean()
