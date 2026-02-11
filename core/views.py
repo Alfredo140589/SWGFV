@@ -165,16 +165,14 @@ def login_view(request):
         u = authenticate_local(usuario_input, password)
 
         if u:
-            if not u.Activo:
-                messages.error(request, "Tu usuario está inactivo. Contacta al administrador.")
-                captcha_question = _new_captcha(request)
-                return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question})
-
-            _reset_fails(usuario_input)
-
             request.session["usuario"] = u.Correo_electronico
             request.session["tipo"] = u.Tipo
             request.session["id_usuario"] = u.ID_Usuario
+
+            # 🔥 Fuerza que Django marque la sesión como modificada y la guarde
+            request.session.modified = True
+            request.session.save()
+
             return redirect("core:menu_principal")
 
         # credenciales mal
