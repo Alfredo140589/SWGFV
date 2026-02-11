@@ -388,9 +388,11 @@ def gestion_usuarios_modificacion(request):
     """
     Gestión de usuarios (Admin):
     - GET con filtros: muestra lista
-    - GET con ?id=: selecciona usuario para editar
-    - POST: guarda cambios del usuario seleccionado
-    - POST action=deactivate: desactiva usuario
+    - GET con ?id=: selecciona usuario (modo lectura)
+    - GET con ?id=...&edit=1: habilita edición
+    - POST action=deactivate: desactiva
+    - POST action=delete: elimina (hard delete)
+    - POST normal: guarda cambios SOLO si edit=1
     """
     # ---------
     # Query params (búsqueda)
@@ -399,6 +401,9 @@ def gestion_usuarios_modificacion(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_ap = (request.GET.get("ap") or "").strip()
     q_am = (request.GET.get("am") or "").strip()
+
+    # Modo edición
+    edit_mode = (request.GET.get("edit") or "").strip() == "1"
 
     # Mostrar lista SOLO si hay búsqueda (no cargar todos por defecto)
     mostrar_lista = any([q_id, q_nombre, q_ap, q_am])
@@ -410,38 +415,32 @@ def gestion_usuarios_modificacion(request):
         if q_id.isdigit():
             qs = qs.filter(ID_Usuario=int(q_id))
         elif q_id:
-            # si puso algo no numérico, que no truene y no devuelva todo
             qs = Usuario.objects.none()
 
         if q_nombre:
             qs = qs.filter(Nombre__icontains=q_nombre)
-
         if q_ap:
             qs = qs.filter(Apellido_Paterno__icontains=q_ap)
-
         if q_am:
             qs = qs.filter(Apellido_Materno__icontains=q_am)
 
         usuarios = qs
 
     # ---------
-    # Selección por ID (para editar)
-    # IMPORTANTE: el template usa ?id= para seleccionar
+    # Selección por ID (para ver/editar)
     # ---------
     seleccionado = None
     form = None
 
-    # Si el ?id= es numérico, intentamos seleccionar usuario
     if q_id.isdigit():
         seleccionado = Usuario.objects.filter(ID_Usuario=int(q_id)).first()
         if seleccionado:
             form = UsuarioUpdateForm(instance=seleccionado)
 
     # ---------
-    # POST: Guardar cambios o desactivar
+    # POST: Guardar cambios / desactivar / eliminar
     # ---------
     if request.method == "POST":
-        # En POST, el usuario seleccionado viene del querystring ?id=
         post_id = (request.GET.get("id") or "").strip()
 
         if not post_id.isdigit():
@@ -454,37 +453,52 @@ def gestion_usuarios_modificacion(request):
             return redirect("core:gestion_usuarios_modificacion")
 
         action = (request.POST.get("action") or "").strip().lower()
+        current_user_id = request.session.get("id_usuario")
 
-        # Desactivar
+        # 1) Desactivar
         if action == "deactivate":
+            if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
+                messages.error(request, "No puedes desactivarte a ti mismo estando en sesión.")
+                return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
             seleccionado.Activo = False
             seleccionado.save()
             messages.success(request, "Usuario desactivado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
-        # Guardar edición normal
+        # 2) Eliminar (hard delete)
+        if action == "delete":
+            if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
+                messages.error(request, "No puedes eliminar tu propio usuario estando en sesión.")
+                return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
+            correo = seleccionado.Correo_electronico
+            seleccionado.delete()
+            messages.success(request, f"Usuario eliminado correctamente: {correo}")
+            return redirect("core:gestion_usuarios_modificacion")
+
+        # 3) Guardar cambios normales: SOLO si edit_mode=1
+        if not edit_mode:
+            messages.error(request, "Para editar, primero presiona ✏️ Editar.")
+            return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
         form = UsuarioUpdateForm(request.POST, instance=seleccionado)
 
-        # Normalizar correo antes de validar (evitar duplicados por mayúsculas)
         if form.is_valid():
             email = (form.cleaned_data.get("Correo_electronico") or "").strip().lower()
 
-            # Validar que el correo no esté usado por otro usuario
             if Usuario.objects.filter(Correo_electronico__iexact=email).exclude(ID_Usuario=seleccionado.ID_Usuario).exists():
                 form.add_error("Correo_electronico", "Ya existe otro usuario con ese correo.")
             else:
-                # Guardar correo normalizado y resto de campos
                 obj = form.save(commit=False)
                 obj.Correo_electronico = email
                 obj.save()
                 messages.success(request, "Usuario actualizado correctamente.")
+                # Regresar a modo lectura (sin edit=1)
                 return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
         messages.error(request, "Revisa el formulario. Hay errores.")
 
-    # ---------
-    # Render
-    # ---------
     context = {
         "q_id": q_id,
         "q_nombre": q_nombre,
@@ -494,6 +508,7 @@ def gestion_usuarios_modificacion(request):
         "usuarios": usuarios,
         "seleccionado": seleccionado,
         "form": form,
+        "edit_mode": edit_mode,
     }
     return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
 

@@ -10,6 +10,17 @@
       Modificación de Usuarios
     </h2>
 
+    {% if messages %}
+      <div class="mb-3">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
     <!-- BUSQUEDA -->
     <form method="GET" class="mb-4">
       <div class="row g-3">
@@ -87,82 +98,117 @@
       </div>
     {% endif %}
 
-    <!-- EDICION -->
+    <!-- EDICION / LECTURA -->
     {% if seleccionado and form %}
       <hr class="mb-4">
 
-      <h5 class="mb-3" style="color: var(--swgfv-primary); font-weight: 800;">
-        Editando: ID {{ seleccionado.ID_Usuario }} — {{ seleccionado.Correo_electronico }}
-      </h5>
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+        <h5 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">
+          Usuario seleccionado: ID {{ seleccionado.ID_Usuario }} — {{ seleccionado.Correo_electronico }}
+        </h5>
+
+        {% if not edit_mode %}
+          <a class="btn btn-outline-primary btn-sm"
+             href="{% url 'core:gestion_usuarios_modificacion' %}?id={{ seleccionado.ID_Usuario }}&edit=1">
+            ✏️ Editar
+          </a>
+        {% else %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{% url 'core:gestion_usuarios_modificacion' %}?id={{ seleccionado.ID_Usuario }}">
+            👁️ Modo lectura
+          </a>
+        {% endif %}
+      </div>
 
       <form method="POST" novalidate>
         {% csrf_token %}
 
-        <div class="row g-3">
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
-            {{ form.Nombre }}
-            {% if form.Nombre.errors %}<div class="text-danger">{{ form.Nombre.errors }}</div>{% endif %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
           </div>
+        {% endif %}
 
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
-            {{ form.Apellido_Paterno }}
-            {% if form.Apellido_Paterno.errors %}<div class="text-danger">{{ form.Apellido_Paterno.errors }}</div>{% endif %}
-          </div>
+        <!-- fieldset deshabilita TODO si no estamos en edit_mode -->
+        <fieldset {% if not edit_mode %}disabled{% endif %}>
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
+              {{ form.Nombre }}
+              {% if form.Nombre.errors %}<div class="text-danger">{{ form.Nombre.errors }}</div>{% endif %}
+            </div>
 
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
-            {{ form.Apellido_Materno }}
-            {% if form.Apellido_Materno.errors %}<div class="text-danger">{{ form.Apellido_Materno.errors }}</div>{% endif %}
-          </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Paterno</label>
+              {{ form.Apellido_Paterno }}
+              {% if form.Apellido_Paterno.errors %}<div class="text-danger">{{ form.Apellido_Paterno.errors }}</div>{% endif %}
+            </div>
 
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Teléfono</label>
-            {{ form.Telefono }}
-            {% if form.Telefono.errors %}<div class="text-danger">{{ form.Telefono.errors }}</div>{% endif %}
-          </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Apellido Materno</label>
+              {{ form.Apellido_Materno }}
+              {% if form.Apellido_Materno.errors %}<div class="text-danger">{{ form.Apellido_Materno.errors }}</div>{% endif %}
+            </div>
 
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico</label>
-            {{ form.Correo_electronico }}
-            {% if form.Correo_electronico.errors %}<div class="text-danger">{{ form.Correo_electronico.errors }}</div>{% endif %}
-          </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Teléfono</label>
+              {{ form.Telefono }}
+              {% if form.Telefono.errors %}<div class="text-danger">{{ form.Telefono.errors }}</div>{% endif %}
+            </div>
 
-          <div class="col-12 col-md-4">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Tipo</label>
-            {{ form.Tipo }}
-            {% if form.Tipo.errors %}<div class="text-danger">{{ form.Tipo.errors }}</div>{% endif %}
-          </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico</label>
+              {{ form.Correo_electronico }}
+              {% if form.Correo_electronico.errors %}<div class="text-danger">{{ form.Correo_electronico.errors }}</div>{% endif %}
+            </div>
 
-          <div class="col-12">
-            <div class="form-check">
-              {{ form.Activo }}
-              <label class="form-check-label fw-bold" style="color: var(--swgfv-primary);">Activo</label>
-              {% if form.Activo.errors %}<div class="text-danger">{{ form.Activo.errors }}</div>{% endif %}
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Tipo</label>
+              {{ form.Tipo }}
+              {% if form.Tipo.errors %}<div class="text-danger">{{ form.Tipo.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-12">
+              <div class="form-check">
+                {{ form.Activo }}
+                <label class="form-check-label fw-bold" style="color: var(--swgfv-primary);">Activo</label>
+                {% if form.Activo.errors %}<div class="text-danger">{{ form.Activo.errors }}</div>{% endif %}
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nueva contraseña (opcional)</label>
+              {{ form.new_password }}
+              {% if form.new_password.errors %}<div class="text-danger">{{ form.new_password.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Confirmar nueva contraseña</label>
+              {{ form.new_password_confirm }}
+              {% if form.new_password_confirm.errors %}<div class="text-danger">{{ form.new_password_confirm.errors }}</div>{% endif %}
             </div>
           </div>
-
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nueva contraseña (opcional)</label>
-            {{ form.new_password }}
-            {% if form.new_password.errors %}<div class="text-danger">{{ form.new_password.errors }}</div>{% endif %}
-          </div>
-
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Confirmar nueva contraseña</label>
-            {{ form.new_password_confirm }}
-            {% if form.new_password_confirm.errors %}<div class="text-danger">{{ form.new_password_confirm.errors }}</div>{% endif %}
-          </div>
-        </div>
+        </fieldset>
 
         <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
           <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
-          <button type="submit" class="btn btn-swgfv px-4">Guardar</button>
+
+          {% if edit_mode %}
+            <button type="submit" class="btn btn-swgfv px-4">Guardar cambios</button>
+          {% else %}
+            <button type="button" class="btn btn-swgfv px-4" disabled title="Presiona ✏️ Editar para habilitar">
+              Guardar cambios
+            </button>
+          {% endif %}
 
           <button type="submit" name="action" value="deactivate" class="btn btn-warning px-4"
                   onclick="return confirm('¿Seguro que deseas desactivar este usuario?');">
             Desactivar
+          </button>
+
+          <button type="submit" name="action" value="delete" class="btn btn-danger px-4"
+                  onclick="return confirm('⚠️ Esto eliminará el usuario PERMANENTEMENTE. ¿Deseas continuar?');">
+            Eliminar
           </button>
         </div>
       </form>
