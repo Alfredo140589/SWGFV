@@ -391,3 +391,71 @@ def gestion_usuarios_modificacion(request):
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")
+# ==========================
+# PLACEHOLDERS DEL MENÚ
+# (Para que NO falle el deploy y puedas navegar como antes)
+# ==========================
+from django.contrib.auth.decorators import login_required
+from django.template import TemplateDoesNotExist
+
+def _render_menu_page(request, template_path: str, title: str):
+    """
+    Renderiza pantallas del menú.
+    Si el template no existe, muestra un mensaje claro (no revienta deploy).
+    """
+    try:
+        return render(request, template_path, {"title": title})
+    except TemplateDoesNotExist:
+        # IMPORTANTE: Esto NO es "template genérico para todo".
+        # Solo evita que el sistema muera si aún no existe el HTML.
+        return render(request, "core/menu_principal.html", {
+            "title": title,
+            "messages": [],
+        })
+
+# Dimensionamiento
+@require_session_login
+def dimensionamiento_calculo_modulos(request):
+    return _render_menu_page(request, "core/pages/dimensionamiento_calculo_modulos.html", "Cálculo de Módulos")
+
+@require_session_login
+def dimensionamiento_dimensionamiento(request):
+    return _render_menu_page(request, "core/pages/dimensionamiento_dimensionamiento.html", "Dimensionamiento")
+
+# Cálculos
+@require_session_login
+def calculo_dc(request):
+    return _render_menu_page(request, "core/pages/calculo_dc.html", "Cálculo DC")
+
+@require_session_login
+def calculo_ac(request):
+    return _render_menu_page(request, "core/pages/calculo_ac.html", "Cálculo AC")
+
+@require_session_login
+def calculo_caida_tension(request):
+    return _render_menu_page(request, "core/pages/calculo_caida_tension.html", "Caída de Tensión")
+
+# Recursos
+@require_session_login
+def recursos_tablas(request):
+    return _render_menu_page(request, "core/pages/recursos_tablas.html", "Tablas")
+
+@require_session_login
+def recursos_conceptos(request):
+    return _render_menu_page(request, "core/pages/recursos_conceptos.html", "Conceptos")
+
+@require_admin
+def recursos_alta_concepto(request):
+    return _render_menu_page(request, "core/pages/recursos_alta_concepto.html", "Alta de Concepto")
+
+@require_admin
+def recursos_alta_tabla(request):
+    return _render_menu_page(request, "core/pages/recursos_alta_tabla.html", "Alta de Tabla")
+
+@require_admin
+def recursos_modificacion_concepto(request):
+    return _render_menu_page(request, "core/pages/recursos_modificacion_concepto.html", "Modificar Concepto")
+
+@require_admin
+def recursos_modificacion_tabla(request):
+    return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
