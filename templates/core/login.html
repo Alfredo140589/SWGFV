@@ -1,159 +1,65 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Sistema Fotovoltaico - Inicio de Sesión{% endblock %}
-
-{% block head %}
-<style>
-  body {
-    margin: 0;
-    min-height: 100vh;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #001F3F;
-  }
-
-  .bg-wrap {
-    position: fixed;
-    inset: 0;
-    z-index: -2;
-    background-image: url('{% static "core/img/imagen1.jpg" %}');
-    background-size: cover;
-    background-position: center;
-    filter: blur(2px) brightness(1.15);
-  }
-  .bg-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: rgba(0,0,0,0.20);
-  }
-
-  .brand-bar {
-    background-color: rgba(255,255,255,0.95);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  }
-
-  .brand-title {
-    color: #001F3F;
-    font-size: 1rem;
-    line-height: 1.2;
-    margin: 0;
-  }
-
-  .login-card {
-    background-color: rgba(255,255,255,0.95);
-    border-radius: 16px;
-    box-shadow: 0 0 20px rgba(0, 0, 50, 0.30);
-    border: 0;
-  }
-
-  .btn-primary-custom {
-    background-color: #C8102E;
-    border: none;
-    font-weight: 700;
-  }
-  .btn-primary-custom:hover { filter: brightness(0.95); }
-
-  .link-recuperar {
-    color: #001F3F;
-    text-decoration: underline;
-    font-weight: 600;
-  }
-  .link-recuperar:hover { color: #C8102E; }
-
-  .captcha-box{
-    background: rgba(0,31,63,0.06);
-    border: 1px solid rgba(0,0,0,0.08);
-    border-radius: 12px;
-    padding: .75rem;
-  }
-  .captcha-q{
-    color:#001F3F;
-    font-weight:800;
-    margin: 0;
-  }
-  .captcha-hint{
-    color:#001F3F;
-    opacity:.8;
-    font-size:.9rem;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="bg-wrap"></div>
-<div class="bg-overlay"></div>
+<div class="container" style="max-width: 520px; margin-top: 60px;">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <h4 class="mb-3 text-center">Iniciar sesión</h4>
 
-<header class="brand-bar py-2">
-  <div class="container">
-    <div class="d-flex align-items-center gap-3">
-      <img src="{% static 'core/img/logo1.png' %}" alt="Logo Fortia Pv" style="height: 90px; width:auto;">
-      <h1 class="brand-title flex-grow-1">
-        Sistema web de gestión de proyectos fotovoltaicos SWGFV para la empresa Fortia Pv
-      </h1>
-    </div>
-  </div>
-</header>
+      {# Mensajes (errores / success) #}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %} mb-3" role="alert">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
 
-<main class="container py-4">
-  <div class="row justify-content-center">
-    <div class="col-12 col-sm-10 col-md-7 col-lg-5">
-      <div class="card login-card p-3 p-sm-4 mt-3">
-        <div class="card-body">
-          <h2 class="text-center mb-4" style="color:#001F3F; font-weight:800;">Inicio de Sesión</h2>
+      <form method="post" novalidate>
+        {% csrf_token %}
+      <input type="hidden" name="captcha_token" value="{{ captcha_token }}">
 
-          {% if messages %}
-            {% for message in messages %}
-              <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}danger{% endif %} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-              </div>
-            {% endfor %}
+        {# Usuario #}
+        <div class="mb-3">
+          <label class="form-label">{{ form.usuario.label }}</label>
+          {{ form.usuario }}
+          {% if form.usuario.errors %}
+            <div class="text-danger small mt-1">{{ form.usuario.errors|striptags }}</div>
           {% endif %}
-
-          <form method="POST" action="" class="text-start" novalidate>
-            {% csrf_token %}
-
-            <label for="id_usuario" class="form-label fw-bold" style="color:#001F3F;">Usuario:</label>
-            <input type="text" id="id_usuario" name="usuario" class="form-control"
-                   placeholder="Ingrese su usuario" required autocomplete="username"
-                   value="{{ form.usuario.value|default_if_none:'' }}">
-
-            <label for="id_password" class="form-label fw-bold mt-3" style="color:#001F3F;">Contraseña:</label>
-            <input type="password" id="id_password" name="password" class="form-control"
-                   placeholder="Ingrese su contraseña" required autocomplete="current-password">
-
-            <!-- CAPTCHA SIMPLE -->
-            <div class="captcha-box mt-3">
-              <p class="captcha-q">Verificación:</p>
-              <div class="captcha-hint mb-2">
-                Resuelve: <strong>{{ captcha_question }}</strong>
-              </div>
-
-              <label for="id_captcha_answer" class="form-label fw-bold" style="color:#001F3F;">Respuesta:</label>
-              <input type="text" id="id_captcha_answer" name="captcha_answer" class="form-control"
-                     placeholder="Escribe el resultado" required inputmode="numeric">
-            </div>
-
-            <button type="submit" class="btn btn-primary-custom w-100 py-2 mt-4">
-              Ingresar
-            </button>
-          </form>
-
-          <div class="text-center mt-3">
-            <a href="{% url 'core:recuperar' %}" class="link-recuperar">
-              ¿Olvidaste tu contraseña?
-            </a>
-          </div>
-
-          <div class="text-center mt-3 small" style="color:#001F3F;">
-            © 2025 Sistema de Administración Fotovoltaica
-          </div>
         </div>
+
+        {# Password #}
+        <div class="mb-3">
+          <label class="form-label">{{ form.password.label }}</label>
+          {{ form.password }}
+          {% if form.password.errors %}
+            <div class="text-danger small mt-1">{{ form.password.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        {# Captcha question #}
+        <div class="mb-2">
+          <span class="fw-semibold">Captcha:</span>
+          <span>{{ captcha_question }}</span>
+        </div>
+
+        {# Captcha input (usa el field del Form para asegurar name="captcha") #}
+        <div class="mb-3">
+          <label class="form-label">{{ form.captcha.label }}</label>
+          {{ form.captcha }}
+          {% if form.captcha.errors %}
+            <div class="text-danger small mt-1">{{ form.captcha.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+      </form>
+
+      <div class="text-center mt-3">
+        <a href="{% url 'core:recuperar' %}">¿Olvidaste tu contraseña?</a>
       </div>
     </div>
   </div>
-</main>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</div>
 {% endblock %}
