@@ -242,3 +242,9 @@ class ProyectoCreateForm(forms.ModelForm):
 class ProyectoUpdateForm(ProyectoCreateForm):
     class Meta(ProyectoCreateForm.Meta):
         pass
+class ProyectoUpdateForm(ProyectoCreateForm):
+    """
+    Reutiliza las mismas validaciones y widgets del create.
+    """
+    class Meta(ProyectoCreateForm.Meta):
+        pass

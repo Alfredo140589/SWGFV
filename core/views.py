@@ -417,10 +417,110 @@ def proyecto_consulta(request):
     }
     return render(request, "core/pages/proyecto_consulta.html", context)
 
-@require_admin
+@require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
-    return render(request, "core/pages/proyecto_modificacion.html")
+    """
+    Modificación de proyectos:
+    - Admin: puede editar cualquiera
+    - General: solo puede editar sus proyectos
+    - Modo lectura -> botón ✏️ Editar (edit=1)
+    """
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    # filtros GET
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    q_empresa = (request.GET.get("empresa") or "").strip()
+    q_usuario = (request.GET.get("usuario") or "").strip()  # solo admin
+
+    edit_mode = (request.GET.get("edit") or "").strip() == "1"
+    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
+
+    # Base queryset por permisos
+    if session_tipo == "Administrador":
+        qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
+    else:
+        qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    # Aplicar filtros
+    if mostrar_lista:
+        if q_id:
+            if q_id.isdigit():
+                qs = qs.filter(id=int(q_id))
+            else:
+                qs = Proyecto.objects.none()
+
+        if q_nombre:
+            qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+
+        if q_empresa:
+            qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
+
+        if q_usuario and session_tipo == "Administrador":
+            qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
+
+        proyectos = qs
+    else:
+        proyectos = Proyecto.objects.none()
+
+    # Seleccionado
+    seleccionado = None
+    form = None
+
+    if q_id.isdigit():
+        seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
+        if seleccionado:
+            # permiso adicional (por si se fuerza URL)
+            if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para ver/modificar este proyecto.")
+                return redirect("core:proyecto_modificacion")
+
+            form = ProyectoUpdateForm(instance=seleccionado)
+
+    # POST guardar (solo si edit=1)
+    if request.method == "POST":
+        post_id = (request.GET.get("id") or "").strip()
+        if not post_id.isdigit():
+            messages.error(request, "Selecciona un proyecto válido.")
+            return redirect("core:proyecto_modificacion")
+
+        seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(post_id)).first()
+        if not seleccionado:
+            messages.error(request, "El proyecto ya no existe.")
+            return redirect("core:proyecto_modificacion")
+
+        if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para modificar este proyecto.")
+            return redirect("core:proyecto_modificacion")
+
+        if not edit_mode:
+            messages.error(request, "Para editar, primero presiona ✏️ Editar.")
+            return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
+
+        form = ProyectoUpdateForm(request.POST, instance=seleccionado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Proyecto actualizado correctamente.")
+            return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    context = {
+        "proyectos": proyectos,
+        "mostrar_lista": mostrar_lista,
+        "q_id": q_id,
+        "q_nombre": q_nombre,
+        "q_empresa": q_empresa,
+        "q_usuario": q_usuario,
+        "es_admin": (session_tipo == "Administrador"),
+        "seleccionado": seleccionado,
+        "form": form,
+        "edit_mode": edit_mode,
+    }
+    return render(request, "core/pages/proyecto_modificacion.html", context)
+
 
 @require_admin
 @require_http_methods(["GET", "POST"])
