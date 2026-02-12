@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.hashers import make_password, check_password as dj_check_password
+from django.utils import timezone
 
 # =========================
 # MODELO USUARIO
@@ -66,3 +67,23 @@ class Proyecto(models.Model):
 
     def __str__(self):
         return self.Nombre_Proyecto
+
+class LoginLock(models.Model):
+    usuario_key = models.CharField(max_length=150, unique=True)  # correo/usuario normalizado
+    fails = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "login_locks"
+
+    def is_locked(self) -> bool:
+        if not self.locked_until:
+            return False
+        return timezone.now() < self.locked_until
+
+    def remaining_minutes(self) -> int:
+        if not self.is_locked():
+            return 0
+        delta = self.locked_until - timezone.now()
+        seconds = max(0, int(delta.total_seconds()))
+        return max(1, (seconds + 59) // 60)
