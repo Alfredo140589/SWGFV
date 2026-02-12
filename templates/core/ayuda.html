@@ -1,11 +1,294 @@
-{% extends "core/base.html" %}
-{% block title %}Ayuda{% endblock %}
+{% extends "core/layout.html" %}
 
-{% block content %}
-<div class="container py-4">
-  <h2>Ayuda</h2>
-  <p>Contenido de ayuda en construcción...</p>
+{% block title %}SWGFV - Ayuda{% endblock %}
 
-  <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Volver al menú</a>
-</div>
+{% block head %}
+<style>
+  /* ====== Solo para AYUDA ====== */
+  .help-hero{
+    border-radius: 18px;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(0,31,63,.10), rgba(0,31,63,.03));
+    border: 1px solid rgba(0,0,0,.06);
+  }
+  .help-hero h1{
+    margin: 0;
+    font-weight: 900;
+    color: var(--swgfv-primary);
+    letter-spacing: .2px;
+  }
+  .help-hero p{
+    margin: .35rem 0 0 0;
+    opacity: .8;
+  }
+  .help-kpi{
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,.06);
+    background: rgba(255,255,255,.65);
+    backdrop-filter: blur(6px);
+  }
+  .help-kpi .label{
+    font-size: .85rem;
+    opacity: .75;
+    margin: 0;
+  }
+  .help-kpi .value{
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: .1rem 0 0 0;
+    color: var(--swgfv-primary);
+  }
+  .help-card{
+    border-radius: 18px;
+    border: 1px solid rgba(0,0,0,.06);
+    background: rgba(255,255,255,.72);
+    backdrop-filter: blur(6px);
+  }
+  .help-card .card-title{
+    font-weight: 900;
+    color: var(--swgfv-primary);
+  }
+  .help-muted{
+    opacity: .78;
+  }
+  .help-badge{
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .6rem;
+    border-radius: 999px;
+    font-size: .85rem;
+    border: 1px solid rgba(0,0,0,.08);
+    background: rgba(255,255,255,.75);
+  }
+  .help-divider{
+    height: 1px;
+    background: rgba(0,0,0,.08);
+    margin: .85rem 0;
+  }
+  .help-accordion .accordion-item{
+    border-radius: 16px !important;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.06) !important;
+    background: rgba(255,255,255,.72);
+  }
+  .help-accordion .accordion-button{
+    font-weight: 800;
+    color: var(--swgfv-primary);
+    background: rgba(0,31,63,.06);
+  }
+  .help-accordion .accordion-button:focus{
+    box-shadow: none;
+  }
+  .help-accordion .accordion-body{
+    background: rgba(255,255,255,.82);
+  }
+  .help-table td, .help-table th{
+    vertical-align: middle;
+  }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<main class="container my-3 my-md-4">
+
+  <!-- HERO -->
+  <section class="help-hero mb-3 mb-md-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+      <div>
+        <h1>Centro de Ayuda</h1>
+        <p class="help-muted">
+          Información rápida, guías de uso y soporte del sistema (contenido de ejemplo).
+        </p>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <span class="help-badge">📌 Versión: <b>v1.0.0</b></span>
+          <span class="help-badge">🕒 Horario: <b>Lun–Vie 9:00–18:00</b></span>
+          <span class="help-badge">🧩 Módulos: <b>Usuarios, Proyectos, Cálculos</b></span>
+        </div>
+      </div>
+
+      <div class="text-md-end">
+        <a href="{% url 'core:menu_principal' %}" class="btn btn-outline-secondary">
+          ⬅️ Volver al menú
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPIs / INFO RÁPIDA -->
+  <section class="row g-3 mb-3 mb-md-4">
+    <div class="col-12 col-md-4">
+      <div class="p-3 help-kpi shadow-sm h-100">
+        <p class="label">Contacto de soporte</p>
+        <p class="value">soporte@swgfv.com</p>
+        <div class="help-divider"></div>
+        <p class="label">Teléfono</p>
+        <p class="value">+52 55 1234 5678</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="p-3 help-kpi shadow-sm h-100">
+        <p class="label">Tiempo de respuesta estimado</p>
+        <p class="value">2–6 horas hábiles</p>
+        <div class="help-divider"></div>
+        <p class="label">Prioridad</p>
+        <p class="value">Alta / Media / Baja</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="p-3 help-kpi shadow-sm h-100">
+        <p class="label">Recomendación</p>
+        <p class="value">Usa filtros y bitácora</p>
+        <div class="help-divider"></div>
+        <p class="label">Seguridad</p>
+        <p class="value">No compartas contraseñas</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- GUÍAS PRINCIPALES -->
+  <section class="row g-3 mb-3 mb-md-4">
+    <div class="col-12 col-lg-6">
+      <div class="card help-card shadow-sm h-100">
+        <div class="card-body p-3 p-md-4">
+          <h5 class="card-title mb-2">Guía rápida: Proyectos</h5>
+          <p class="help-muted mb-3">
+            (Ejemplo) Flujo sugerido para trabajar con proyectos en el sistema.
+          </p>
+
+          <ol class="mb-0">
+            <li><b>Alta de proyecto:</b> captura datos básicos (nombre, empresa, dirección, coordenadas, voltaje y fases).</li>
+            <li><b>Consulta:</b> usa los filtros por ID, nombre o empresa (admin puede filtrar por usuario).</li>
+            <li><b>Modificación:</b> selecciona un proyecto y presiona <b>✏️ Editar</b> para habilitar cambios.</li>
+            <li><b>Descarga PDF:</b> genera una ficha del proyecto con información inicial (servirá para cálculos posteriores).</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card help-card shadow-sm h-100">
+        <div class="card-body p-3 p-md-4">
+          <h5 class="card-title mb-2">Guía rápida: Usuarios</h5>
+          <p class="help-muted mb-3">
+            (Ejemplo) Administración de usuarios y reportes.
+          </p>
+
+          <ul class="mb-0">
+            <li><b>Alta:</b> asigna Tipo (Administrador/General) y confirma correo válido.</li>
+            <li><b>Modificación:</b> buscar → seleccionar → (opcional) <b>✏️ Editar</b> → guardar.</li>
+            <li><b>Exportación:</b> descarga listado en <b>CSV</b> o <b>PDF</b> para reportes.</li>
+            <li><b>Bitácora:</b> consulta acciones relevantes (creación, cambios, exportaciones, etc.).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="card help-card shadow-sm mb-3 mb-md-4">
+    <div class="card-body p-3 p-md-4">
+      <h5 class="card-title mb-3">Preguntas frecuentes (FAQ)</h5>
+
+      <div class="accordion help-accordion" id="helpFaq">
+        <div class="accordion-item mb-2">
+          <h2 class="accordion-header" id="q1">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#a1" aria-expanded="true" aria-controls="a1">
+              ¿Por qué no puedo editar si ya seleccioné un registro?
+            </button>
+          </h2>
+          <div id="a1" class="accordion-collapse collapse show" aria-labelledby="q1" data-bs-parent="#helpFaq">
+            <div class="accordion-body">
+              En las pantallas de modificación, el sistema inicia en <b>modo lectura</b>.
+              Para editar debes presionar <b>✏️ Editar</b>. Esto evita cambios accidentales.
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item mb-2">
+          <h2 class="accordion-header" id="q2">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a2" aria-expanded="false" aria-controls="a2">
+              ¿Qué campos puedo usar para filtrar?
+            </button>
+          </h2>
+          <div id="a2" class="accordion-collapse collapse" aria-labelledby="q2" data-bs-parent="#helpFaq">
+            <div class="accordion-body">
+              <ul class="mb-0">
+                <li><b>Proyectos:</b> ID, Nombre, Empresa, Usuario (solo admin).</li>
+                <li><b>Usuarios:</b> ID, Nombre, Apellidos.</li>
+                <li><b>Bitácora:</b> Usuario (correo), Acción, Texto libre.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="q3">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a3" aria-expanded="false" aria-controls="a3">
+              ¿Qué hago si aparece un error o pantalla en blanco?
+            </button>
+          </h2>
+          <div id="a3" class="accordion-collapse collapse" aria-labelledby="q3" data-bs-parent="#helpFaq">
+            <div class="accordion-body">
+              (Ejemplo) Cierra sesión e inicia nuevamente. Si persiste:
+              <ol class="mb-0">
+                <li>Indica qué módulo estabas usando (Usuarios/Proyectos/etc.).</li>
+                <li>Describe el paso exacto (ej. “clic en Guardar”).</li>
+                <li>Adjunta captura o mensaje mostrado.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- TABLA DE CONTACTOS / SOPORTE -->
+  <section class="card help-card shadow-sm">
+    <div class="card-body p-3 p-md-4">
+      <h5 class="card-title mb-3">Soporte y contactos (ejemplo)</h5>
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle help-table mb-0">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Contacto</th>
+              <th>Medio</th>
+              <th>Horario</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Soporte Técnico</td>
+              <td>Equipo SWGFV</td>
+              <td>soporte@swgfv.com</td>
+              <td>L–V 9:00–18:00</td>
+            </tr>
+            <tr>
+              <td>Administración</td>
+              <td>Control de Accesos</td>
+              <td>admin@swgfv.com</td>
+              <td>L–V 10:00–17:00</td>
+            </tr>
+            <tr>
+              <td>Urgencias</td>
+              <td>Guardia</td>
+              <td>+52 55 0000 0000</td>
+              <td>24/7</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="help-muted mt-3 mb-0">
+        *Contenido de ejemplo. Sustituye por la información real de tu proyecto.
+      </p>
+    </div>
+  </section>
+
+</main>
 {% endblock %}
