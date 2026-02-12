@@ -354,16 +354,60 @@ def proyecto_alta(request):
     return render(request, "core/pages/proyecto_alta.html", {"form": form})
 
 @require_session_login
+@require_http_methods(["GET"])
 def proyecto_consulta(request):
-    session_tipo = request.session.get("tipo")
+    """
+    Consulta de proyectos:
+    - Admin: ve todos
+    - General: ve solo los suyos
+    - Filtros por querystring:
+        id, nombre, empresa, usuario (solo admin)
+    """
+    session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
-    if session_tipo == "Administrador":
-        proyectos = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
-    else:
-        proyectos = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+    # Filtros (GET)
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    q_empresa = (request.GET.get("empresa") or "").strip()
+    q_usuario = (request.GET.get("usuario") or "").strip()  # correo (solo admin)
 
-    return render(request, "core/pages/proyecto_consulta.html", {"proyectos": proyectos})
+    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
+
+    # Base queryset por permisos
+    if session_tipo == "Administrador":
+        qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
+    else:
+        qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    # Aplicar filtros
+    if q_id:
+        if q_id.isdigit():
+            qs = qs.filter(id=int(q_id))
+        else:
+            qs = Proyecto.objects.none()
+
+    if q_nombre:
+        qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+
+    if q_empresa:
+        qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
+
+    if q_usuario and session_tipo == "Administrador":
+        qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
+
+    proyectos = qs
+
+    context = {
+        "proyectos": proyectos,
+        "mostrar_lista": mostrar_lista,
+        "q_id": q_id,
+        "q_nombre": q_nombre,
+        "q_empresa": q_empresa,
+        "q_usuario": q_usuario,
+        "es_admin": (session_tipo == "Administrador"),
+    }
+    return render(request, "core/pages/proyecto_consulta.html", context)
 
 @require_admin
 @require_http_methods(["GET", "POST"])

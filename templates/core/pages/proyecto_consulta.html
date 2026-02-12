@@ -3,76 +3,91 @@
 {% block title %}SWGFV - Consulta de Proyectos{% endblock %}
 
 {% block page_content %}
-<div class="card shadow-sm border-0" style="background: rgba(255,255,255,0.95); border-radius:12px;">
-  <div class="card-body">
-    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Consulta de Proyectos</h2>
+<div class="card shadow-sm bg-glass">
+  <div class="card-body p-3 p-md-4">
 
-    {% if session_tipo == "Administrador" %}
-      <form class="row g-2 mb-3" method="get">
+    <h2 class="text-center mb-4" style="color: var(--swgfv-primary); font-weight: 800;">
+      Consulta de Proyectos
+    </h2>
+
+    <!-- FILTROS -->
+    <form method="GET" class="mb-4">
+      <div class="row g-3">
+
+        <div class="col-12 col-md-2">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+        </div>
+
         <div class="col-12 col-md-4">
-          <input type="number" name="usuario_id" class="form-control"
-                 placeholder="Filtrar por ID Usuario (opcional)"
-                 value="{{ filtro_usuario_id|default:'' }}">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del proyecto</label>
+          <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
         </div>
-        <div class="col-12 col-md-3">
-          <button class="btn btn-swgfv w-100" type="submit">Filtrar</button>
-        </div>
-        <div class="col-12 col-md-3">
-          <a class="btn btn-secondary w-100" href="{% url 'core:proyecto_consulta' %}">Quitar filtro</a>
-        </div>
-      </form>
-    {% endif %}
 
-    <div class="table-responsive">
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Proyecto</th>
-            <th>Empresa</th>
-            <th>Dirección</th>
-            <th>Coordenadas</th>
-            <th>Voltaje</th>
-            <th>Fases</th>
-            {% if session_tipo == "Administrador" %}
-              <th>ID Usuario</th>
-            {% endif %}
-          </tr>
-        </thead>
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Empresa</label>
+          <input type="text" name="empresa" value="{{ q_empresa }}" class="form-control" placeholder="Empresa">
+        </div>
 
-        <tbody>
-          {% for p in proyectos %}
+        {% if es_admin %}
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Usuario (correo)</label>
+          <input type="text" name="usuario" value="{{ q_usuario }}" class="form-control" placeholder="correo@...">
+        </div>
+        {% endif %}
+
+      </div>
+
+      <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <a href="{% url 'core:proyecto_consulta' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+        <a href="{% url 'core:proyecto_alta' %}" class="btn btn-outline-primary px-4">Nuevo proyecto</a>
+      </div>
+    </form>
+
+    <!-- LISTA -->
+    {% if mostrar_lista %}
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle">
+          <thead>
             <tr>
-              {# ID autogenerado por Django (PK) #}
-              <td class="fw-bold">{{ p.id }}</td>
-
+              <th style="width:80px;">ID</th>
+              <th>Proyecto</th>
+              <th>Empresa</th>
+              <th>Dirección</th>
+              <th>Coordenadas</th>
+              <th>Voltaje</th>
+              <th>Fases</th>
+              {% if es_admin %}<th>Usuario</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in proyectos %}
+            <tr>
+              <td>{{ p.id }}</td>
               <td>{{ p.Nombre_Proyecto }}</td>
-              <td>{{ p.Nombre_Empresa|default:"-" }}</td>
-              <td>{{ p.Direccion }}</td>
+              <td>{{ p.Nombre_Empresa|default:"—" }}</td>
+              <td style="max-width: 260px;">{{ p.Direccion }}</td>
               <td>{{ p.Coordenadas }}</td>
               <td>{{ p.Voltaje_Nominal }}</td>
               <td>{{ p.Numero_Fases }}</td>
-
-              {% if session_tipo == "Administrador" %}
-                <td>
-                  {% if p.ID_Usuario %}
-                    {{ p.ID_Usuario.ID_Usuario }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-              {% endif %}
+              {% if es_admin %}<td style="word-break: break-word;">{{ p.ID_Usuario.Correo_electronico }}</td>{% endif %}
             </tr>
-          {% empty %}
+            {% empty %}
             <tr>
-              <td colspan="{% if session_tipo == 'Administrador' %}8{% else %}7{% endif %}" class="text-center">
-                No hay proyectos registrados.
+              <td colspan="{% if es_admin %}8{% else %}7{% endif %}" class="text-center">
+                No hay resultados.
               </td>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert alert-info">
+        Realiza una búsqueda para mostrar proyectos.
+      </div>
+    {% endif %}
 
   </div>
 </div>
