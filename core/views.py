@@ -41,39 +41,26 @@ logger = logging.getLogger(__name__)
 # =========================================================
 # HELPER: IP + BITÁCORA (NO DEBE CAUSAR 500)
 # =========================================================
-def _get_client_ip(request) -> str:
-    try:
-        xff = request.META.get("HTTP_X_FORWARDED_FOR")
-        if xff:
-            return (xff.split(",")[0] or "").strip()
-        return (request.META.get("REMOTE_ADDR") or "").strip()
-    except Exception:
-        return ""
-
-
-def log_event(request, action: str, message: str = "", target_model: str = "", target_id=None):
+def log_event(request, action: str, message: str, target_model: str = "", target_id=None):
     """
     Guarda evento en bitácora (AuditLog).
-    IMPORTANTE: blindada para que NUNCA cause error 500.
+    IMPORTANTE: Está blindada para que NUNCA cause error 500.
     """
     try:
         actor_email = (request.session.get("usuario") or "").strip()
         actor_tipo = (request.session.get("tipo") or "").strip()
         actor_user_id = request.session.get("id_usuario")
 
-        # Nota: tus migraciones dejaron actor_user_id (no actor_id)
         AuditLog.objects.create(
-            actor_user_id=int(actor_user_id) if str(actor_user_id).isdigit() else None,
-            actor_email=actor_email[:150],
-            actor_tipo=actor_tipo[:30],
-            action=(action or "").strip()[:60],
+            actor_email=actor_email,
+            actor_tipo=actor_tipo,
+            actor_user_id=actor_user_id if actor_user_id else None,
+            action=(action or "").strip()[:80],
             message=(message or "").strip()[:255],
-            target_model=(target_model or "").strip()[:60],
+            target_model=(target_model or "").strip()[:50],
             target_id=str(target_id) if target_id is not None else "",
-            ip_address=_get_client_ip(request),
         )
     except Exception:
-        # Si falla la bitácora, NO tumba el sistema
         return
 
 
