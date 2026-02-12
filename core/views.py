@@ -1,24 +1,26 @@
 # core/views.py
 import random
+from datetime import timedelta
+
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
-from django.http import HttpResponse
-from reportlab.pdfgen import canvas
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
 from django.contrib.staticfiles import finders
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from django.core.cache import cache
 
+# (Puedes dejar este import aunque ya no lo usemos aquí)
+from django.core.cache import cache
 
 from .forms import (
     LoginForm,
@@ -31,7 +33,7 @@ from .forms import (
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
-from .models import Usuario, Proyecto
+from .models import Usuario, Proyecto, LoginLock
 
 
 # =========================================================
@@ -40,6 +42,7 @@ from .models import Usuario, Proyecto
 CAPTCHA_SALT = "swgfv-captcha-v1"
 CAPTCHA_MAX_AGE_SECONDS = 5 * 60  # 5 min
 
+
 def _new_captcha_signed():
     a = random.randint(1, 9)
     b = random.randint(1, 9)
@@ -47,6 +50,7 @@ def _new_captcha_signed():
     token = signing.dumps({"a": a, "b": b, "ans": answer}, salt=CAPTCHA_SALT)
     question = f"{a} + {b} = ?"
     return question, token
+
 
 def _read_captcha_token(token: str):
     try:
@@ -64,12 +68,15 @@ def _read_captcha_token(token: str):
 RESET_SALT = "swgfv-reset-v1"
 RESET_MAX_AGE_SECONDS = 15 * 60  # 15 min
 
+
 def _get_user_password_hash(u: Usuario) -> str:
     return (getattr(u, "Contrasena", "") or "").strip()
+
 
 def _make_reset_token(u: Usuario) -> str:
     payload = {"uid": int(u.ID_Usuario), "ph": _get_user_password_hash(u)}
     return signing.dumps(payload, salt=RESET_SALT)
+
 
 def _read_reset_token(token: str):
     try:
@@ -99,71 +106,55 @@ def _read_reset_token(token: str):
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def login_view(request):
+    # Ya hay sesión -> menú
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
     form = LoginForm(request.POST or None)
 
-    # Siempre generamos captcha para mostrar (GET) o para reintentar (POST fallido)
+    # Captcha siempre visible
     captcha_question, captcha_token = _new_captcha_signed()
 
-    # Lockout 3 intentos / 30 min (por usuario) usando CACHE (no sesión)
+    # Lockout 3 intentos / 30 min (POR USUARIO) guardado en BD
     LOCK_MINUTES = 30
     MAX_FAILS = 3
 
     def _norm_user_key(usuario: str) -> str:
-        # Normalizamos para que " Admin@..." y "admin@..." cuenten igual
         return (usuario or "").strip().lower()
 
-    def _lock_key(usuario: str) -> str:
-        return f"swgfv:lock:{_norm_user_key(usuario)}"
+    def _get_lock(usuario: str) -> LoginLock:
+        key = _norm_user_key(usuario)
+        obj, _ = LoginLock.objects.get_or_create(usuario_key=key)
+        return obj
 
-    def _fails_key(usuario: str) -> str:
-        return f"swgfv:fails:{_norm_user_key(usuario)}"
+    def _is_locked(usuario: str):
+        lk = _get_lock(usuario)
+        if lk.is_locked():
+            return True, lk.remaining_minutes()
+        return False, 0
 
-    def _get_locked_until_ts(usuario: str):
-        return cache.get(_lock_key(usuario))  # int timestamp or None
+    def _register_fail(usuario: str) -> int:
+        lk = _get_lock(usuario)
 
-    def _set_locked_until_ts(usuario: str, ts: int):
-        # Guardar por LOCK_MINUTES
-        cache.set(_lock_key(usuario), int(ts), timeout=LOCK_MINUTES * 60)
+        # Si ya está bloqueado no incrementamos
+        if lk.is_locked():
+            return int(lk.fails or 0)
 
-    def _get_fails(usuario: str) -> int:
-        try:
-            return int(cache.get(_fails_key(usuario)) or 0)
-        except Exception:
-            return 0
+        lk.fails = int(lk.fails or 0) + 1
 
-    def _set_fails(usuario: str, n: int):
-        # Si llega al límite, lo dejamos expirar también en 30 min
-        cache.set(_fails_key(usuario), int(n), timeout=LOCK_MINUTES * 60)
+        if lk.fails >= MAX_FAILS:
+            lk.locked_until = timezone.now() + timedelta(minutes=LOCK_MINUTES)
 
-    def _reset_fails(usuario: str):
-        cache.delete(_fails_key(usuario))
-        cache.delete(_lock_key(usuario))
+        lk.save(update_fields=["fails", "locked_until"])
+        return int(lk.fails or 0)
 
-    def _fail_key(usuario: str) -> str:
-        return f"fails::{usuario}"
+    def _reset_lock(usuario: str):
+        lk = _get_lock(usuario)
+        lk.fails = 0
+        lk.locked_until = None
+        lk.save(update_fields=["fails", "locked_until"])
 
-    def _get_locked_until(usuario: str):
-        return request.session.get(_lock_key(usuario))
-
-    def _set_locked_until(usuario: str, ts: int):
-        request.session[_lock_key(usuario)] = ts
-        request.session.modified = True
-
-    def _get_fails(usuario: str) -> int:
-        return int(request.session.get(_fail_key(usuario), 0))
-
-    def _set_fails(usuario: str, n: int):
-        request.session[_fail_key(usuario)] = int(n)
-        request.session.modified = True
-
-    def _reset_fails(usuario: str):
-        request.session.pop(_fail_key(usuario), None)
-        request.session.pop(_lock_key(usuario), None)
-        request.session.modified = True
-
+    # ===== POST =====
     if request.method == "POST":
         usuario_input = (request.POST.get("usuario") or "").strip()
 
@@ -176,11 +167,9 @@ def login_view(request):
                 {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
             )
 
-        now_ts = int(timezone.now().timestamp())
-        locked_until = _get_locked_until(usuario_input)
-        if locked_until and now_ts < int(locked_until):
-            remaining = int(locked_until) - now_ts
-            minutes = max(1, (remaining + 59) // 60)
+        # 1) Checar lock antes de validar captcha/credenciales
+        locked, minutes = _is_locked(usuario_input)
+        if locked:
             messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
             captcha_question, captcha_token = _new_captcha_signed()
             return render(
@@ -189,6 +178,7 @@ def login_view(request):
                 {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
             )
 
+        # 2) Validar formulario
         if not form.is_valid():
             messages.error(request, "Revisa el formulario e intenta nuevamente.")
             captcha_question, captcha_token = _new_captcha_signed()
@@ -198,32 +188,32 @@ def login_view(request):
                 {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
             )
 
-        # CAPTCHA: ahora se valida con token firmado (no depende de sesión)
+        # 3) Validar captcha con token firmado
         token = (request.POST.get("captcha_token") or "").strip()
         expected = _read_captcha_token(token)
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
         if not expected or provided != expected:
-            fails = _get_fails(usuario_input) + 1
-            _set_fails(usuario_input, fails)
+            fails = _register_fail(usuario_input)
 
             if fails >= MAX_FAILS:
-                _set_locked_until_ts(usuario_input, now_ts + (LOCK_MINUTES * 60))
                 messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
             else:
                 messages.error(request, f"Captcha incorrecto. Intento {fails}/{MAX_FAILS}.")
+
+            captcha_question, captcha_token = _new_captcha_signed()
             return render(
                 request,
                 "core/login.html",
                 {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
             )
 
-        # Credenciales
+        # 4) Credenciales
         password = form.cleaned_data["password"]
         u = authenticate_local(usuario_input, password)
 
         if u:
-            _reset_fails(usuario_input)
+            _reset_lock(usuario_input)
 
             request.session["usuario"] = u.Correo_electronico
             request.session["tipo"] = u.Tipo
@@ -232,12 +222,10 @@ def login_view(request):
 
             return redirect("core:menu_principal")
 
-        # credenciales mal
-        fails = _get_fails(usuario_input) + 1
-        _set_fails(usuario_input, fails)
+        # 5) Credenciales incorrectas
+        fails = _register_fail(usuario_input)
 
         if fails >= MAX_FAILS:
-            _set_locked_until_ts(usuario_input, now_ts + (LOCK_MINUTES * 60))
             messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
         else:
             messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/{MAX_FAILS}.")
@@ -249,6 +237,7 @@ def login_view(request):
             {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
         )
 
+    # ===== GET =====
     return render(
         request,
         "core/login.html",
@@ -263,10 +252,12 @@ def login_view(request):
 def menu_principal(request):
     return render(request, "core/menu_principal.html")
 
+
 @require_session_login
 def logout_view(request):
     request.session.flush()
     return redirect("core:login")
+
 
 @require_session_login
 def ayuda_view(request):
@@ -365,7 +356,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-# PROYECTOS / USUARIOS (como estaban)
+# PROYECTOS / USUARIOS
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -392,34 +383,25 @@ def proyecto_alta(request):
 
     return render(request, "core/pages/proyecto_alta.html", {"form": form})
 
+
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_consulta(request):
-    """
-    Consulta de proyectos:
-    - Admin: ve todos
-    - General: ve solo los suyos
-    - Filtros por querystring:
-        id, nombre, empresa, usuario (solo admin)
-    """
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
-    # Filtros (GET)
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
-    q_usuario = (request.GET.get("usuario") or "").strip()  # correo (solo admin)
+    q_usuario = (request.GET.get("usuario") or "").strip()
 
     mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
 
-    # Base queryset por permisos
     if session_tipo == "Administrador":
         qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
     else:
         qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
 
-    # Aplicar filtros
     if q_id:
         if q_id.isdigit():
             qs = qs.filter(id=int(q_id))
@@ -435,10 +417,8 @@ def proyecto_consulta(request):
     if q_usuario and session_tipo == "Administrador":
         qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
 
-    proyectos = qs
-
     context = {
-        "proyectos": proyectos,
+        "proyectos": qs,
         "mostrar_lista": mostrar_lista,
         "q_id": q_id,
         "q_nombre": q_nombre,
@@ -448,34 +428,26 @@ def proyecto_consulta(request):
     }
     return render(request, "core/pages/proyecto_consulta.html", context)
 
+
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
-    """
-    Modificación de proyectos:
-    - Admin: puede editar cualquiera
-    - General: solo puede editar sus proyectos
-    - Modo lectura -> botón ✏️ Editar (edit=1)
-    """
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
-    # filtros GET
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
-    q_usuario = (request.GET.get("usuario") or "").strip()  # solo admin
+    q_usuario = (request.GET.get("usuario") or "").strip()
 
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
     mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
 
-    # Base queryset por permisos
     if session_tipo == "Administrador":
         qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
     else:
         qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
 
-    # Aplicar filtros
     if mostrar_lista:
         if q_id:
             if q_id.isdigit():
@@ -496,21 +468,18 @@ def proyecto_modificacion(request):
     else:
         proyectos = Proyecto.objects.none()
 
-    # Seleccionado
     seleccionado = None
     form = None
 
     if q_id.isdigit():
         seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
         if seleccionado:
-            # permiso adicional (por si se fuerza URL)
             if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
                 messages.error(request, "No tienes permisos para ver/modificar este proyecto.")
                 return redirect("core:proyecto_modificacion")
 
             form = ProyectoUpdateForm(instance=seleccionado)
 
-    # POST guardar (solo si edit=1)
     if request.method == "POST":
         post_id = (request.GET.get("id") or "").strip()
         if not post_id.isdigit():
@@ -565,6 +534,7 @@ def gestion_usuarios_alta(request):
         messages.error(request, "Revisa el formulario. Hay errores.")
     return render(request, "core/pages/gestion_usuarios_alta.html", {"form": form})
 
+
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_modificacion(request):
@@ -575,20 +545,15 @@ def gestion_usuarios_modificacion(request):
     - GET con ?id=...&edit=1: habilita edición
     - POST action=deactivate: desactiva
     - POST action=delete: elimina (hard delete)
+    - POST action=activate: activa
     - POST normal: guarda cambios SOLO si edit=1
     """
-    # ---------
-    # Query params (búsqueda)
-    # ---------
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_ap = (request.GET.get("ap") or "").strip()
     q_am = (request.GET.get("am") or "").strip()
 
-    # Modo edición
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-
-    # Mostrar lista SOLO si hay búsqueda (no cargar todos por defecto)
     mostrar_lista = any([q_id, q_nombre, q_ap, q_am])
 
     usuarios = Usuario.objects.none()
@@ -609,9 +574,6 @@ def gestion_usuarios_modificacion(request):
 
         usuarios = qs
 
-    # ---------
-    # Selección por ID (para ver/editar)
-    # ---------
     seleccionado = None
     form = None
 
@@ -620,9 +582,6 @@ def gestion_usuarios_modificacion(request):
         if seleccionado:
             form = UsuarioUpdateForm(instance=seleccionado)
 
-    # ---------
-    # POST: Guardar cambios / desactivar / eliminar
-    # ---------
     if request.method == "POST":
         post_id = (request.GET.get("id") or "").strip()
 
@@ -638,14 +597,12 @@ def gestion_usuarios_modificacion(request):
         action = (request.POST.get("action") or "").strip().lower()
         current_user_id = request.session.get("id_usuario")
 
-        # 1) Activar
         if action == "activate":
             seleccionado.Activo = True
             seleccionado.save()
             messages.success(request, "Usuario activado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
-        # 2) Desactivar
         if action == "deactivate":
             if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
                 messages.error(request, "No puedes desactivarte a ti mismo estando en sesión.")
@@ -656,7 +613,6 @@ def gestion_usuarios_modificacion(request):
             messages.success(request, "Usuario desactivado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
-        # 3) Eliminar (hard delete)
         if action == "delete":
             if current_user_id and int(current_user_id) == int(seleccionado.ID_Usuario):
                 messages.error(request, "No puedes eliminar tu propio usuario estando en sesión.")
@@ -667,7 +623,6 @@ def gestion_usuarios_modificacion(request):
             messages.success(request, f"Usuario eliminado correctamente: {correo}")
             return redirect("core:gestion_usuarios_modificacion")
 
-        # 3) Guardar cambios normales: SOLO si edit_mode=1
         if not edit_mode:
             messages.error(request, "Para editar, primero presiona ✏️ Editar.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
@@ -684,7 +639,6 @@ def gestion_usuarios_modificacion(request):
                 obj.Correo_electronico = email
                 obj.save()
                 messages.success(request, "Usuario actualizado correctamente.")
-                # Regresar a modo lectura (sin edit=1)
                 return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
         messages.error(request, "Revisa el formulario. Hay errores.")
@@ -702,87 +656,83 @@ def gestion_usuarios_modificacion(request):
     }
     return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
 
+
 @require_session_login
 def cuenta_view(request):
     return render(request, "core/pages/cuenta.html")
+
+
 # ==========================
 # PLACEHOLDERS DEL MENÚ
-# (Para que NO falle el deploy y puedas navegar como antes)
 # ==========================
-from django.contrib.auth.decorators import login_required
 from django.template import TemplateDoesNotExist
 
+
 def _render_menu_page(request, template_path: str, title: str):
-    """
-    Renderiza pantallas del menú.
-    Si el template no existe, muestra un mensaje claro (no revienta deploy).
-    """
     try:
         return render(request, template_path, {"title": title})
     except TemplateDoesNotExist:
-        # IMPORTANTE: Esto NO es "template genérico para todo".
-        # Solo evita que el sistema muera si aún no existe el HTML.
-        return render(request, "core/menu_principal.html", {
-            "title": title,
-            "messages": [],
-        })
+        return render(request, "core/menu_principal.html", {"title": title, "messages": []})
 
-# Dimensionamiento
+
 @require_session_login
 def dimensionamiento_calculo_modulos(request):
     return _render_menu_page(request, "core/pages/dimensionamiento_calculo_modulos.html", "Cálculo de Módulos")
+
 
 @require_session_login
 def dimensionamiento_dimensionamiento(request):
     return _render_menu_page(request, "core/pages/dimensionamiento_dimensionamiento.html", "Dimensionamiento")
 
-# Cálculos
+
 @require_session_login
 def calculo_dc(request):
     return _render_menu_page(request, "core/pages/calculo_dc.html", "Cálculo DC")
+
 
 @require_session_login
 def calculo_ac(request):
     return _render_menu_page(request, "core/pages/calculo_ac.html", "Cálculo AC")
 
+
 @require_session_login
 def calculo_caida_tension(request):
     return _render_menu_page(request, "core/pages/calculo_caida_tension.html", "Caída de Tensión")
 
-# Recursos
+
 @require_session_login
 def recursos_tablas(request):
     return _render_menu_page(request, "core/pages/recursos_tablas.html", "Tablas")
+
 
 @require_session_login
 def recursos_conceptos(request):
     return _render_menu_page(request, "core/pages/recursos_conceptos.html", "Conceptos")
 
+
 @require_admin
 def recursos_alta_concepto(request):
     return _render_menu_page(request, "core/pages/recursos_alta_concepto.html", "Alta de Concepto")
+
 
 @require_admin
 def recursos_alta_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_alta_tabla.html", "Alta de Tabla")
 
+
 @require_admin
 def recursos_modificacion_concepto(request):
     return _render_menu_page(request, "core/pages/recursos_modificacion_concepto.html", "Modificar Concepto")
+
 
 @require_admin
 def recursos_modificacion_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
 
+
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_pdf(request, proyecto_id: int):
-    """
-    Descarga PDF con la info básica del proyecto (estilo + logo + tabla).
-    Permisos:
-      - Admin: cualquier proyecto
-      - General: solo sus proyectos
-    """
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
@@ -791,18 +741,15 @@ def proyecto_pdf(request, proyecto_id: int):
         messages.error(request, "Proyecto no encontrado.")
         return redirect("core:proyecto_consulta")
 
-    # Permisos
     if session_tipo != "Administrador":
         if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
             messages.error(request, "No tienes permisos para descargar este proyecto.")
             return redirect("core:proyecto_consulta")
 
-    # Respuesta PDF
     filename = f"SWGFV_Proyecto_{proyecto.id}.pdf"
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    # Documento
     doc = SimpleDocTemplate(
         response,
         pagesize=letter,
@@ -834,19 +781,15 @@ def proyecto_pdf(request, proyecto_id: int):
 
     elements = []
 
-    # Logo (desde static)
     logo_path = finders.find("core/img/logo1.png")
     if logo_path:
         try:
-            # Tamaño proporcional (ajusta si quieres más grande)
             img = RLImage(logo_path, width=3.0 * cm, height=3.0 * cm)
             elements.append(img)
             elements.append(Spacer(1, 0.3 * cm))
         except Exception:
-            # Si por algo falla el logo, seguimos sin reventar
             pass
 
-    # Encabezado
     elements.append(Paragraph("SWGFV - Ficha del Proyecto", title_style))
 
     generado_por = request.session.get("usuario", "")
@@ -857,7 +800,6 @@ def proyecto_pdf(request, proyecto_id: int):
     elements.append(Paragraph(f"<b>Fecha:</b> {fecha}", sub_style))
     elements.append(Spacer(1, 0.2 * cm))
 
-    # Tabla de datos
     data = [
         ["Campo", "Valor"],
         ["ID", str(proyecto.id)],
@@ -873,7 +815,6 @@ def proyecto_pdf(request, proyecto_id: int):
     table = Table(data, colWidths=[5.2 * cm, 11.5 * cm])
 
     table.setStyle(TableStyle([
-        # Encabezado
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -881,8 +822,6 @@ def proyecto_pdf(request, proyecto_id: int):
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
         ("TOPPADDING", (0, 0), (-1, 0), 8),
-
-        # Celdas
         ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
         ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 10),
@@ -890,14 +829,8 @@ def proyecto_pdf(request, proyecto_id: int):
         ("ALIGN", (0, 1), (0, -1), "LEFT"),
         ("ALIGN", (1, 1), (1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-
-        # Bordes
         ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#B0B7C3")),
-
-        # Fondo alterno
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
-
-        # Padding general
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
         ("RIGHTPADDING", (0, 0), (-1, -1), 10),
         ("TOPPADDING", (0, 1), (-1, -1), 6),
@@ -906,8 +839,6 @@ def proyecto_pdf(request, proyecto_id: int):
 
     elements.append(table)
     elements.append(Spacer(1, 0.6 * cm))
-
-    # Pie
     elements.append(Paragraph(
         "<i>Documento generado automáticamente por SWGFV. Información sujeta a verificación.</i>",
         ParagraphStyle("SWGFVNote", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#555555"))
