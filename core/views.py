@@ -20,6 +20,8 @@ from django.contrib.staticfiles import finders
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+import logging
+logger = logging.getLogger(__name__)
 
 from .forms import (
     LoginForm,
@@ -133,108 +135,162 @@ def _read_reset_token(token: str):
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def login_view(request):
-    if request.session.get("usuario") and request.session.get("tipo"):
-        return redirect("core:menu_principal")
+    """
+    Login con captcha firmado + lock por usuario (LoginLock en BD).
+    Parche: evita 500, registra el traceback en logs si algo explota.
+    """
+    try:
+        # Ya hay sesión -> menú
+        if request.session.get("usuario") and request.session.get("tipo"):
+            return redirect("core:menu_principal")
 
-    form = LoginForm(request.POST or None)
-    captcha_question, captcha_token = _new_captcha_signed()
+        form = LoginForm(request.POST or None)
 
-    LOCK_MINUTES = 30
-    MAX_FAILS = 3
+        # Captcha siempre visible
+        captcha_question, captcha_token = _new_captcha_signed()
 
-    def _norm_user_key(usuario: str) -> str:
-        return (usuario or "").strip().lower()
+        # Lockout 3 intentos / 30 min (POR USUARIO) guardado en BD
+        LOCK_MINUTES = 30
+        MAX_FAILS = 3
 
-    def _get_lock(usuario: str) -> LoginLock:
-        key = _norm_user_key(usuario)
-        obj, _ = LoginLock.objects.get_or_create(usuario_key=key)
-        return obj
+        def _norm_user_key(usuario: str) -> str:
+            return (usuario or "").strip().lower()
 
-    def _is_locked(usuario: str):
-        lk = _get_lock(usuario)
-        if lk.is_locked():
-            return True, lk.remaining_minutes()
-        return False, 0
+        def _get_lock(usuario: str) -> LoginLock:
+            key = _norm_user_key(usuario)
+            obj, _ = LoginLock.objects.get_or_create(usuario_key=key)
+            return obj
 
-    def _register_fail(usuario: str) -> int:
-        lk = _get_lock(usuario)
+        def _is_locked(usuario: str):
+            lk = _get_lock(usuario)
+            if lk.is_locked():
+                # remaining_minutes debe ser int (ver PASO 4)
+                return True, int(lk.remaining_minutes())
+            return False, 0
 
-        if lk.is_locked():
+        def _register_fail(usuario: str) -> int:
+            lk = _get_lock(usuario)
+
+            # Si ya está bloqueado no incrementamos
+            if lk.is_locked():
+                return int(lk.fails or 0)
+
+            lk.fails = int(lk.fails or 0) + 1
+            if lk.fails >= MAX_FAILS:
+                lk.locked_until = timezone.now() + timedelta(minutes=LOCK_MINUTES)
+
+            lk.save(update_fields=["fails", "locked_until"])
             return int(lk.fails or 0)
 
-        lk.fails = int(lk.fails or 0) + 1
+        def _reset_lock(usuario: str):
+            lk = _get_lock(usuario)
+            lk.fails = 0
+            lk.locked_until = None
+            lk.save(update_fields=["fails", "locked_until"])
 
-        if lk.fails >= MAX_FAILS:
-            lk.locked_until = timezone.now() + timedelta(minutes=LOCK_MINUTES)
+        # ===== POST =====
+        if request.method == "POST":
+            usuario_input = (request.POST.get("usuario") or "").strip()
 
-        lk.save(update_fields=["fails", "locked_until"])
-        return int(lk.fails or 0)
+            if not usuario_input:
+                messages.error(request, "Ingresa tu usuario/correo.")
+                captcha_question, captcha_token = _new_captcha_signed()
+                return render(
+                    request,
+                    "core/login.html",
+                    {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+                )
 
-    def _reset_lock(usuario: str):
-        lk = _get_lock(usuario)
-        lk.fails = 0
-        lk.locked_until = None
-        lk.save(update_fields=["fails", "locked_until"])
+            # 1) Checar lock antes de validar captcha/credenciales
+            locked, minutes = _is_locked(usuario_input)
+            if locked:
+                messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
+                captcha_question, captcha_token = _new_captcha_signed()
+                return render(
+                    request,
+                    "core/login.html",
+                    {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+                )
 
-    if request.method == "POST":
-        usuario_input = (request.POST.get("usuario") or "").strip()
+            # 2) Validar formulario
+            if not form.is_valid():
+                messages.error(request, "Revisa el formulario e intenta nuevamente.")
+                captcha_question, captcha_token = _new_captcha_signed()
+                return render(
+                    request,
+                    "core/login.html",
+                    {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+                )
 
-        if not usuario_input:
-            messages.error(request, "Ingresa tu usuario/correo.")
-            captcha_question, captcha_token = _new_captcha_signed()
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
+            # 3) Validar captcha con token firmado
+            token = (request.POST.get("captcha_token") or "").strip()
+            expected = _read_captcha_token(token)
+            provided = (form.cleaned_data.get("captcha") or "").strip()
 
-        locked, minutes = _is_locked(usuario_input)
-        if locked:
-            messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
-            captcha_question, captcha_token = _new_captcha_signed()
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
+            if not expected or provided != expected:
+                fails = _register_fail(usuario_input)
 
-        if not form.is_valid():
-            messages.error(request, "Revisa el formulario e intenta nuevamente.")
-            captcha_question, captcha_token = _new_captcha_signed()
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
+                if fails >= MAX_FAILS:
+                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
+                else:
+                    messages.error(request, f"Captcha incorrecto. Intento {fails}/{MAX_FAILS}.")
 
-        token = (request.POST.get("captcha_token") or "").strip()
-        expected = _read_captcha_token(token)
-        provided = (form.cleaned_data.get("captcha") or "").strip()
+                captcha_question, captcha_token = _new_captcha_signed()
+                return render(
+                    request,
+                    "core/login.html",
+                    {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+                )
 
-        if not expected or provided != expected:
+            # 4) Credenciales
+            password = form.cleaned_data["password"]
+            u = authenticate_local(usuario_input, password)
+
+            if u:
+                _reset_lock(usuario_input)
+
+                request.session["usuario"] = u.Correo_electronico
+                request.session["tipo"] = u.Tipo
+                request.session["id_usuario"] = u.ID_Usuario
+                request.session.modified = True
+
+                return redirect("core:menu_principal")
+
+            # 5) Credenciales incorrectas
             fails = _register_fail(usuario_input)
+
             if fails >= MAX_FAILS:
                 messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
             else:
-                messages.error(request, f"Captcha incorrecto. Intento {fails}/{MAX_FAILS}.")
+                messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/{MAX_FAILS}.")
+
             captcha_question, captcha_token = _new_captcha_signed()
-            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
+            return render(
+                request,
+                "core/login.html",
+                {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+            )
 
-        password = form.cleaned_data["password"]
-        u = authenticate_local(usuario_input, password)
+        # ===== GET =====
+        return render(
+            request,
+            "core/login.html",
+            {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+        )
 
-        if u:
-            _reset_lock(usuario_input)
+    except Exception as e:
+        # Esto imprime el traceback COMPLETO en Render Logs
+        logger.exception("ERROR EN LOGIN_VIEW (POST/GET) - detalle:")
 
-            request.session["usuario"] = u.Correo_electronico
-            request.session["tipo"] = u.Tipo
-            request.session["id_usuario"] = u.ID_Usuario
-            request.session.modified = True
-
-            log_event(request, "LOGIN_SUCCESS", "Inicio de sesión correcto", "Usuario", u.ID_Usuario)
-            return redirect("core:menu_principal")
-
-        fails = _register_fail(usuario_input)
-        log_event(request, "LOGIN_FAIL", f"Intento fallido {fails}/{MAX_FAILS} para {usuario_input}", "Usuario", usuario_input)
-
-        if fails >= MAX_FAILS:
-            messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
-        else:
-            messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/{MAX_FAILS}.")
-
+        # Respuesta segura sin 500
+        form = LoginForm(request.POST or None)
         captcha_question, captcha_token = _new_captcha_signed()
-        return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
-
-    return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
-
+        messages.error(request, "Ocurrió un error inesperado al iniciar sesión. Intenta de nuevo.")
+        return render(
+            request,
+            "core/login.html",
+            {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
+        )
 
 # =========================================================
 # MENÚ / LOGOUT / AYUDA

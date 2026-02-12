@@ -85,12 +85,13 @@ class LoginLock(models.Model):
             return False
         return timezone.now() < self.locked_until
 
-    def remaining_minutes(self) -> int:
-        if not self.is_locked():
-            return 0
-        delta = self.locked_until - timezone.now()
-        seconds = max(0, int(delta.total_seconds()))
-        return max(1, (seconds + 59) // 60)
+
+def remaining_minutes(self) -> int:
+    if not self.is_locked():
+        return 0
+    delta = self.locked_until - timezone.now()
+    seconds = max(0, int(delta.total_seconds()))
+    return max(1, (seconds + 59) // 60)
 
 
 # =========================
