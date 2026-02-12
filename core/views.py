@@ -13,6 +13,10 @@ from django.http import HttpResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
+from django.contrib.staticfiles import finders
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 from .forms import (
     LoginForm,
@@ -639,12 +643,11 @@ def recursos_modificacion_concepto(request):
 def recursos_modificacion_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
 
-
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_pdf(request, proyecto_id: int):
     """
-    Descarga PDF con la info básica del proyecto.
+    Descarga PDF con la info básica del proyecto (estilo + logo + tabla).
     Permisos:
       - Admin: cualquier proyecto
       - General: solo sus proyectos
@@ -652,7 +655,6 @@ def proyecto_pdf(request, proyecto_id: int):
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
-    # Buscar el proyecto
     proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
     if not proyecto:
         messages.error(request, "Proyecto no encontrado.")
@@ -664,65 +666,121 @@ def proyecto_pdf(request, proyecto_id: int):
             messages.error(request, "No tienes permisos para descargar este proyecto.")
             return redirect("core:proyecto_consulta")
 
-    # Crear respuesta PDF
+    # Respuesta PDF
     filename = f"SWGFV_Proyecto_{proyecto.id}.pdf"
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    # Canvas PDF (Letter)
-    p = canvas.Canvas(response, pagesize=letter)
-    width, height = letter
+    # Documento
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        leftMargin=2.0 * cm,
+        rightMargin=2.0 * cm,
+        topMargin=1.6 * cm,
+        bottomMargin=1.6 * cm,
+        title=f"Proyecto {proyecto.id}",
+        author="SWGFV",
+    )
 
-    # Márgenes
-    x_left = 2.0 * cm
-    y = height - 2.0 * cm
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "SWGFVTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        textColor=colors.HexColor("#001F3F"),
+        spaceAfter=10,
+    )
+    sub_style = ParagraphStyle(
+        "SWGFVSub",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=10,
+        textColor=colors.HexColor("#333333"),
+        spaceAfter=10,
+    )
+
+    elements = []
+
+    # Logo (desde static)
+    logo_path = finders.find("core/img/logo1.png")
+    if logo_path:
+        try:
+            # Tamaño proporcional (ajusta si quieres más grande)
+            img = RLImage(logo_path, width=3.0 * cm, height=3.0 * cm)
+            elements.append(img)
+            elements.append(Spacer(1, 0.3 * cm))
+        except Exception:
+            # Si por algo falla el logo, seguimos sin reventar
+            pass
 
     # Encabezado
-    p.setFont("Helvetica-Bold", 16)
-    p.drawString(x_left, y, "SWGFV - Ficha del Proyecto")
-    y -= 0.8 * cm
+    elements.append(Paragraph("SWGFV - Ficha del Proyecto", title_style))
 
-    p.setFont("Helvetica", 10)
-    p.drawString(x_left, y, f"Generado por: {request.session.get('usuario', '')} ({request.session.get('tipo', '')})")
-    y -= 0.5 * cm
-    p.drawString(x_left, y, "-----------------------------------------------")
-    y -= 0.8 * cm
+    generado_por = request.session.get("usuario", "")
+    tipo = request.session.get("tipo", "")
+    fecha = timezone.localtime().strftime("%d/%m/%Y %H:%M")
 
-    # Contenido
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(x_left, y, "Datos del Proyecto")
-    y -= 0.7 * cm
+    elements.append(Paragraph(f"<b>Generado por:</b> {generado_por} ({tipo})", sub_style))
+    elements.append(Paragraph(f"<b>Fecha:</b> {fecha}", sub_style))
+    elements.append(Spacer(1, 0.2 * cm))
 
-    def draw_row(label: str, value: str):
-        nonlocal y
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(x_left, y, f"{label}:")
-        p.setFont("Helvetica", 10)
-        p.drawString(x_left + 5.2 * cm, y, value if value else "—")
-        y -= 0.55 * cm
+    # Tabla de datos
+    data = [
+        ["Campo", "Valor"],
+        ["ID", str(proyecto.id)],
+        ["Nombre del proyecto", proyecto.Nombre_Proyecto or "—"],
+        ["Empresa", proyecto.Nombre_Empresa or "—"],
+        ["Dirección", proyecto.Direccion or "—"],
+        ["Coordenadas", proyecto.Coordenadas or "—"],
+        ["Voltaje nominal", proyecto.Voltaje_Nominal or "—"],
+        ["Número de fases", str(proyecto.Numero_Fases)],
+        ["Usuario asociado", getattr(proyecto.ID_Usuario, "Correo_electronico", "—") or "—"],
+    ]
 
-        # salto de página si se acaba el espacio
-        if y < 2.0 * cm:
-            p.showPage()
-            y = height - 2.0 * cm
+    table = Table(data, colWidths=[5.2 * cm, 11.5 * cm])
 
-    draw_row("ID", str(proyecto.id))
-    draw_row("Nombre del proyecto", proyecto.Nombre_Proyecto)
-    draw_row("Empresa", proyecto.Nombre_Empresa or "—")
-    draw_row("Dirección", proyecto.Direccion)
-    draw_row("Coordenadas", proyecto.Coordenadas)
-    draw_row("Voltaje nominal", proyecto.Voltaje_Nominal)
-    draw_row("Número de fases", str(proyecto.Numero_Fases))
+    table.setStyle(TableStyle([
+        # Encabezado
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 8),
 
-    # Usuario dueño (solo info, no cambia permisos)
-    draw_row("Usuario asociado", getattr(proyecto.ID_Usuario, "Correo_electronico", "—"))
+        # Celdas
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 10),
+        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#111111")),
+        ("ALIGN", (0, 1), (0, -1), "LEFT"),
+        ("ALIGN", (1, 1), (1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
 
-    y -= 0.4 * cm
-    p.setFont("Helvetica-Oblique", 9)
-    p.drawString(x_left, y, "Documento generado automáticamente por SWGFV.")
-    y -= 0.6 * cm
+        # Bordes
+        ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#B0B7C3")),
 
-    p.showPage()
-    p.save()
+        # Fondo alterno
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
 
+        # Padding general
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 1), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+    ]))
+
+    elements.append(table)
+    elements.append(Spacer(1, 0.6 * cm))
+
+    # Pie
+    elements.append(Paragraph(
+        "<i>Documento generado automáticamente por SWGFV. Información sujeta a verificación.</i>",
+        ParagraphStyle("SWGFVNote", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#555555"))
+    ))
+
+    doc.build(elements)
     return response
