@@ -91,30 +91,28 @@ class LoginLock(models.Model):
         return max(1, (seconds + 59) // 60)
 
 
+
 # =========================
-# BITÁCORA / AUDITORÍA
+# MODELO AUDIT LOG (BITÁCORA)
 # =========================
 class AuditLog(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
 
-    # quién hizo la acción
+    # Quién realizó la acción
     actor_id = models.IntegerField(null=True, blank=True)
     actor_email = models.CharField(max_length=150, blank=True, default="")
-    actor_tipo = models.CharField(max_length=50, blank=True, default="")
+    actor_tipo = models.CharField(max_length=20, blank=True, default="")
 
-    # qué hizo
-    action = models.CharField(max_length=60)  # ej: USER_CREATED, PROJECT_CREATED
-    message = models.CharField(max_length=255, blank=True, default="")
+    # Qué acción fue
+    action = models.CharField(max_length=80, db_index=True)
+    message = models.CharField(max_length=255)
 
-    # a qué afectó
+    # A qué entidad afectó (opcional)
     target_model = models.CharField(max_length=60, blank=True, default="")
     target_id = models.CharField(max_length=60, blank=True, default="")
 
-    # IP opcional
-    ip_address = models.CharField(max_length=45, blank=True, default="")
-
     class Meta:
-        db_table = "audit_logs"
+        db_table = "audit_log"
 
     def __str__(self):
-        return f"{self.created_at} - {self.action} - {self.actor_email}"
+        return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.action} - {self.actor_email}"
