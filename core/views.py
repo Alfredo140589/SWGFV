@@ -9,6 +9,10 @@ from django.utils import timezone
 from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
+from django.http import HttpResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import cm
 
 from .forms import (
     LoginForm,
@@ -634,3 +638,91 @@ def recursos_modificacion_concepto(request):
 @require_admin
 def recursos_modificacion_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
+
+
+@require_session_login
+@require_http_methods(["GET"])
+def proyecto_pdf(request, proyecto_id: int):
+    """
+    Descarga PDF con la info básica del proyecto.
+    Permisos:
+      - Admin: cualquier proyecto
+      - General: solo sus proyectos
+    """
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    # Buscar el proyecto
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:proyecto_consulta")
+
+    # Permisos
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para descargar este proyecto.")
+            return redirect("core:proyecto_consulta")
+
+    # Crear respuesta PDF
+    filename = f"SWGFV_Proyecto_{proyecto.id}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    # Canvas PDF (Letter)
+    p = canvas.Canvas(response, pagesize=letter)
+    width, height = letter
+
+    # Márgenes
+    x_left = 2.0 * cm
+    y = height - 2.0 * cm
+
+    # Encabezado
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(x_left, y, "SWGFV - Ficha del Proyecto")
+    y -= 0.8 * cm
+
+    p.setFont("Helvetica", 10)
+    p.drawString(x_left, y, f"Generado por: {request.session.get('usuario', '')} ({request.session.get('tipo', '')})")
+    y -= 0.5 * cm
+    p.drawString(x_left, y, "-----------------------------------------------")
+    y -= 0.8 * cm
+
+    # Contenido
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(x_left, y, "Datos del Proyecto")
+    y -= 0.7 * cm
+
+    def draw_row(label: str, value: str):
+        nonlocal y
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(x_left, y, f"{label}:")
+        p.setFont("Helvetica", 10)
+        p.drawString(x_left + 5.2 * cm, y, value if value else "—")
+        y -= 0.55 * cm
+
+        # salto de página si se acaba el espacio
+        if y < 2.0 * cm:
+            p.showPage()
+            y = height - 2.0 * cm
+
+    draw_row("ID", str(proyecto.id))
+    draw_row("Nombre del proyecto", proyecto.Nombre_Proyecto)
+    draw_row("Empresa", proyecto.Nombre_Empresa or "—")
+    draw_row("Dirección", proyecto.Direccion)
+    draw_row("Coordenadas", proyecto.Coordenadas)
+    draw_row("Voltaje nominal", proyecto.Voltaje_Nominal)
+    draw_row("Número de fases", str(proyecto.Numero_Fases))
+
+    # Usuario dueño (solo info, no cambia permisos)
+    draw_row("Usuario asociado", getattr(proyecto.ID_Usuario, "Correo_electronico", "—"))
+
+    y -= 0.4 * cm
+    p.setFont("Helvetica-Oblique", 9)
+    p.drawString(x_left, y, "Documento generado automáticamente por SWGFV.")
+    y -= 0.6 * cm
+
+    p.showPage()
+    p.save()
+
+    return response

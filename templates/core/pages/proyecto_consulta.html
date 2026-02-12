@@ -58,6 +58,7 @@
               <th>Coordenadas</th>
               <th>Voltaje</th>
               <th>Fases</th>
+              <th style="width:110px;">PDF</th>
               {% if es_admin %}<th>Usuario</th>{% endif %}
             </tr>
           </thead>
@@ -71,6 +72,12 @@
               <td>{{ p.Coordenadas }}</td>
               <td>{{ p.Voltaje_Nominal }}</td>
               <td>{{ p.Numero_Fases }}</td>
+              <td class="text-center">
+         <a class="btn btn-sm btn-danger"
+         href="{% url 'core:proyecto_pdf' p.id %}">
+         PDF
+        </a>
+          </td>
               {% if es_admin %}<td style="word-break: break-word;">{{ p.ID_Usuario.Correo_electronico }}</td>{% endif %}
             </tr>
             {% empty %}

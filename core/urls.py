@@ -18,6 +18,7 @@ urlpatterns = [
     # Proyectos
     path("proyectos/alta/", views.proyecto_alta, name="proyecto_alta"),
     path("proyectos/consulta/", views.proyecto_consulta, name="proyecto_consulta"),
+    path("proyectos/<int:proyecto_id>/pdf/", views.proyecto_pdf, name="proyecto_pdf"),
     path("proyectos/modificacion/", views.proyecto_modificacion, name="proyecto_modificacion"),
 
     # Usuarios
@@ -49,3 +50,8 @@ urlpatterns = [
     path("recursos/modificacion-concepto/", views.recursos_modificacion_concepto, name="recursos_modificacion_concepto"),
     path("recursos/modificacion-tabla/", views.recursos_modificacion_tabla, name="recursos_modificacion_tabla"),
 ]
+from django.conf import settings
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+
+if settings.DEBUG:
+    urlpatterns += staticfiles_urlpatterns()
