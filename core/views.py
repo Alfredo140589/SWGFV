@@ -17,6 +17,8 @@ from django.contrib.staticfiles import finders
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from django.core.cache import cache
+
 
 from .forms import (
     LoginForm,
@@ -105,9 +107,40 @@ def login_view(request):
     # Siempre generamos captcha para mostrar (GET) o para reintentar (POST fallido)
     captcha_question, captcha_token = _new_captcha_signed()
 
-    # Lockout 3 intentos / 30 min (por usuario, guardado en sesión)
+    # Lockout 3 intentos / 30 min (por usuario) usando CACHE (no sesión)
+    LOCK_MINUTES = 30
+    MAX_FAILS = 3
+
+    def _norm_user_key(usuario: str) -> str:
+        # Normalizamos para que " Admin@..." y "admin@..." cuenten igual
+        return (usuario or "").strip().lower()
+
     def _lock_key(usuario: str) -> str:
-        return f"lock_until::{usuario}"
+        return f"swgfv:lock:{_norm_user_key(usuario)}"
+
+    def _fails_key(usuario: str) -> str:
+        return f"swgfv:fails:{_norm_user_key(usuario)}"
+
+    def _get_locked_until_ts(usuario: str):
+        return cache.get(_lock_key(usuario))  # int timestamp or None
+
+    def _set_locked_until_ts(usuario: str, ts: int):
+        # Guardar por LOCK_MINUTES
+        cache.set(_lock_key(usuario), int(ts), timeout=LOCK_MINUTES * 60)
+
+    def _get_fails(usuario: str) -> int:
+        try:
+            return int(cache.get(_fails_key(usuario)) or 0)
+        except Exception:
+            return 0
+
+    def _set_fails(usuario: str, n: int):
+        # Si llega al límite, lo dejamos expirar también en 30 min
+        cache.set(_fails_key(usuario), int(n), timeout=LOCK_MINUTES * 60)
+
+    def _reset_fails(usuario: str):
+        cache.delete(_fails_key(usuario))
+        cache.delete(_lock_key(usuario))
 
     def _fail_key(usuario: str) -> str:
         return f"fails::{usuario}"
@@ -174,13 +207,11 @@ def login_view(request):
             fails = _get_fails(usuario_input) + 1
             _set_fails(usuario_input, fails)
 
-            if fails >= 3:
-                _set_locked_until(usuario_input, now_ts + (30 * 60))
+            if fails >= MAX_FAILS:
+                _set_locked_until_ts(usuario_input, now_ts + (LOCK_MINUTES * 60))
                 messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
             else:
-                messages.error(request, f"Captcha incorrecto. Intento {fails}/3.")
-
-            captcha_question, captcha_token = _new_captcha_signed()
+                messages.error(request, f"Captcha incorrecto. Intento {fails}/{MAX_FAILS}.")
             return render(
                 request,
                 "core/login.html",
@@ -205,11 +236,11 @@ def login_view(request):
         fails = _get_fails(usuario_input) + 1
         _set_fails(usuario_input, fails)
 
-        if fails >= 3:
-            _set_locked_until(usuario_input, now_ts + (30 * 60))
+        if fails >= MAX_FAILS:
+            _set_locked_until_ts(usuario_input, now_ts + (LOCK_MINUTES * 60))
             messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
         else:
-            messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/3.")
+            messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/{MAX_FAILS}.")
 
         captcha_question, captcha_token = _new_captcha_signed()
         return render(
