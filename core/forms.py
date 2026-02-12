@@ -44,20 +44,33 @@ class PasswordRecoveryRequestForm(forms.Form):
     )
 
 
+from django import forms
+
+class PasswordRecoveryRequestForm(forms.Form):
+    email = forms.EmailField(
+        max_length=150,
+        widget=forms.EmailInput(attrs={
+            "class": "form-control",
+            "placeholder": "correo@dominio.com",
+            "autocomplete": "email",
+        })
+    )
+
+
 class PasswordResetForm(forms.Form):
     new_password = forms.CharField(
-        label="Nueva contraseña",
-        required=True,
-        widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Nueva contraseña"}
-        ),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Nueva contraseña",
+            "autocomplete": "new-password",
+        })
     )
     new_password_confirm = forms.CharField(
-        label="Confirmar contraseña",
-        required=True,
-        widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Confirmar contraseña"}
-        ),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Confirmar contraseña",
+            "autocomplete": "new-password",
+        })
     )
 
     def clean(self):

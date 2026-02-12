@@ -217,6 +217,12 @@
       <input type="hidden" name="captcha_token" value="{{ captcha_token }}">
 
       <button type="submit">Ingresar</button>
+      <div class="text-center mt-3">
+  <a href="{% url 'core:recuperar' %}" class="text-decoration-none">
+    ¿Olvidaste tu contraseña?
+  </a>
+</div>
+
 
       <div class="footer">© 2025 Sistema de Administración Fotovoltaica</div>
     </form>

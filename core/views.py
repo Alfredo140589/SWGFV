@@ -314,7 +314,9 @@ def recuperar_view(request):
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
                 token = _make_reset_token(u)
-                reset_link = request.build_absolute_uri(reverse("core:password_reset_confirm", kwargs={"token": token}))
+                reset_link = request.build_absolute_uri(
+                    reverse("core:password_reset_confirm", kwargs={"token": token})
+                )
 
                 subject = "SWGFV - Restablecer contraseña"
                 body = (
@@ -332,15 +334,15 @@ def recuperar_view(request):
                         fail_silently=False,
                     )
                 except Exception:
-                    pass
+                    logger.exception("Error enviando correo de recuperación")
 
-                log_event(request, "PASSWORD_RECOVERY_REQUEST", f"Solicitó recuperación para {email}", "Usuario", u.ID_Usuario)
-
-            return redirect("core:recuperar")
-
-        messages.error(request, "Revisa el formulario e intenta nuevamente.")
-
-    return render(request, "core/recuperar.html", {"form": form})
+                log_event(
+                    request,
+                    "PASSWORD_RECOVERY_REQUEST",
+                    f"Solicitó recuperación para {email}",
+                    "Usuario",
+                    u.ID_Usuario
+                )
 
 
 @require_http_methods(["GET", "POST"])

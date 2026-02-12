@@ -1,41 +1,51 @@
-{% extends "core/base.html" %}
-{% load static %}
+{% extends "core/layout.html" %}
 
-{% block title %}Recuperar contraseña{% endblock %}
+{% block title %}SWGFV - Recuperar contraseña{% endblock %}
 
-{% block content %}
-<div class="container py-4" style="max-width: 520px;">
-  <div class="card shadow-sm border-0" style="border-radius: 16px;">
+{% block page_content %}
+<div class="container my-4" style="max-width: 520px;">
+  <div class="card shadow-sm bg-glass">
     <div class="card-body p-4">
-      <h2 class="mb-3" style="color:#001F3F; font-weight:800;">Recuperar contraseña</h2>
-      <p class="text-muted mb-4">
-        Ingresa tu correo registrado y te enviaremos un enlace para restablecer tu contraseña.
+
+      <h2 class="h5 fw-bold mb-2" style="color: var(--swgfv-primary);">Recuperar contraseña</h2>
+      <p class="text-muted mb-3">
+        Ingresa tu correo. Si está registrado, te enviaremos un enlace para restablecer tu contraseña.
       </p>
 
       {% if messages %}
-        {% for message in messages %}
-          <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
+        <div class="mb-3">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
 
-      <form method="POST" novalidate>
+      <form method="post" novalidate>
         {% csrf_token %}
-        <label class="form-label fw-bold" style="color:#001F3F;">Correo electrónico</label>
-        {{ form.email }}
 
-        <button type="submit" class="btn w-100 mt-3" style="background:#C8102E; color:#fff; font-weight:700;">
-          Enviar enlace
-        </button>
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Correo electrónico</label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div class="text-danger small mt-1">{{ form.email.errors }}</div>
+          {% endif %}
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-swgfv">Enviar enlace</button>
+          <a href="{% url 'core:login' %}" class="btn btn-outline-secondary">Volver</a>
+        </div>
       </form>
 
-      <div class="text-center mt-3">
-        <a href="{% url 'core:login' %}" style="color:#001F3F; text-decoration: underline; font-weight:600;">
-          Volver al inicio de sesión
-        </a>
-      </div>
     </div>
   </div>
 </div>
