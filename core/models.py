@@ -1,8 +1,8 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.contrib.auth.hashers import make_password, check_password as dj_check_password
 from django.utils import timezone
+
 
 # =========================
 # MODELO USUARIO
@@ -30,21 +30,19 @@ class Usuario(models.Model):
         db_table = "usuarios"
 
     def set_password(self, raw_password: str):
-        """Guarda contraseña hasheada en el campo Contrasena."""
         self.Contrasena = make_password(raw_password)
 
     def check_password(self, raw_password: str) -> bool:
-        """Valida contraseña contra el hash guardado en Contrasena."""
         return check_password(raw_password, self.Contrasena)
 
     def __str__(self):
         return f"{self.Nombre} ({self.Tipo})"
 
+
 # =========================
 # MODELO PROYECTO (TABLA proyectos)
 # =========================
 class Proyecto(models.Model):
-    # Django crea automáticamente el PK "id"
     ID_Usuario = models.ForeignKey(
         Usuario,
         on_delete=models.CASCADE,
@@ -68,8 +66,12 @@ class Proyecto(models.Model):
     def __str__(self):
         return self.Nombre_Proyecto
 
+
+# =========================
+# LOGIN LOCK (3 intentos / 30 min)
+# =========================
 class LoginLock(models.Model):
-    usuario_key = models.CharField(max_length=150, unique=True)  # correo/usuario normalizado
+    usuario_key = models.CharField(max_length=150, unique=True)
     fails = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
 
@@ -87,3 +89,32 @@ class LoginLock(models.Model):
         delta = self.locked_until - timezone.now()
         seconds = max(0, int(delta.total_seconds()))
         return max(1, (seconds + 59) // 60)
+
+
+# =========================
+# BITÁCORA / AUDITORÍA
+# =========================
+class AuditLog(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # quién hizo la acción
+    actor_id = models.IntegerField(null=True, blank=True)
+    actor_email = models.CharField(max_length=150, blank=True, default="")
+    actor_tipo = models.CharField(max_length=50, blank=True, default="")
+
+    # qué hizo
+    action = models.CharField(max_length=60)  # ej: USER_CREATED, PROJECT_CREATED
+    message = models.CharField(max_length=255, blank=True, default="")
+
+    # a qué afectó
+    target_model = models.CharField(max_length=60, blank=True, default="")
+    target_id = models.CharField(max_length=60, blank=True, default="")
+
+    # IP opcional
+    ip_address = models.CharField(max_length=45, blank=True, default="")
+
+    class Meta:
+        db_table = "audit_logs"
+
+    def __str__(self):
+        return f"{self.created_at} - {self.action} - {self.actor_email}"

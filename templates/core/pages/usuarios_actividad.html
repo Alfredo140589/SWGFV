@@ -1,0 +1,73 @@
+{% extends "core/layout.html" %}
+
+{% block title %}SWGFV - Actividad de Usuarios{% endblock %}
+
+{% block page_content %}
+<div class="card shadow-sm bg-glass">
+  <div class="card-body p-3 p-md-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+      <h2 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">Actividad / Bitácora</h2>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:gestion_usuarios_alta' %}">
+        ← Volver a Alta
+      </a>
+    </div>
+
+    <form method="GET" class="mb-3">
+      <div class="row g-2">
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-bold">Usuario (correo)</label>
+          <input type="text" name="user" class="form-control" value="{{ q_user }}" placeholder="admin@swgfv.com">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold">Acción</label>
+          <input type="text" name="action" class="form-control" value="{{ q_action }}" placeholder="PROJECT_CREATED">
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label fw-bold">Texto libre</label>
+          <input type="text" name="q" class="form-control" value="{{ q_text }}" placeholder="Buscar en mensaje/target">
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-center mt-3">
+        <button class="btn btn-swgfv px-4" type="submit">Buscar</button>
+        <a class="btn btn-outline-secondary px-4" href="{% url 'core:usuarios_actividad' %}">Limpiar</a>
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Usuario</th>
+            <th>Tipo</th>
+            <th>Acción</th>
+            <th>Detalle</th>
+            <th>Target</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in logs %}
+            <tr>
+              <td style="white-space:nowrap;">{{ l.created_at|date:"d/m/Y H:i" }}</td>
+              <td style="word-break:break-word;">{{ l.actor_email }}</td>
+              <td>{{ l.actor_tipo }}</td>
+              <td><span class="badge text-bg-primary">{{ l.action }}</span></td>
+              <td style="min-width:260px;">{{ l.message }}</td>
+              <td>{{ l.target_model }} {{ l.target_id }}</td>
+              <td style="white-space:nowrap;">{{ l.ip_address }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-center">No hay registros de actividad.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="small text-muted">
+      Mostrando máximo 300 registros (para rendimiento).
+    </div>
+  </div>
+</div>
+{% endblock %}

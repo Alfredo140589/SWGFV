@@ -119,19 +119,18 @@ USE_I18N = True
 USE_TZ = True
 
 # =========================
-# STATIC FILES (Render + WhiteNoise)
+# STATIC FILES
 # =========================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# =========================
-# SESSIONS (INACTIVIDAD)
-# =========================
-SESSION_COOKIE_AGE = 20 * 60
-SESSION_SAVE_EVERY_REQUEST = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
+# En desarrollo: servir archivos estáticos directamente desde las apps (core/static/...)
+# En producción: WhiteNoise con archivos colectados (collectstatic) y manifest (cache-busting)
+if DEBUG:
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 
 # =========================
 # CACHÉ (lockout, etc.)

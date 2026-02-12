@@ -25,13 +25,13 @@ urlpatterns = [
     path("usuarios/alta/", views.gestion_usuarios_alta, name="gestion_usuarios_alta"),
     path("usuarios/modificacion/", views.gestion_usuarios_modificacion, name="gestion_usuarios_modificacion"),
 
+    # ✅ NUEVO: export + actividad
+    path("usuarios/export/csv/", views.usuarios_export_csv, name="usuarios_export_csv"),
+    path("usuarios/export/pdf/", views.usuarios_export_pdf, name="usuarios_export_pdf"),
+    path("usuarios/actividad/", views.usuarios_actividad, name="usuarios_actividad"),
+
     # Cuenta
     path("cuenta/", views.cuenta_view, name="cuenta"),
-
-    # ==========================
-    # PÁGINAS DEL MENÚ (placeholders)
-    # Estos names deben EXISTIR porque tus templates hacen {% url 'core:...' %}
-    # ==========================
 
     # Dimensionamiento
     path("dimensionamiento/calculo-modulos/", views.dimensionamiento_calculo_modulos, name="dimensionamiento_calculo_modulos"),
@@ -50,6 +50,7 @@ urlpatterns = [
     path("recursos/modificacion-concepto/", views.recursos_modificacion_concepto, name="recursos_modificacion_concepto"),
     path("recursos/modificacion-tabla/", views.recursos_modificacion_tabla, name="recursos_modificacion_tabla"),
 ]
+
 from django.conf import settings
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 

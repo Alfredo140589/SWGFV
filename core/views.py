@@ -1,7 +1,9 @@
 # core/views.py
 import random
+import csv
 from datetime import timedelta
 
+from django.db.models import Q
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
@@ -19,9 +21,6 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-# (Puedes dejar este import aunque ya no lo usemos aquí)
-from django.core.cache import cache
-
 from .forms import (
     LoginForm,
     UsuarioCreateForm,
@@ -33,7 +32,35 @@ from .forms import (
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
-from .models import Usuario, Proyecto, LoginLock
+from .models import Usuario, Proyecto, LoginLock, AuditLog
+
+
+# =========================================================
+# HELPER: registrar evento en bitácora
+# =========================================================
+def _get_client_ip(request) -> str:
+    # Render / proxys suelen mandar X-Forwarded-For
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return (xff.split(",")[0] or "").strip()
+    return (request.META.get("REMOTE_ADDR") or "").strip()
+
+
+def log_event(request, action: str, message: str = "", target_model: str = "", target_id=None):
+    actor_email = (request.session.get("usuario") or "").strip()
+    actor_tipo = (request.session.get("tipo") or "").strip()
+    actor_id = request.session.get("id_usuario")
+
+    AuditLog.objects.create(
+        actor_id=int(actor_id) if str(actor_id).isdigit() else None,
+        actor_email=actor_email,
+        actor_tipo=actor_tipo,
+        action=(action or "").strip()[:60],
+        message=(message or "").strip()[:255],
+        target_model=(target_model or "").strip()[:60],
+        target_id=str(target_id) if target_id is not None else "",
+        ip_address=_get_client_ip(request),
+    )
 
 
 # =========================================================
@@ -106,16 +133,12 @@ def _read_reset_token(token: str):
 # =========================================================
 @require_http_methods(["GET", "POST"])
 def login_view(request):
-    # Ya hay sesión -> menú
     if request.session.get("usuario") and request.session.get("tipo"):
         return redirect("core:menu_principal")
 
     form = LoginForm(request.POST or None)
-
-    # Captcha siempre visible
     captcha_question, captcha_token = _new_captcha_signed()
 
-    # Lockout 3 intentos / 30 min (POR USUARIO) guardado en BD
     LOCK_MINUTES = 30
     MAX_FAILS = 3
 
@@ -136,7 +159,6 @@ def login_view(request):
     def _register_fail(usuario: str) -> int:
         lk = _get_lock(usuario)
 
-        # Si ya está bloqueado no incrementamos
         if lk.is_locked():
             return int(lk.fails or 0)
 
@@ -154,61 +176,38 @@ def login_view(request):
         lk.locked_until = None
         lk.save(update_fields=["fails", "locked_until"])
 
-    # ===== POST =====
     if request.method == "POST":
         usuario_input = (request.POST.get("usuario") or "").strip()
 
         if not usuario_input:
             messages.error(request, "Ingresa tu usuario/correo.")
             captcha_question, captcha_token = _new_captcha_signed()
-            return render(
-                request,
-                "core/login.html",
-                {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-            )
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
-        # 1) Checar lock antes de validar captcha/credenciales
         locked, minutes = _is_locked(usuario_input)
         if locked:
             messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
             captcha_question, captcha_token = _new_captcha_signed()
-            return render(
-                request,
-                "core/login.html",
-                {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-            )
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
-        # 2) Validar formulario
         if not form.is_valid():
             messages.error(request, "Revisa el formulario e intenta nuevamente.")
             captcha_question, captcha_token = _new_captcha_signed()
-            return render(
-                request,
-                "core/login.html",
-                {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-            )
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
-        # 3) Validar captcha con token firmado
         token = (request.POST.get("captcha_token") or "").strip()
         expected = _read_captcha_token(token)
         provided = (form.cleaned_data.get("captcha") or "").strip()
 
         if not expected or provided != expected:
             fails = _register_fail(usuario_input)
-
             if fails >= MAX_FAILS:
                 messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
             else:
                 messages.error(request, f"Captcha incorrecto. Intento {fails}/{MAX_FAILS}.")
-
             captcha_question, captcha_token = _new_captcha_signed()
-            return render(
-                request,
-                "core/login.html",
-                {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-            )
+            return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
-        # 4) Credenciales
         password = form.cleaned_data["password"]
         u = authenticate_local(usuario_input, password)
 
@@ -220,10 +219,11 @@ def login_view(request):
             request.session["id_usuario"] = u.ID_Usuario
             request.session.modified = True
 
+            log_event(request, "LOGIN_SUCCESS", "Inicio de sesión correcto", "Usuario", u.ID_Usuario)
             return redirect("core:menu_principal")
 
-        # 5) Credenciales incorrectas
         fails = _register_fail(usuario_input)
+        log_event(request, "LOGIN_FAIL", f"Intento fallido {fails}/{MAX_FAILS} para {usuario_input}", "Usuario", usuario_input)
 
         if fails >= MAX_FAILS:
             messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
@@ -231,18 +231,9 @@ def login_view(request):
             messages.error(request, f"Usuario o contraseña incorrectos. Intento {fails}/{MAX_FAILS}.")
 
         captcha_question, captcha_token = _new_captcha_signed()
-        return render(
-            request,
-            "core/login.html",
-            {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-        )
+        return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
-    # ===== GET =====
-    return render(
-        request,
-        "core/login.html",
-        {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
-    )
+    return render(request, "core/login.html", {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token})
 
 
 # =========================================================
@@ -255,6 +246,7 @@ def menu_principal(request):
 
 @require_session_login
 def logout_view(request):
+    log_event(request, "LOGOUT", "Cierre de sesión")
     request.session.flush()
     return redirect("core:login")
 
@@ -280,9 +272,7 @@ def recuperar_view(request):
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
                 token = _make_reset_token(u)
-                reset_link = request.build_absolute_uri(
-                    reverse("core:password_reset_confirm", kwargs={"token": token})
-                )
+                reset_link = request.build_absolute_uri(reverse("core:password_reset_confirm", kwargs={"token": token}))
 
                 subject = "SWGFV - Restablecer contraseña"
                 body = (
@@ -301,6 +291,8 @@ def recuperar_view(request):
                     )
                 except Exception:
                     pass
+
+                log_event(request, "PASSWORD_RECOVERY_REQUEST", f"Solicitó recuperación para {email}", "Usuario", u.ID_Usuario)
 
             return redirect("core:recuperar")
 
@@ -322,6 +314,9 @@ def password_reset_confirm(request, token):
             new_pass = form.cleaned_data["new_password"]
             u.set_password(new_pass)
             u.save()
+
+            log_event(request, "PASSWORD_CHANGED", "Cambió contraseña por recuperación", "Usuario", u.ID_Usuario)
+
             messages.success(request, "Contraseña actualizada. Ya puedes iniciar sesión.")
             return redirect("core:login")
         messages.error(request, "Revisa el formulario. Hay errores.")
@@ -356,7 +351,7 @@ def debug_sesion(request):
 
 
 # =========================================================
-# PROYECTOS / USUARIOS
+# PROYECTOS
 # =========================================================
 @require_session_login
 @require_http_methods(["GET", "POST"])
@@ -377,6 +372,9 @@ def proyecto_alta(request):
             proyecto = form.save(commit=False)
             proyecto.ID_Usuario = user
             proyecto.save()
+
+            log_event(request, "PROJECT_CREATED", f"Creó proyecto: {proyecto.Nombre_Proyecto}", "Proyecto", proyecto.id)
+
             messages.success(request, "✅ Proyecto registrado correctamente.")
             return redirect("core:proyecto_alta")
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
@@ -502,6 +500,7 @@ def proyecto_modificacion(request):
         form = ProyectoUpdateForm(request.POST, instance=seleccionado)
         if form.is_valid():
             form.save()
+            log_event(request, "PROJECT_UPDATED", f"Actualizó proyecto: {seleccionado.Nombre_Proyecto}", "Proyecto", seleccionado.id)
             messages.success(request, "Proyecto actualizado correctamente.")
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
 
@@ -522,13 +521,17 @@ def proyecto_modificacion(request):
     return render(request, "core/pages/proyecto_modificacion.html", context)
 
 
+# =========================================================
+# USUARIOS
+# =========================================================
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
     form = UsuarioCreateForm(request.POST or None)
     if request.method == "POST":
         if form.is_valid():
-            form.save()
+            nuevo = form.save()
+            log_event(request, "USER_CREATED", f"Creó usuario: {nuevo.Correo_electronico}", "Usuario", nuevo.ID_Usuario)
             messages.success(request, "Usuario dado de alta correctamente.")
             return redirect("core:gestion_usuarios_alta")
         messages.error(request, "Revisa el formulario. Hay errores.")
@@ -538,16 +541,6 @@ def gestion_usuarios_alta(request):
 @require_admin
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_modificacion(request):
-    """
-    Gestión de usuarios (Admin):
-    - GET con filtros: muestra lista
-    - GET con ?id=: selecciona usuario (modo lectura)
-    - GET con ?id=...&edit=1: habilita edición
-    - POST action=deactivate: desactiva
-    - POST action=delete: elimina (hard delete)
-    - POST action=activate: activa
-    - POST normal: guarda cambios SOLO si edit=1
-    """
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_ap = (request.GET.get("ap") or "").strip()
@@ -600,6 +593,7 @@ def gestion_usuarios_modificacion(request):
         if action == "activate":
             seleccionado.Activo = True
             seleccionado.save()
+            log_event(request, "USER_ACTIVATED", f"Activó usuario: {seleccionado.Correo_electronico}", "Usuario", seleccionado.ID_Usuario)
             messages.success(request, "Usuario activado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
@@ -610,6 +604,7 @@ def gestion_usuarios_modificacion(request):
 
             seleccionado.Activo = False
             seleccionado.save()
+            log_event(request, "USER_DEACTIVATED", f"Desactivó usuario: {seleccionado.Correo_electronico}", "Usuario", seleccionado.ID_Usuario)
             messages.success(request, "Usuario desactivado correctamente.")
             return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
@@ -619,6 +614,7 @@ def gestion_usuarios_modificacion(request):
                 return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
             correo = seleccionado.Correo_electronico
+            log_event(request, "USER_DELETED", f"Eliminó usuario: {correo}", "Usuario", seleccionado.ID_Usuario)
             seleccionado.delete()
             messages.success(request, f"Usuario eliminado correctamente: {correo}")
             return redirect("core:gestion_usuarios_modificacion")
@@ -638,6 +634,7 @@ def gestion_usuarios_modificacion(request):
                 obj = form.save(commit=False)
                 obj.Correo_electronico = email
                 obj.save()
+                log_event(request, "USER_UPDATED", f"Actualizó usuario: {obj.Correo_electronico}", "Usuario", obj.ID_Usuario)
                 messages.success(request, "Usuario actualizado correctamente.")
                 return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
@@ -730,6 +727,9 @@ def recursos_modificacion_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
 
 
+# ==========================
+# PDF PROYECTO
+# ==========================
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_pdf(request, proyecto_id: int):
@@ -813,7 +813,6 @@ def proyecto_pdf(request, proyecto_id: int):
     ]
 
     table = Table(data, colWidths=[5.2 * cm, 11.5 * cm])
-
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -839,10 +838,138 @@ def proyecto_pdf(request, proyecto_id: int):
 
     elements.append(table)
     elements.append(Spacer(1, 0.6 * cm))
-    elements.append(Paragraph(
-        "<i>Documento generado automáticamente por SWGFV. Información sujeta a verificación.</i>",
-        ParagraphStyle("SWGFVNote", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#555555"))
-    ))
 
     doc.build(elements)
     return response
+
+
+# ==========================
+# EXPORTAR USUARIOS CSV
+# ==========================
+@require_admin
+@require_http_methods(["GET"])
+def usuarios_export_csv(request):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="SWGFV_Usuarios.csv"'
+    response.write("\ufeff")  # BOM para Excel
+
+    writer = csv.writer(response)
+    writer.writerow(["ID", "Nombre", "Apellido Paterno", "Apellido Materno", "Telefono", "Correo", "Tipo", "Activo"])
+
+    for u in Usuario.objects.all().order_by("ID_Usuario"):
+        writer.writerow([
+            u.ID_Usuario,
+            u.Nombre,
+            u.Apellido_Paterno,
+            u.Apellido_Materno,
+            u.Telefono,
+            u.Correo_electronico,
+            u.Tipo,
+            "Si" if u.Activo else "No",
+        ])
+
+    log_event(request, "USERS_EXPORT_CSV", "Descargó listado de usuarios en CSV", "Usuario", "")
+    return response
+
+
+# ==========================
+# EXPORTAR USUARIOS PDF
+# ==========================
+@require_admin
+@require_http_methods(["GET"])
+def usuarios_export_pdf(request):
+    filename = "SWGFV_Usuarios.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        leftMargin=2.0 * cm,
+        rightMargin=2.0 * cm,
+        topMargin=1.6 * cm,
+        bottomMargin=1.6 * cm,
+        title="Usuarios SWGFV",
+        author="SWGFV",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "TitleSWGFV",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        textColor=colors.HexColor("#001F3F"),
+        spaceAfter=10,
+    )
+
+    elements = []
+
+    logo_path = finders.find("core/img/logo1.png")
+    if logo_path:
+        try:
+            elements.append(RLImage(logo_path, width=3.0 * cm, height=3.0 * cm))
+            elements.append(Spacer(1, 0.3 * cm))
+        except Exception:
+            pass
+
+    elements.append(Paragraph("SWGFV - Listado de Usuarios", title_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    data = [["ID", "Nombre completo", "Correo", "Tipo", "Activo"]]
+    for u in Usuario.objects.all().order_by("ID_Usuario"):
+        nombre = f"{u.Nombre} {u.Apellido_Paterno} {u.Apellido_Materno}"
+        data.append([str(u.ID_Usuario), nombre, u.Correo_electronico, u.Tipo, "Sí" if u.Activo else "No"])
+
+    table = Table(data, colWidths=[1.2 * cm, 6.0 * cm, 5.5 * cm, 2.6 * cm, 1.8 * cm])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#B0B7C3")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(table)
+    doc.build(elements)
+
+    log_event(request, "USERS_EXPORT_PDF", "Descargó listado de usuarios en PDF", "Usuario", "")
+    return response
+
+
+# ==========================
+# ACTIVIDAD / BITÁCORA
+# ==========================
+@require_admin
+@require_http_methods(["GET"])
+def usuarios_actividad(request):
+    q_user = (request.GET.get("user") or "").strip()
+    q_action = (request.GET.get("action") or "").strip()
+    q_text = (request.GET.get("q") or "").strip()
+
+    logs = AuditLog.objects.all()
+
+    if q_user:
+        logs = logs.filter(actor_email__icontains=q_user)
+
+    if q_action:
+        logs = logs.filter(action__icontains=q_action)
+
+    if q_text:
+        logs = logs.filter(
+            Q(message__icontains=q_text) |
+            Q(target_model__icontains=q_text) |
+            Q(target_id__icontains=q_text)
+        )
+
+    logs = logs.order_by("-created_at")[:300]
+
+    context = {"logs": logs, "q_user": q_user, "q_action": q_action, "q_text": q_text}
+    return render(request, "core/pages/usuarios_actividad.html", context)

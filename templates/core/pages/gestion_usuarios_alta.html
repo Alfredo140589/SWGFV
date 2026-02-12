@@ -4,7 +4,6 @@
 
 {% block head %}
 <style>
-  /* ====== ULTRA COMPACT (solo esta página) ====== */
   .swgfv-compact .card-body { padding: .95rem; }
   @media (min-width: 768px){
     .swgfv-compact .card-body { padding: 1.15rem 1.4rem; }
@@ -27,16 +26,14 @@
   .swgfv-compact .section-divider{
     height: 1px;
     background: rgba(0,0,0,0.08);
-    margin: .6rem 0; /* más compacto */
+    margin: .6rem 0;
   }
 
-  /* Labels compactas */
   .swgfv-compact .form-label{
     margin-bottom: .18rem;
     font-size: .9rem;
   }
 
-  /* Inputs más bajos */
   .swgfv-compact .form-control,
   .swgfv-compact .form-select{
     padding: .38rem .6rem;
@@ -44,13 +41,11 @@
     border-radius: 12px;
   }
 
-  /* Menos separación vertical entre filas */
   .swgfv-compact .row.g-3{
     --bs-gutter-y: .55rem;
     --bs-gutter-x: .85rem;
   }
 
-  /* Switch compacto */
   .swgfv-compact .form-switch{
     display: flex;
     align-items: center;
@@ -67,35 +62,10 @@
     font-size: .93rem;
   }
 
-  /* Errores sin ocupar tanto */
   .swgfv-compact .text-danger{
     font-size: .86rem;
     line-height: 1.05;
     margin-top: .12rem;
-  }
-
-  /* Acciones compactas */
-  .swgfv-compact .actions-bar{
-    margin-top: .7rem;
-    display: flex;
-    gap: .5rem;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  /* Sticky actions móvil */
-  @media (max-width: 576px){
-    .swgfv-compact .swgfv-sticky-actions{
-      position: sticky;
-      bottom: 0;
-      z-index: 20;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(6px);
-      border-top: 1px solid rgba(0,0,0,0.08);
-      padding: .55rem;
-      margin: .8rem -0.95rem 0 -0.95rem;
-      border-radius: 0 0 18px 18px;
-    }
   }
 </style>
 {% endblock %}
@@ -107,13 +77,23 @@
     <div class="card-body">
 
       <!-- Encabezado -->
-      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-1">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-2">
         <div>
           <h2 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">Alta de Usuario</h2>
           <p class="section-sub">Formulario compacto para evitar scroll.</p>
         </div>
 
-        <div class="d-none d-md-flex gap-2">
+        <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+          <a class="btn btn-outline-secondary btn-sm px-3" href="{% url 'core:usuarios_export_csv' %}">
+            ⬇️ CSV
+          </a>
+          <a class="btn btn-outline-secondary btn-sm px-3" href="{% url 'core:usuarios_export_pdf' %}">
+            ⬇️ PDF
+          </a>
+          <a class="btn btn-outline-primary btn-sm px-3" href="{% url 'core:usuarios_actividad' %}">
+            🧾 Actividad
+          </a>
+
           <button type="reset" form="formAltaUsuario" class="btn btn-outline-secondary btn-sm px-3">
             Limpiar
           </button>
@@ -179,7 +159,6 @@
           <p class="section-sub">Nombre y teléfono.</p>
         </div>
 
-        <!-- 3 columnas en desktop para reducir altura -->
         <div class="row g-3 mt-0">
           <div class="col-12 col-lg-4">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre</label>
@@ -214,7 +193,6 @@
           <p class="section-sub">Correo y contraseña.</p>
         </div>
 
-        <!-- Correo + Password + Confirm en 1 fila desktop -->
         <div class="row g-3 mt-0">
           <div class="col-12 col-lg-5">
             <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Correo electrónico</label>
@@ -234,9 +212,6 @@
             {% if form.password_confirm.errors %}<div class="text-danger">{{ form.password_confirm.errors }}</div>{% endif %}
           </div>
         </div>
-
-        <!-- Acciones -->
-
 
       </form>
 
