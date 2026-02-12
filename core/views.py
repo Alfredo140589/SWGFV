@@ -2,8 +2,8 @@
 import random
 import csv
 from datetime import timedelta
+import logging
 
-from django.db.models import Q
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import AuditLog
+from django.db.models import Q
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
@@ -21,8 +21,6 @@ from django.contrib.staticfiles import finders
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-import logging
-logger = logging.getLogger(__name__)
 
 from .forms import (
     LoginForm,
@@ -37,55 +35,46 @@ from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto, LoginLock, AuditLog
 
+logger = logging.getLogger(__name__)
 
-def log_event(request, action: str, message: str, target_model: str = "", target_id=None):
+
+# =========================================================
+# HELPER: IP + BITÁCORA (NO DEBE CAUSAR 500)
+# =========================================================
+def _get_client_ip(request) -> str:
+    try:
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return (xff.split(",")[0] or "").strip()
+        return (request.META.get("REMOTE_ADDR") or "").strip()
+    except Exception:
+        return ""
+
+
+def log_event(request, action: str, message: str = "", target_model: str = "", target_id=None):
     """
     Guarda evento en bitácora (AuditLog).
-    IMPORTANTE: Está blindada para que NUNCA cause error 500.
+    IMPORTANTE: blindada para que NUNCA cause error 500.
     """
     try:
         actor_email = (request.session.get("usuario") or "").strip()
         actor_tipo = (request.session.get("tipo") or "").strip()
         actor_user_id = request.session.get("id_usuario")
 
+        # Nota: tus migraciones dejaron actor_user_id (no actor_id)
         AuditLog.objects.create(
-            actor_email=actor_email,
-            actor_tipo=actor_tipo,
-            actor_user_id=actor_user_id if actor_user_id else None,
-            action=(action or "").strip()[:80],
+            actor_user_id=int(actor_user_id) if str(actor_user_id).isdigit() else None,
+            actor_email=actor_email[:150],
+            actor_tipo=actor_tipo[:30],
+            action=(action or "").strip()[:60],
             message=(message or "").strip()[:255],
-            target_model=(target_model or "").strip()[:50],
+            target_model=(target_model or "").strip()[:60],
             target_id=str(target_id) if target_id is not None else "",
+            ip_address=_get_client_ip(request),
         )
     except Exception:
         # Si falla la bitácora, NO tumba el sistema
         return
-# =========================================================
-# HELPER: registrar evento en bitácora
-# =========================================================
-def _get_client_ip(request) -> str:
-    # Render / proxys suelen mandar X-Forwarded-For
-    xff = request.META.get("HTTP_X_FORWARDED_FOR")
-    if xff:
-        return (xff.split(",")[0] or "").strip()
-    return (request.META.get("REMOTE_ADDR") or "").strip()
-
-
-def log_event(request, action: str, message: str = "", target_model: str = "", target_id=None):
-    actor_email = (request.session.get("usuario") or "").strip()
-    actor_tipo = (request.session.get("tipo") or "").strip()
-    actor_id = request.session.get("id_usuario")
-
-    AuditLog.objects.create(
-        actor_id=int(actor_id) if str(actor_id).isdigit() else None,
-        actor_email=actor_email,
-        actor_tipo=actor_tipo,
-        action=(action or "").strip()[:60],
-        message=(message or "").strip()[:255],
-        target_model=(target_model or "").strip()[:60],
-        target_id=str(target_id) if target_id is not None else "",
-        ip_address=_get_client_ip(request),
-    )
 
 
 # =========================================================
@@ -163,16 +152,13 @@ def login_view(request):
     Parche: evita 500, registra el traceback en logs si algo explota.
     """
     try:
-        # Ya hay sesión -> menú
         if request.session.get("usuario") and request.session.get("tipo"):
             return redirect("core:menu_principal")
 
         form = LoginForm(request.POST or None)
 
-        # Captcha siempre visible
         captcha_question, captcha_token = _new_captcha_signed()
 
-        # Lockout 3 intentos / 30 min (POR USUARIO) guardado en BD
         LOCK_MINUTES = 30
         MAX_FAILS = 3
 
@@ -187,14 +173,12 @@ def login_view(request):
         def _is_locked(usuario: str):
             lk = _get_lock(usuario)
             if lk.is_locked():
-                # remaining_minutes debe ser int (ver PASO 4)
                 return True, int(lk.remaining_minutes())
             return False, 0
 
         def _register_fail(usuario: str) -> int:
             lk = _get_lock(usuario)
 
-            # Si ya está bloqueado no incrementamos
             if lk.is_locked():
                 return int(lk.fails or 0)
 
@@ -211,7 +195,6 @@ def login_view(request):
             lk.locked_until = None
             lk.save(update_fields=["fails", "locked_until"])
 
-        # ===== POST =====
         if request.method == "POST":
             usuario_input = (request.POST.get("usuario") or "").strip()
 
@@ -224,7 +207,6 @@ def login_view(request):
                     {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
                 )
 
-            # 1) Checar lock antes de validar captcha/credenciales
             locked, minutes = _is_locked(usuario_input)
             if locked:
                 messages.error(request, f"Cuenta bloqueada temporalmente. Intenta de nuevo en {minutes} minuto(s).")
@@ -235,7 +217,6 @@ def login_view(request):
                     {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
                 )
 
-            # 2) Validar formulario
             if not form.is_valid():
                 messages.error(request, "Revisa el formulario e intenta nuevamente.")
                 captcha_question, captcha_token = _new_captcha_signed()
@@ -245,7 +226,6 @@ def login_view(request):
                     {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
                 )
 
-            # 3) Validar captcha con token firmado
             token = (request.POST.get("captcha_token") or "").strip()
             expected = _read_captcha_token(token)
             provided = (form.cleaned_data.get("captcha") or "").strip()
@@ -265,7 +245,6 @@ def login_view(request):
                     {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
                 )
 
-            # 4) Credenciales
             password = form.cleaned_data["password"]
             u = authenticate_local(usuario_input, password)
 
@@ -279,7 +258,6 @@ def login_view(request):
 
                 return redirect("core:menu_principal")
 
-            # 5) Credenciales incorrectas
             fails = _register_fail(usuario_input)
 
             if fails >= MAX_FAILS:
@@ -294,18 +272,15 @@ def login_view(request):
                 {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
             )
 
-        # ===== GET =====
         return render(
             request,
             "core/login.html",
             {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
         )
 
-    except Exception as e:
-        # Esto imprime el traceback COMPLETO en Render Logs
+    except Exception:
         logger.exception("ERROR EN LOGIN_VIEW (POST/GET) - detalle:")
 
-        # Respuesta segura sin 500
         form = LoginForm(request.POST or None)
         captcha_question, captcha_token = _new_captcha_signed()
         messages.error(request, "Ocurrió un error inesperado al iniciar sesión. Intenta de nuevo.")
@@ -314,6 +289,7 @@ def login_view(request):
             "core/login.html",
             {"form": form, "captcha_question": captcha_question, "captcha_token": captcha_token},
         )
+
 
 # =========================================================
 # MENÚ / LOGOUT / AYUDA
@@ -930,7 +906,7 @@ def proyecto_pdf(request, proyecto_id: int):
 def usuarios_export_csv(request):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="SWGFV_Usuarios.csv"'
-    response.write("\ufeff")  # BOM para Excel
+    response.write("\ufeff")
 
     writer = csv.writer(response)
     writer.writerow(["ID", "Nombre", "Apellido Paterno", "Apellido Materno", "Telefono", "Correo", "Tipo", "Activo"])

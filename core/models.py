@@ -93,7 +93,6 @@ def remaining_minutes(self) -> int:
     seconds = max(0, int(delta.total_seconds()))
     return max(1, (seconds + 59) // 60)
 
-
 # =========================
 # BITÁCORA / AUDIT (TABLA audit_logs)
 # =========================
