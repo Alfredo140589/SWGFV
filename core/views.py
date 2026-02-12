@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.core import signing
 from django.core.mail import send_mail
 from django.conf import settings
+from .models import AuditLog
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
@@ -37,6 +38,28 @@ from .decorators import require_session_login, require_admin
 from .models import Usuario, Proyecto, LoginLock, AuditLog
 
 
+def log_event(request, action: str, message: str, target_model: str = "", target_id=None):
+    """
+    Guarda evento en bitácora (AuditLog).
+    IMPORTANTE: Está blindada para que NUNCA cause error 500.
+    """
+    try:
+        actor_email = (request.session.get("usuario") or "").strip()
+        actor_tipo = (request.session.get("tipo") or "").strip()
+        actor_user_id = request.session.get("id_usuario")
+
+        AuditLog.objects.create(
+            actor_email=actor_email,
+            actor_tipo=actor_tipo,
+            actor_user_id=actor_user_id if actor_user_id else None,
+            action=(action or "").strip()[:80],
+            message=(message or "").strip()[:255],
+            target_model=(target_model or "").strip()[:50],
+            target_id=str(target_id) if target_id is not None else "",
+        )
+    except Exception:
+        # Si falla la bitácora, NO tumba el sistema
+        return
 # =========================================================
 # HELPER: registrar evento en bitácora
 # =========================================================
