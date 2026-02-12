@@ -30,9 +30,11 @@ class Usuario(models.Model):
         db_table = "usuarios"
 
     def set_password(self, raw_password: str):
+        """Guarda contraseña hasheada en el campo Contrasena."""
         self.Contrasena = make_password(raw_password)
 
     def check_password(self, raw_password: str) -> bool:
+        """Valida contraseña contra el hash guardado en Contrasena."""
         return check_password(raw_password, self.Contrasena)
 
     def __str__(self):
@@ -68,10 +70,10 @@ class Proyecto(models.Model):
 
 
 # =========================
-# LOGIN LOCK (3 intentos / 30 min)
+# BLOQUEO LOGIN (TABLA login_locks)
 # =========================
 class LoginLock(models.Model):
-    usuario_key = models.CharField(max_length=150, unique=True)
+    usuario_key = models.CharField(max_length=150, unique=True)  # correo/usuario normalizado
     fails = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
 
@@ -91,28 +93,25 @@ class LoginLock(models.Model):
         return max(1, (seconds + 59) // 60)
 
 
-
 # =========================
-# MODELO AUDIT LOG (BITÁCORA)
+# BITÁCORA / AUDIT (TABLA audit_logs)
 # =========================
 class AuditLog(models.Model):
-    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
-    # Quién realizó la acción
-    actor_id = models.IntegerField(null=True, blank=True)
-    actor_email = models.CharField(max_length=150, blank=True, default="")
-    actor_tipo = models.CharField(max_length=20, blank=True, default="")
+    actor_user_id = models.IntegerField(blank=True, null=True)
+    actor_email = models.CharField(max_length=150, blank=True, null=True)
+    actor_tipo = models.CharField(max_length=50, blank=True, null=True)
 
-    # Qué acción fue
-    action = models.CharField(max_length=80, db_index=True)
-    message = models.CharField(max_length=255)
+    action = models.CharField(max_length=80)
+    message = models.TextField(blank=True, null=True)
 
-    # A qué entidad afectó (opcional)
-    target_model = models.CharField(max_length=60, blank=True, default="")
-    target_id = models.CharField(max_length=60, blank=True, default="")
+    target_model = models.CharField(max_length=80, blank=True, null=True)
+    target_id = models.CharField(max_length=80, blank=True, null=True)
 
     class Meta:
-        db_table = "audit_log"
+        db_table = "audit_logs"   # ✅ IMPORTANTE: coincide con tu tabla en Render
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.action} - {self.actor_email}"
+        return f"{self.created_at} {self.actor_email} {self.action}"
