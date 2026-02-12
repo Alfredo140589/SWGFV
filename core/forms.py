@@ -193,6 +193,11 @@ class UsuarioUpdateForm(forms.ModelForm):
 # ======================================================
 # PROYECTOS
 # ======================================================
+import re
+from django import forms
+from .models import Proyecto
+
+
 class ProyectoCreateForm(forms.ModelForm):
     class Meta:
         model = Proyecto
@@ -209,9 +214,29 @@ class ProyectoCreateForm(forms.ModelForm):
             "Nombre_Empresa": forms.TextInput(attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}),
             "Direccion": forms.TextInput(attrs={"class": "form-control", "placeholder": "Dirección"}),
             "Coordenadas": forms.TextInput(attrs={"class": "form-control", "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"}),
-            "Voltaje_Nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Voltaje nominal"}),
+            "Voltaje_Nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Voltaje nominal (ej. 127/220)"}),
             "Numero_Fases": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 3}),
         }
+
+    def clean_Coordenadas(self):
+        value = (self.cleaned_data.get("Coordenadas") or "").strip()
+        # Esperamos "lat, lon"
+        m = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$", value)
+        if not m:
+            raise forms.ValidationError("Coordenadas inválidas. Usa formato: latitud, longitud (ej. 19.4326, -99.1332)")
+        lat = float(m.group(1))
+        lon = float(m.group(2))
+        if not (-90 <= lat <= 90):
+            raise forms.ValidationError("Latitud inválida. Debe estar entre -90 y 90.")
+        if not (-180 <= lon <= 180):
+            raise forms.ValidationError("Longitud inválida. Debe estar entre -180 y 180.")
+        return f"{lat}, {lon}"
+
+    def clean_Voltaje_Nominal(self):
+        value = (self.cleaned_data.get("Voltaje_Nominal") or "").strip()
+        if not value:
+            raise forms.ValidationError("El voltaje nominal es obligatorio.")
+        return value
 
 
 class ProyectoUpdateForm(ProyectoCreateForm):
