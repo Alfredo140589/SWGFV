@@ -136,8 +136,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // ==========================
   // 2) Cierre por inactividad
   // ==========================
-  const IDLE_LIMIT_MS = 1 * 60 * 1000; // 10 minutos
-  const WARN_AT_MS =  50 * 1000;     // aviso en el minuto 9
+  const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 minutos
+  const WARN_AT_MS = 9* 60 * 1000;     // aviso en el minuto 9
 
   let warnTimer = null;
   let logoutTimer = null;
