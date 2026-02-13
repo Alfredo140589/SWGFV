@@ -301,15 +301,20 @@ def ayuda_view(request):
 # =========================================================
 # RECUPERAR
 # =========================================================
+
 @require_http_methods(["GET", "POST"])
 def recuperar_view(request):
     form = PasswordRecoveryRequestForm(request.POST or None)
 
     if request.method == "POST":
         if form.is_valid():
-            email = form.cleaned_data["email"].strip()
+            email = (form.cleaned_data.get("email") or "").strip()
 
-            messages.success(request, "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña.")
+            # Mensaje genérico para NO filtrar si el correo existe
+            messages.success(
+                request,
+                "Si el correo está registrado, enviaremos un enlace para restablecer tu contraseña."
+            )
 
             u = Usuario.objects.filter(Correo_electronico__iexact=email, Activo=True).first()
             if u:
@@ -334,8 +339,10 @@ def recuperar_view(request):
                         fail_silently=False,
                     )
                 except Exception:
-                    logger.exception("Error enviando correo de recuperación")
+                    # No rompemos el flujo aunque falle el correo
+                    pass
 
+                # Bitácora (no debe romper si falla)
                 log_event(
                     request,
                     "PASSWORD_RECOVERY_REQUEST",
@@ -344,6 +351,12 @@ def recuperar_view(request):
                     u.ID_Usuario
                 )
 
+            return redirect("core:recuperar")
+
+        messages.error(request, "Revisa el formulario e intenta nuevamente.")
+
+    # ✅ SIEMPRE retorna una respuesta
+    return render(request, "core/recuperar.html", {"form": form})
 
 @require_http_methods(["GET", "POST"])
 def password_reset_confirm(request, token):

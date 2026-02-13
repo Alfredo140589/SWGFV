@@ -13,7 +13,7 @@ urlpatterns = [
 
     # Recuperación
     path("recuperar/", views.recuperar_view, name="recuperar"),
-    path("recuperar/<str:token>/", views.password_reset_confirm, name="password_reset_confirm"),
+    path("reset/<str:token>/", views.password_reset_confirm, name="password_reset_confirm"),
 
     # Proyectos
     path("proyectos/alta/", views.proyecto_alta, name="proyecto_alta"),
