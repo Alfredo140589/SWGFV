@@ -1,16 +1,30 @@
 import csv
 from decimal import Decimal
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand
+
 from core.models import Inversor, MicroInversor
 
 
 class Command(BaseCommand):
-    help = "Importa inversores y microinversores desde CSV"
+    help = "Importa inversores y microinversores desde CSV (data/inversor.csv y data/microinversor.csv)"
 
     def handle(self, *args, **kwargs):
-        INV_PATH = r"C:\Users\alfre\Desktop\Escuela\2026-1\SWGFV\data\inversor.csv"
-        MICRO_PATH = r"C:\Users\alfre\Desktop\Escuela\2026-1\SWGFV\data\microinversor.csv"
-        ENC = "utf-8-sig"
+        # ✅ RUTAS PORTABLES (funciona en Windows, Linux y Render)
+        base_dir = Path(settings.BASE_DIR)  # carpeta raíz del proyecto (donde está manage.py)
+        inv_path = base_dir / "data" / "inversor.csv"
+        micro_path = base_dir / "data" / "microinversor.csv"
+
+        # Si tus CSV se guardaron con BOM (muy común en Excel), utf-8-sig lo maneja perfecto.
+        enc = "utf-8-sig"
+
+        # Validación rápida: si no existen, fallar con mensaje claro
+        if not inv_path.exists():
+            raise FileNotFoundError(f"No se encontró: {inv_path}  (asegúrate que exista data/inversor.csv en el servidor)")
+        if not micro_path.exists():
+            raise FileNotFoundError(f"No se encontró: {micro_path}  (asegúrate que exista data/microinversor.csv en el servidor)")
 
         def to_decimal(val):
             val = (val or "").strip().replace(",", ".")
@@ -31,27 +45,28 @@ class Command(BaseCommand):
         # =====================
         # IMPORTAR INVERSORES
         # =====================
-        new_i = upd_i = 0
+        new_i = 0
+        upd_i = 0
 
-        with open(INV_PATH, encoding=ENC, newline="") as f:
+        with open(inv_path, encoding=enc, newline="") as f:
             reader = csv.DictReader(f)
             self.stdout.write(f"HEADERS INVERSOR: {reader.fieldnames}")
 
             for row in reader:
                 marca = clean_text(row.get("Marca"))
                 modelo = clean_text(row.get("Modelo"))
-                potencia_w = to_decimal(row.get("Potencia"))
+                potencia_w = to_decimal(row.get("Potencia"))  # ✅ W
                 volt_nom = clean_text(row.get("Voltaje nominal"))
 
                 if not marca or not modelo:
                     continue
 
-                obj, created = Inversor.objects.update_or_create(
+                _, created = Inversor.objects.update_or_create(
                     marca=marca,
                     modelo=modelo,
                     defaults={
-                        "potencia_w": potencia_w,
-                        "voltaje_salida": volt_nom,
+                        "potencia_w": potencia_w,     # ✅ W
+                        "voltaje_salida": volt_nom,   # texto (como lo tienes en tu modelo)
                     },
                 )
 
@@ -69,26 +84,27 @@ class Command(BaseCommand):
         # =====================
         # IMPORTAR MICROINVERSORES
         # =====================
-        new_m = upd_m = 0
+        new_m = 0
+        upd_m = 0
 
-        with open(MICRO_PATH, encoding=ENC, newline="") as f:
+        with open(micro_path, encoding=enc, newline="") as f:
             reader = csv.DictReader(f)
             self.stdout.write(f"HEADERS MICRO: {reader.fieldnames}")
 
             for row in reader:
                 marca = clean_text(row.get("Marca"))
                 modelo = clean_text(row.get("Modelo"))
-                potencia_w = to_decimal(row.get("Potencia"))
+                potencia_w = to_decimal(row.get("Potencia"))  # ✅ W
                 canales = to_int(row.get("No mppt"))
 
                 if not marca or not modelo:
                     continue
 
-                obj, created = MicroInversor.objects.update_or_create(
+                _, created = MicroInversor.objects.update_or_create(
                     marca=marca,
                     modelo=modelo,
                     defaults={
-                        "potencia_w": potencia_w,
+                        "potencia_w": potencia_w,  # ✅ W
                         "canales": canales,
                     },
                 )
@@ -103,3 +119,5 @@ class Command(BaseCommand):
                 f"MICRO -> nuevos: {new_m} | actualizados: {upd_m} | total: {MicroInversor.objects.count()}"
             )
         )
+
+        self.stdout.write(self.style.SUCCESS("✅ Importación finalizada correctamente."))
