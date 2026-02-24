@@ -1,16 +1,8 @@
-# =========================================================
-# COMANDO: Importar CSV a tabla Irradiancia (según tu modelo real)
-# Archivo: core/management/commands/import_irradiancia.py
-#
-# Uso:
-#   python manage.py import_irradiancia data/irradiancia.csv
-#   python manage.py import_irradiancia data/irradiancia.csv --clear
-# =========================================================
-
 import csv
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
@@ -20,13 +12,11 @@ from core.models import Irradiancia
 def norm_key(s: str) -> str:
     """Normaliza headers del CSV para que coincidan con campos."""
     s = (s or "").strip().lower()
-    # normalizaciones comunes
     s = s.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ñ", "n")
-    s = s.replace(" ", "_")
-    s = s.replace("/", "_")
-    s = s.replace("(", "").replace(")", "")
-    s = s.replace("%", "")
-    s = s.replace("__", "_")
+    s = s.replace(" ", "_").replace("/", "_")
+    s = s.replace("(", "").replace(")", "").replace("%", "")
+    while "__" in s:
+        s = s.replace("__", "_")
     return s
 
 
@@ -47,12 +37,19 @@ class Command(BaseCommand):
     help = "Importa el catálogo de irradiancia desde CSV. Upsert por ciudad+estado."
 
     def add_arguments(self, parser):
-        parser.add_argument("csv_path", type=str, help="Ruta del CSV. Ej: data/irradiancia.csv")
+        # ✅ opcional: si no lo das, usa data/irradiancia.csv
+        parser.add_argument("csv_path", nargs="?", type=str, default="", help="Ruta del CSV. Ej: data/irradiancia.csv")
         parser.add_argument("--clear", action="store_true", help="Borra la tabla antes de importar.")
 
     @transaction.atomic
     def handle(self, *args, **options):
-        csv_path = Path(options["csv_path"]).resolve()
+        # ✅ ruta default
+        base_dir = Path(settings.BASE_DIR)
+        default_path = base_dir / "data" / "irradiancia.csv"
+
+        csv_arg = (options.get("csv_path") or "").strip()
+        csv_path = (base_dir / csv_arg).resolve() if csv_arg else default_path.resolve()
+
         if not csv_path.exists():
             raise CommandError(f"No existe el archivo: {csv_path}")
 
@@ -60,7 +57,6 @@ class Command(BaseCommand):
             deleted, _ = Irradiancia.objects.all().delete()
             self.stdout.write(self.style.WARNING(f"Tabla Irradiancia limpiada. Registros borrados: {deleted}"))
 
-        # Campos reales existentes en tu modelo (por introspección)
         model_fields = {f.name for f in Irradiancia._meta.fields}
 
         created = 0
@@ -72,11 +68,9 @@ class Command(BaseCommand):
             if not reader.fieldnames:
                 raise CommandError("El CSV no tiene encabezados (headers). Revisa el archivo.")
 
-            # Normaliza headers -> valores
             for raw_row in reader:
                 row = {norm_key(k): v for k, v in raw_row.items()}
 
-                # En tu modelo existen: ciudad, estado, region, tarifa, promedio, ene..dic, etc.
                 ciudad = (row.get("ciudad") or "").strip()
                 estado = (row.get("estado") or "").strip()
 
@@ -84,25 +78,21 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-                # Upsert por ciudad+estado (si no hay estado, igual intenta)
                 qs = Irradiancia.objects.filter(ciudad__iexact=ciudad)
                 if estado:
                     qs = qs.filter(estado__iexact=estado)
                 obj = qs.first()
 
-                # Construye kwargs sólo con campos que existan en el modelo
                 kwargs = {}
                 for key, value in row.items():
                     if key not in model_fields:
                         continue
 
-                    # Convierte a decimal en campos numéricos típicos
                     if key in {"promedio", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"}:
                         kwargs[key] = to_decimal(value, default=Decimal("0"))
                     else:
                         kwargs[key] = (value or "").strip()
 
-                # Asegura ciudad/estado aunque vengan vacíos en kwargs
                 kwargs["ciudad"] = ciudad
                 if "estado" in model_fields:
                     kwargs["estado"] = estado
