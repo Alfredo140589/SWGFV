@@ -179,6 +179,17 @@
               Guardar cambios
             </button>
           {% endif %}
+
+          <!-- ✅ ELIMINAR (NO depende de edit_mode) -->
+          <button
+            type="submit"
+            name="action"
+            value="delete_project"
+            class="btn btn-danger px-4"
+            onclick="return confirm('¿Seguro que deseas ELIMINAR este proyecto? Esta acción no se puede deshacer.')"
+          >
+            🗑 Eliminar
+          </button>
         </div>
       </form>
     {% endif %}

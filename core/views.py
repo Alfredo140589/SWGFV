@@ -532,6 +532,9 @@ def proyecto_modificacion(request):
     seleccionado = None
     form = None
 
+    # =========================
+    # GET: cargar seleccionado
+    # =========================
     if q_id.isdigit():
         seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
         if seleccionado:
@@ -541,6 +544,9 @@ def proyecto_modificacion(request):
 
             form = ProyectoUpdateForm(instance=seleccionado)
 
+    # =========================
+    # POST: actualizar / eliminar
+    # =========================
     if request.method == "POST":
         post_id = (request.GET.get("id") or "").strip()
         if not post_id.isdigit():
@@ -552,10 +558,37 @@ def proyecto_modificacion(request):
             messages.error(request, "El proyecto ya no existe.")
             return redirect("core:proyecto_modificacion")
 
+        # permisos
         if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
             messages.error(request, "No tienes permisos para modificar este proyecto.")
             return redirect("core:proyecto_modificacion")
 
+        action = (request.POST.get("action") or "").strip().lower()
+
+        # ✅ ELIMINAR (NO requiere edit_mode)
+        if action == "delete_project":
+            # Seguridad: impedir eliminar si tiene registros relacionados (recomendado)
+            tiene_relacionados = (
+                NumeroPaneles.objects.filter(proyecto=seleccionado).exists()
+                or Dimensionamiento.objects.filter(proyecto=seleccionado).exists()
+            )
+            if tiene_relacionados:
+                messages.error(
+                    request,
+                    "No se puede eliminar el proyecto porque tiene registros relacionados "
+                    "(Número de módulos y/o Dimensionamiento). Primero elimina esos registros."
+                )
+                return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
+
+            nombre = seleccionado.Nombre_Proyecto
+            pid = seleccionado.id
+            seleccionado.delete()
+
+            log_event(request, "PROJECT_DELETED", f"Eliminó proyecto: {nombre}", "Proyecto", pid)
+            messages.success(request, f"✅ Proyecto eliminado: {nombre}")
+            return redirect("core:proyecto_modificacion")
+
+        # ✅ UPDATE requiere edit_mode
         if not edit_mode:
             messages.error(request, "Para editar, primero presiona ✏️ Editar.")
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
@@ -563,7 +596,13 @@ def proyecto_modificacion(request):
         form = ProyectoUpdateForm(request.POST, instance=seleccionado)
         if form.is_valid():
             form.save()
-            log_event(request, "PROJECT_UPDATED", f"Actualizó proyecto: {seleccionado.Nombre_Proyecto}", "Proyecto", seleccionado.id)
+            log_event(
+                request,
+                "PROJECT_UPDATED",
+                f"Actualizó proyecto: {seleccionado.Nombre_Proyecto}",
+                "Proyecto",
+                seleccionado.id
+            )
             messages.success(request, "Proyecto actualizado correctamente.")
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
 
