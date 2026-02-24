@@ -1,0 +1,25 @@
+Id_microinversor,Marca,Modelo,Potencia,Corriente de entrada,Corriente de salida,Voltaje de arranque,Voltaje mÃ¡ximo de entrada,No mppt,No fases,Voltaje nominal
+1,APSystems,DS3-H,1320,20,4.4,26,60,2,2,220
+2,APSystems,DS3-LV,1320,18,7.5,26,60,2,2,220
+3,APSystems,DS3D,2680,20,8.3,52,120,4,2,220
+4,APSystems,QT2,2680,20,4.8,26,50,4,3,220
+5,Enphase,IQ8M-72-2-US,460,20,1.35,16,60,1,2,220
+6,Enphase,IQ8A-72-2-US,500,20,1.45,16,60,1,2,220
+7,Enphase,IQ8P-3P-72-E-US,640,20,2.28,16,63,1,2,220
+8,Enphase,IQ8P-72-2-US,670,20,1.98,22,65,1,2,220
+9,Hoymiles,HM-1000,1240,10.5,4.55,22,60,4,2,220
+10,Hoymiles,HM-1200,1520,11.5,5.45,22,60,4,2,220
+11,Hoymiles,HM-1200,1880,11.5,6.82,22,60,4,2,220
+12,Hoymiles,HM-600,760,11.5,2.73,22,60,2,2,220
+13,Hoymiles,HM-700,880,11.5,3.18,22,60,2,2,220
+14,Hoymiles,HM-800,1000,12.5,3.64,22,60,2,2,220
+15,Hoymiles,HMS-800-2T,1000,12.5,3.64,22,65,2,2,220
+16,Hoymiles,HMS-900-2T,1130,13.3,4.09,22,65,2,2,220
+17,Hoymiles,HMS-1000-2T,1250,14,4.55,22,65,2,2,220
+18,Hoymiles,HMS-1600-4T,2160,14,7.27,22,65,4,2,220
+19,Hoymiles,HMS-1800-4T,2400,15,8.18,22,65,4,2,220
+20,Hoymiles,HMS-2000-4T,2680,16,9.09,22,65,4,2,220
+21,Hoymiles,HMS-1600DW-4T,2160,14,7.69,22,65,4,2,220
+22,Hoymiles,HMS-1800DW-4T,2400,15,8.65,22,65,4,2,220
+23,Hoymiles,HMS-2000DW-4T,2680,16,9.62,22,65,4,2,220
+24,Hoymiles,HMS-2250DW-4T,3000,18,10.82,22,65,4,2,220

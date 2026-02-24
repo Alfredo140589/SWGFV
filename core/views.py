@@ -30,10 +30,16 @@ from .forms import (
     ProyectoUpdateForm,
     PasswordRecoveryRequestForm,
     PasswordResetForm,
+    NumeroPanelesForm,
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
-from .models import Usuario, Proyecto, LoginLock, AuditLog
+from .models import (
+    Usuario, Proyecto, LoginLock, AuditLog,
+    Irradiancia, PanelSolar, NumeroPaneles, ResultadoPaneles,
+    Inversor, MicroInversor,
+    Dimensionamiento, DimensionamientoDetalle
+)
 
 logger = logging.getLogger(__name__)
 
@@ -729,15 +735,497 @@ def _render_menu_page(request, template_path: str, title: str):
         return render(request, "core/menu_principal.html", {"title": title, "messages": []})
 
 
+# =========================================================
+# VISTA: Dimensionamiento - Cálculo de Módulos (calculo)
+# Archivo: core/views.py
+# =========================================================
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def dimensionamiento_calculo_modulos(request):
-    return _render_menu_page(request, "core/pages/dimensionamiento_calculo_modulos.html", "Cálculo de Módulos")
+    import math
+
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    # ✅ Proyectos: admin ve todos, usuario normal solo los suyos
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    # ✅ Catálogos
+    irradiancias = Irradiancia.objects.all().order_by("estado", "ciudad")
+    paneles = PanelSolar.objects.all().order_by("marca", "modelo")
+
+    # =========================================================
+    # LISTAS PARA EL TEMPLATE (meses y bimestres)
+    # =========================================================
+    meses = [
+        {"label": "Ene", "name": "consumo_ene", "key": "ene"},
+        {"label": "Feb", "name": "consumo_feb", "key": "feb"},
+        {"label": "Mar", "name": "consumo_mar", "key": "mar"},
+        {"label": "Abr", "name": "consumo_abr", "key": "abr"},
+        {"label": "May", "name": "consumo_may", "key": "may"},
+        {"label": "Jun", "name": "consumo_jun", "key": "jun"},
+        {"label": "Jul", "name": "consumo_jul", "key": "jul"},
+        {"label": "Ago", "name": "consumo_ago", "key": "ago"},
+        {"label": "Sep", "name": "consumo_sep", "key": "sep"},
+        {"label": "Oct", "name": "consumo_oct", "key": "oct"},
+        {"label": "Nov", "name": "consumo_nov", "key": "nov"},
+        {"label": "Dic", "name": "consumo_dic", "key": "dic"},
+    ]
+
+    bimestres = [
+        {"label": "Bim 1", "name": "consumo_bim1", "key": "bim1"},
+        {"label": "Bim 2", "name": "consumo_bim2", "key": "bim2"},
+        {"label": "Bim 3", "name": "consumo_bim3", "key": "bim3"},
+        {"label": "Bim 4", "name": "consumo_bim4", "key": "bim4"},
+        {"label": "Bim 5", "name": "consumo_bim5", "key": "bim5"},
+        {"label": "Bim 6", "name": "consumo_bim6", "key": "bim6"},
+    ]
+
+    # =========================================================
+    # ✅ Determinar proyecto seleccionado (GET o POST)
+    # =========================================================
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    # =========================================================
+    # ✅ GET/POST: cargar np_obj y resultado para mostrar abajo
+    # =========================================================
+    np_obj = None
+    resultado = None
+
+    if selected_proyecto_id:
+        np_obj = NumeroPaneles.objects.select_related(
+            "proyecto", "irradiancia", "panel"
+        ).filter(proyecto_id=selected_proyecto_id).first()
+
+        if np_obj:
+            resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+    # =========================
+    # ✅ POST: Guardar + Calcular
+    # =========================
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "calcular":
+            proyecto_id = (request.POST.get("proyecto") or "").strip()
+            tipo_fact = (request.POST.get("tipo_facturacion") or "").strip().lower()
+            irradiancia_id = (request.POST.get("irradiancia") or "").strip()
+            panel_id = (request.POST.get("panel") or "").strip()
+            eficiencia = (request.POST.get("eficiencia") or "").strip()
+
+            # ✅ Eficiencia: SOLO 0.7 o 0.8
+            try:
+                eff = float(eficiencia)
+            except ValueError:
+                eff = None
+
+            if eff not in (0.7, 0.8):
+                messages.error(request, "Eficiencia inválida. Solo se permite 0.7 o 0.8.")
+                return redirect(
+                    f"{reverse('core:dimensionamiento_calculo_modulos')}?proyecto_id={proyecto_id}"
+                    if str(proyecto_id).isdigit()
+                    else reverse("core:dimensionamiento_calculo_modulos")
+                )
+
+            if not (proyecto_id and irradiancia_id and panel_id and eficiencia and tipo_fact):
+                messages.error(request, "Revisa el formulario. Hay errores.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            # Normalizar tipo_facturacion para BD
+            if tipo_fact == "mensual":
+                tipo_fact_db = "MENSUAL"
+                consumos = {m["key"]: float(request.POST.get(m["name"]) or 0) for m in meses}
+            elif tipo_fact == "bimestral":
+                tipo_fact_db = "BIMESTRAL"
+                consumos = {f"bim{i}": float(request.POST.get(f"consumo_bim{i}") or 0) for i in range(1, 7)}
+            else:
+                messages.error(request, "Tipo de facturación inválido.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            # Validar proyecto + permisos
+            proyecto = Proyecto.objects.filter(id=proyecto_id).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para usar este proyecto.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            irradiancia = Irradiancia.objects.filter(id=irradiancia_id).first()
+            panel = PanelSolar.objects.filter(id=panel_id).first()
+
+            if not irradiancia:
+                messages.error(request, "Irradiancia inválida.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+            if not panel:
+                messages.error(request, "Panel inválido.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            # Guardar/Actualizar NumeroPaneles
+            obj, created = NumeroPaneles.objects.update_or_create(
+                proyecto=proyecto,
+                defaults={
+                    "tipo_facturacion": tipo_fact_db,
+                    "irradiancia": irradiancia,
+                    "panel": panel,
+                    "eficiencia": eff,
+                    "consumos": consumos,
+                },
+            )
+
+            # ResultadoPaneles
+            resultado_obj, _ = ResultadoPaneles.objects.get_or_create(
+                numero_paneles=obj,
+                defaults={
+                    "no_modulos": 0,
+                    "potencia_total": 0,
+                    "generacion_por_periodo": {},
+                    "generacion_anual": 0,
+                },
+            )
+
+            # =========================================================
+            # ✅ CÁLCULO REAL
+            # =========================================================
+            eff = float(obj.eficiencia)  # 0.7 o 0.8
+            pot_panel_kw = float(panel.potencia) / 1000.0
+
+            if obj.tipo_facturacion == "MENSUAL":
+                consumo_promedio = (sum(float(v) for v in (obj.consumos or {}).values()) / 12.0) if obj.consumos else 0.0
+                dias_ref = 30.0
+            else:
+                consumo_promedio = (sum(float(v) for v in (obj.consumos or {}).values()) / 6.0) if obj.consumos else 0.0
+                dias_ref = 60.0
+
+            hsp_ref = float(irradiancia.promedio)
+            energia_por_modulo_ref = pot_panel_kw * hsp_ref * eff * dias_ref
+
+            if energia_por_modulo_ref > 0:
+                no_modulos = math.ceil((consumo_promedio / energia_por_modulo_ref) * 1.1)
+            else:
+                no_modulos = 0
+
+            potencia_total = round(no_modulos * pot_panel_kw, 4)
+
+            gen_por_periodo = {}
+            if obj.tipo_facturacion == "MENSUAL":
+                for k in ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]:
+                    insol = float(getattr(irradiancia, k))
+                    gen_por_periodo[k] = round(potencia_total * insol * eff * 30.0, 4)
+            else:
+                mapeo = {"bim1":"feb","bim2":"abr","bim3":"jun","bim4":"ago","bim5":"oct","bim6":"dic"}
+                for bim, mes in mapeo.items():
+                    insol = float(getattr(irradiancia, mes))
+                    gen_por_periodo[bim] = round(potencia_total * insol * eff * 60.0, 4)
+
+            generacion_anual = round(sum(gen_por_periodo.values()), 4)
+
+            resultado_obj.no_modulos = no_modulos
+            resultado_obj.potencia_total = potencia_total
+            resultado_obj.generacion_por_periodo = gen_por_periodo
+            resultado_obj.generacion_anual = generacion_anual
+            resultado_obj.save(update_fields=[
+                "no_modulos",
+                "potencia_total",
+                "generacion_por_periodo",
+                "generacion_anual",
+            ])
+
+            messages.success(request, "✅ Cálculo realizado correctamente.")
+
+            # ✅ redirigir para reconstruir resultados (GET)
+            return redirect(f"{reverse('core:dimensionamiento_calculo_modulos')}?proyecto_id={proyecto.id}")
+
+    # =========================================================
+    # ✅ SIEMPRE construir TABLA + datos para gráficas (GET o POST)
+    # =========================================================
+    tabla_periodos = []
+    chart_labels = []
+    chart_consumo = []
+    chart_generacion = []
+
+    if np_obj and resultado:
+        cons = np_obj.consumos or {}
+        genp = resultado.generacion_por_periodo or {}
+
+        if np_obj.tipo_facturacion == "MENSUAL":
+            orden = [
+                ("ene","Ene"),("feb","Feb"),("mar","Mar"),("abr","Abr"),("may","May"),("jun","Jun"),
+                ("jul","Jul"),("ago","Ago"),("sep","Sep"),("oct","Oct"),("nov","Nov"),("dic","Dic"),
+            ]
+        else:
+            orden = [("bim1","Bim 1"),("bim2","Bim 2"),("bim3","Bim 3"),("bim4","Bim 4"),("bim5","Bim 5"),("bim6","Bim 6")]
+
+        for key, label in orden:
+            c = float(cons.get(key, 0) or 0)
+            g = float(genp.get(key, 0) or 0)
+            tabla_periodos.append({"label": label, "consumo": round(c, 3), "generacion": round(g, 3)})
+            chart_labels.append(label)
+            chart_consumo.append(round(c, 3))
+            chart_generacion.append(round(g, 3))
+
+    # ✅ Render normal (IMPORTANTE: ahora ya va todo al template)
+    context = {
+        "proyectos": proyectos,
+        "irradiancias": irradiancias,
+        "paneles": paneles,
+        "meses": meses,
+        "bimestres": bimestres,
+
+        "np_obj": np_obj,
+        "resultado": resultado,
+        "selected_proyecto_id": selected_proyecto_id,
+
+        # ✅ tabla + charts (para tu template con json_script)
+        "tabla_periodos": tabla_periodos,
+        "chart_labels": chart_labels,
+        "chart_consumo": chart_consumo,
+        "chart_generacion": chart_generacion,
+    }
+    return render(request, "core/pages/dimensionamiento_calculo_modulos.html", context)
 
 
+# =========================================================
+# DIMENSIONAMIENTO (por inversor)
+# Archivo: core/views.py
+# =========================================================
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def dimensionamiento_dimensionamiento(request):
-    return _render_menu_page(request, "core/pages/dimensionamiento_dimensionamiento.html", "Dimensionamiento")
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
 
+    # ✅ Proyectos por permisos
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    # ✅ Proyecto seleccionado (GET o POST)
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    proyecto = None
+    np_obj = None
+    resultado = None
+    potencia_total = None
+
+    dim = None
+    detalles = []
+
+    # ✅ Catálogos
+    inversores = Inversor.objects.all().order_by("marca", "modelo")
+    micro_inversores = MicroInversor.objects.all().order_by("marca", "modelo")
+
+    # =========================================================
+    # ✅ GET: cargar datos del proyecto + datos guardados
+    # =========================================================
+    if selected_proyecto_id:
+        proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
+
+        # permisos
+        if proyecto and session_tipo != "Administrador":
+            if int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para acceder a ese proyecto.")
+                return redirect(reverse("core:dimensionamiento_dimensionamiento"))
+
+        if proyecto:
+            # traer numero paneles y resultado
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if np_obj:
+                resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+            # ✅ Potencia total (kW) desde ResultadoPaneles
+            potencia_total = getattr(resultado, "potencia_total", None)
+
+            # dimensionamiento existente
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if dim:
+                detalles = list(dim.detalles.all().order_by("indice"))
+
+    # =========================================================
+    # ✅ POST: guardar
+    # =========================================================
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "guardar":
+            proyecto_id_raw = (request.POST.get("proyecto") or "").strip()
+            if not proyecto_id_raw.isdigit():
+                messages.error(request, "Selecciona un proyecto válido.")
+                return redirect(reverse("core:dimensionamiento_dimensionamiento"))
+
+            proyecto = Proyecto.objects.filter(id=int(proyecto_id_raw)).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect(reverse("core:dimensionamiento_dimensionamiento"))
+
+            # permisos
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para guardar en ese proyecto.")
+                return redirect(reverse("core:dimensionamiento_dimensionamiento"))
+
+            tipo = (request.POST.get("tipo_inversor") or "").strip().upper()  # INVERSOR / MICRO
+            no_inv_raw = (request.POST.get("no_inversores") or "").strip()
+
+            if tipo not in ("INVERSOR", "MICRO"):
+                messages.error(request, "Tipo de instalación inválido.")
+                return redirect(f"{reverse('core:dimensionamiento_dimensionamiento')}?proyecto_id={proyecto.id}")
+
+            if not no_inv_raw.isdigit() or int(no_inv_raw) < 1:
+                messages.error(request, "Número de inversores inválido.")
+                return redirect(f"{reverse('core:dimensionamiento_dimensionamiento')}?proyecto_id={proyecto.id}")
+
+            no_inversores = int(no_inv_raw)
+
+            # ✅ Guardar/actualizar cabecera
+            dim, _ = Dimensionamiento.objects.update_or_create(
+                proyecto=proyecto,
+                defaults={
+                    "tipo_inversor": tipo,
+                    "no_inversores": no_inversores,
+                }
+            )
+
+            # ✅ Guardar detalles
+            errores = False
+            saved_indices = set()
+
+            for i in range(1, no_inversores + 1):
+                modelo_raw = (request.POST.get(f"modelo_{i}") or "").strip()
+                cadenas_raw = (request.POST.get(f"cadenas_{i}") or "").strip()
+
+                if not modelo_raw.isdigit():
+                    messages.error(request, f"Selecciona el modelo para el inversor {i}.")
+                    errores = True
+                    continue
+
+                if not cadenas_raw.isdigit() or int(cadenas_raw) < 1:
+                    messages.error(request, f"Número de cadenas inválido en inversor {i}.")
+                    errores = True
+                    continue
+
+                cadenas = int(cadenas_raw)
+
+                # ✅ NUEVO: leer módulos por cada cadena (modulos_{i}_1, modulos_{i}_2, ...)
+                lista_modulos = []
+                for c in range(1, cadenas + 1):
+                    mv = (request.POST.get(f"modulos_{i}_{c}") or "").strip()
+                    if not mv.isdigit() or int(mv) < 1:
+                        messages.error(request, f"Módulos inválidos en inversor {i}, cadena {c}.")
+                        errores = True
+                        lista_modulos = []
+                        break
+                    lista_modulos.append(int(mv))
+
+                if errores:
+                    continue
+
+                # ✅ Campo resumen legacy (para compatibilidad): guardamos el máximo
+                modulos = max(lista_modulos) if lista_modulos else 1
+
+                inversor_fk = None
+                micro_fk = None
+
+                if tipo == "INVERSOR":
+                    inversor_fk = Inversor.objects.filter(id=int(modelo_raw)).first()
+                    if not inversor_fk:
+                        messages.error(request, f"Modelo de inversor inválido en inversor {i}.")
+                        errores = True
+                        continue
+                else:
+                    micro_fk = MicroInversor.objects.filter(id=int(modelo_raw)).first()
+                    if not micro_fk:
+                        messages.error(request, f"Modelo de micro inversor inválido en inversor {i}.")
+                        errores = True
+                        continue
+
+                DimensionamientoDetalle.objects.update_or_create(
+                    dimensionamiento=dim,
+                    indice=i,
+                    defaults={
+                        "inversor": inversor_fk,
+                        "micro_inversor": micro_fk,
+                        "no_cadenas": cadenas,
+                        "modulos_por_cadena": modulos,  # (legacy)
+                        "modulos_por_cadena_lista": lista_modulos,  # ✅ NUEVO
+                    }
+                )
+
+                saved_indices.add(i)
+
+            # ✅ borrar sobrantes si redujo cantidad
+            DimensionamientoDetalle.objects.filter(dimensionamiento=dim).exclude(indice__in=saved_indices).delete()
+
+            if errores:
+                return redirect(f"{reverse('core:dimensionamiento_dimensionamiento')}?proyecto_id={proyecto.id}")
+
+            messages.success(request, "✅ Dimensionamiento guardado correctamente.")
+            return redirect(f"{reverse('core:dimensionamiento_dimensionamiento')}?proyecto_id={proyecto.id}")
+
+    # =========================================================
+    # ✅ Context
+    # =========================================================
+    info_modulos = {
+        "no_modulos": getattr(resultado, "no_modulos", None),
+        "modelo_modulo": None,
+    }
+
+    if np_obj and getattr(np_obj, "panel", None):
+        info_modulos["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+
+    # valores actuales guardados
+    current_tipo = getattr(dim, "tipo_inversor", "INVERSOR") if dim else "INVERSOR"
+    current_no_inv = getattr(dim, "no_inversores", 1) if dim else 1
+
+    # precarga para JS
+    precarga = []
+    for i in range(1, current_no_inv + 1):
+        d = next((x for x in detalles if x.indice == i), None)
+        precarga.append({
+            "indice": i,
+            "modelo_id": (d.inversor_id if d and d.inversor_id else (d.micro_inversor_id if d else None)),
+            "no_cadenas": (d.no_cadenas if d else 1),
+            "modulos_por_cadena": (d.modulos_por_cadena if d else 1),  # legacy
+            "modulos_por_cadena_lista": (d.modulos_por_cadena_lista if d and d.modulos_por_cadena_lista else []),
+            # ✅ NUEVO
+        })
+
+    # ✅ Detalles guardados (para mostrar tabla debajo)
+    detalles_guardados = []
+    if dim:
+        detalles_guardados = list(
+            DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+            .select_related("inversor", "micro_inversor")
+            .order_by("indice")
+        )
+
+    context = {
+        "proyectos": proyectos,
+        "selected_proyecto_id": selected_proyecto_id,
+        "proyecto": proyecto,
+
+        "np_obj": np_obj,
+        "resultado": resultado,
+        "info_modulos": info_modulos,
+
+        "inversores": inversores,
+        "micro_inversores": micro_inversores,
+
+        "current_tipo": current_tipo,
+        "current_no_inv": current_no_inv,
+        "precarga": precarga,
+
+        "potencia_total": potencia_total,
+        "detalles_guardados": detalles_guardados,
+    }
+
+    return render(request, "core/pages/dimensionamiento_dimensionamiento.html", context)
 
 @require_session_login
 def calculo_dc(request):
@@ -899,7 +1387,188 @@ def proyecto_pdf(request, proyecto_id: int):
     doc.build(elements)
     return response
 
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.legends import Legend
+from reportlab.graphics import renderPDF
+from reportlab.lib.colors import HexColor
 
+@require_session_login
+@require_http_methods(["GET"])
+def numero_modulos_pdf(request, proyecto_id: int):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:numero_modulos")
+
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos.")
+            return redirect("core:numero_modulos")
+
+    np_obj = NumeroPaneles.objects.select_related("irradiancia", "panel").filter(proyecto=proyecto).first()
+    if not np_obj:
+        messages.error(request, "No hay cálculo para este proyecto.")
+        return redirect("core:numero_modulos")
+
+    resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+    if not resultado:
+        messages.error(request, "No hay resultado calculado para este proyecto.")
+        return redirect("core:numero_modulos")
+
+    # Orden de periodos
+    if np_obj.tipo_facturacion == "MENSUAL":
+        orden = [
+            ("ene","Ene"),("feb","Feb"),("mar","Mar"),("abr","Abr"),("may","May"),("jun","Jun"),
+            ("jul","Jul"),("ago","Ago"),("sep","Sep"),("oct","Oct"),("nov","Nov"),("dic","Dic"),
+        ]
+    else:
+        orden = [("bim1","Bim 1"),("bim2","Bim 2"),("bim3","Bim 3"),("bim4","Bim 4"),("bim5","Bim 5"),("bim6","Bim 6")]
+
+    cons = np_obj.consumos or {}
+    genp = resultado.generacion_por_periodo or {}
+
+    labels = [lbl for _, lbl in orden]
+    consumo_vals = [float(cons.get(k, 0) or 0) for k, _ in orden]
+    gen_vals = [float(genp.get(k, 0) or 0) for k, _ in orden]
+
+    # PDF response
+    filename = f"SWGFV_NumeroModulos_Proyecto_{proyecto.id}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        leftMargin=2.0 * cm,
+        rightMargin=2.0 * cm,
+        topMargin=1.6 * cm,
+        bottomMargin=1.6 * cm,
+        title=f"Número de módulos - Proyecto {proyecto.id}",
+        author="SWGFV",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "T",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        textColor=colors.HexColor("#001F3F"),
+        spaceAfter=10,
+    )
+    sub_style = ParagraphStyle(
+        "S",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=10,
+        textColor=colors.HexColor("#333333"),
+        spaceAfter=8,
+    )
+
+    elements = []
+
+    # ✅ LOGO
+    logo_path = finders.find("core/img/logo1.png")
+    if logo_path:
+        try:
+            elements.append(RLImage(logo_path, width=3.0 * cm, height=3.0 * cm))
+            elements.append(Spacer(1, 0.2 * cm))
+        except Exception:
+            pass
+
+    elements.append(Paragraph("SWGFV - Reporte: Número de módulos", title_style))
+
+    elements.append(Paragraph(f"<b>Proyecto:</b> {proyecto.Nombre_Proyecto or '—'}", sub_style))
+    elements.append(Paragraph(f"<b>Tipo de facturación:</b> {np_obj.tipo_facturacion}", sub_style))
+    elements.append(Paragraph(f"<b>Eficiencia:</b> {np_obj.eficiencia}", sub_style))
+    elements.append(Paragraph(f"<b>Módulo:</b> {np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)", sub_style))
+    elements.append(Paragraph(f"<b>Número de módulos:</b> {resultado.no_modulos}", sub_style))
+    elements.append(Paragraph(f"<b>Potencia total instalada (kW):</b> {resultado.potencia_total}", sub_style))
+    elements.append(Paragraph(f"<b>Generación anual (kWh):</b> {resultado.generacion_anual}", sub_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # ✅ TABLA Consumo vs Generación
+    data = [["Periodo", "Consumo (kWh)", "Generación (kWh)"]]
+    for i in range(len(labels)):
+        data.append([labels[i], f"{consumo_vals[i]:.3f}", f"{gen_vals[i]:.3f}"])
+
+    table = Table(data, colWidths=[4.0 * cm, 6.0 * cm, 6.0 * cm])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#B0B7C3")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 0.4 * cm))
+
+    # ✅ Gráfica 1: Generación por periodo (ReportLab chart)
+    def make_bar_chart(title, series, cat_names):
+        d = Drawing(500, 220)
+        chart = VerticalBarChart()
+        chart.x = 30
+        chart.y = 30
+        chart.height = 150
+        chart.width = 440
+        chart.data = [series]
+        chart.categoryAxis.categoryNames = cat_names
+        chart.valueAxis.valueMin = 0
+
+        chart.bars[0].fillColor = HexColor("#2E86DE")
+        d.add(chart)
+
+        d_title = Paragraph(f"<b>{title}</b>", sub_style)
+        return d_title, d
+
+    t1, g1 = make_bar_chart("Gráfica 1: Generación por periodo (kWh)", gen_vals, labels)
+    elements.append(t1)
+    elements.append(Spacer(1, 0.1 * cm))
+    elements.append(g1)
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # ✅ Gráfica 2: Generación vs Consumo (2 series)
+    d2 = Drawing(500, 240)
+    chart2 = VerticalBarChart()
+    chart2.x = 30
+    chart2.y = 30
+    chart2.height = 160
+    chart2.width = 440
+    chart2.data = [consumo_vals, gen_vals]   # dos series
+    chart2.categoryAxis.categoryNames = labels
+    chart2.valueAxis.valueMin = 0
+
+    chart2.bars[0].fillColor = HexColor("#E67E22")  # consumo
+    chart2.bars[1].fillColor = HexColor("#2ECC71")  # generación
+
+    legend = Legend()
+    legend.x = 360
+    legend.y = 200
+    legend.alignment = "right"
+    legend.colorNamePairs = [
+        (HexColor("#E67E22"), "Consumo (kWh)"),
+        (HexColor("#2ECC71"), "Generación (kWh)"),
+    ]
+
+    d2.add(chart2)
+    d2.add(legend)
+
+    elements.append(Paragraph("<b>Gráfica 2: Generación vs Consumo</b>", sub_style))
+    elements.append(Spacer(1, 0.1 * cm))
+    elements.append(d2)
+
+    doc.build(elements)
+    return response
 # ==========================
 # EXPORTAR USUARIOS CSV
 # ==========================
@@ -1000,6 +1669,58 @@ def usuarios_export_pdf(request):
     log_event(request, "USERS_EXPORT_PDF", "Descargó listado de usuarios en PDF", "Usuario", "")
     return response
 
+# ==========================
+# PDF DIMENSIONAMIENTO
+# ==========================
+from django.http import HttpResponse
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+from reportlab.platypus import TableStyle
+
+def dimensionamiento_pdf(request, proyecto_id):
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib import colors
+    from reportlab.platypus import TableStyle
+
+    proyecto = Proyecto.objects.get(id=proyecto_id)
+    detalles = DimensionamientoDetalle.objects.filter(
+        dimensionamiento__proyecto=proyecto
+    ).select_related("inversor", "micro_inversor").order_by("indice")
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f"attachment; filename=dimensionamiento_{proyecto_id}.pdf"
+
+    doc = SimpleDocTemplate(response)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    elements.append(Paragraph(f"Proyecto: {proyecto.Nombre_Proyecto}", styles["Heading2"]))
+    elements.append(Spacer(1, 12))
+
+    data = [["Inversor", "Modelo", "Cadenas", "Módulos/cadena"]]
+
+    for d in detalles:
+        modelo = d.inversor or d.micro_inversor
+        mods = d.modulos_por_cadena_lista or []
+        if mods:
+            mods_txt = ", ".join([f"Cad {idx + 1}: {val}" for idx, val in enumerate(mods)])
+        else:
+            mods_txt = str(d.modulos_por_cadena)
+
+        data.append([d.indice, str(modelo), d.no_cadenas, mods_txt])
+
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 1, colors.black),
+    ]))
+
+    elements.append(table)
+    doc.build(elements)
+
+    return response
+
 
 # ==========================
 # ACTIVIDAD / BITÁCORA
@@ -1030,3 +1751,270 @@ def usuarios_actividad(request):
 
     context = {"logs": logs, "q_user": q_user, "q_action": q_action, "q_text": q_text}
     return render(request, "core/pages/usuarios_actividad.html", context)
+
+# ==========================================
+# VISTA: Número de módulos (SOLO interfaz)
+# Archivo: core/views.py
+# ==========================================
+# from .forms import NumeroModulosForm
+@require_session_login
+@require_http_methods(["GET", "POST"])
+def numero_modulos_view(request):
+    import math
+    from decimal import Decimal, ROUND_HALF_UP
+
+    def D(x, nd=3):
+        return Decimal(str(x)).quantize(Decimal("1." + "0" * nd), rounding=ROUND_HALF_UP)
+
+    user_id = request.session.get("id_usuario")
+    session_tipo = (request.session.get("tipo") or "").strip()
+
+    # ✅ Proyectos
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=user_id).order_by("-id")
+
+    irradiancias = Irradiancia.objects.all().order_by("estado", "ciudad")
+    paneles = PanelSolar.objects.all().order_by("marca", "modelo")
+
+    meses = [
+        {"label": "Ene", "name": "consumo_ene", "key": "ene"},
+        {"label": "Feb", "name": "consumo_feb", "key": "feb"},
+        {"label": "Mar", "name": "consumo_mar", "key": "mar"},
+        {"label": "Abr", "name": "consumo_abr", "key": "abr"},
+        {"label": "May", "name": "consumo_may", "key": "may"},
+        {"label": "Jun", "name": "consumo_jun", "key": "jun"},
+        {"label": "Jul", "name": "consumo_jul", "key": "jul"},
+        {"label": "Ago", "name": "consumo_ago", "key": "ago"},
+        {"label": "Sep", "name": "consumo_sep", "key": "sep"},
+        {"label": "Oct", "name": "consumo_oct", "key": "oct"},
+        {"label": "Nov", "name": "consumo_nov", "key": "nov"},
+        {"label": "Dic", "name": "consumo_dic", "key": "dic"},
+    ]
+
+    bimestres = [
+        {"label": "Bim 1", "name": "consumo_bim1", "key": "bim1"},
+        {"label": "Bim 2", "name": "consumo_bim2", "key": "bim2"},
+        {"label": "Bim 3", "name": "consumo_bim3", "key": "bim3"},
+        {"label": "Bim 4", "name": "consumo_bim4", "key": "bim4"},
+        {"label": "Bim 5", "name": "consumo_bim5", "key": "bim5"},
+        {"label": "Bim 6", "name": "consumo_bim6", "key": "bim6"},
+    ]
+
+    # ✅ Proyecto seleccionado (GET o POST)
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    np_obj = None
+    resultado = None
+
+    if selected_proyecto_id:
+        np_obj = NumeroPaneles.objects.select_related("proyecto", "irradiancia", "panel").filter(
+            proyecto_id=selected_proyecto_id
+        ).first()
+        if np_obj:
+            resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+    # =========================
+    # ✅ POST: guardar y calcular
+    # =========================
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "calcular":
+            proyecto_id = (request.POST.get("proyecto") or "").strip()
+            tipo_fact = (request.POST.get("tipo_facturacion") or "").strip().lower()
+            irradiancia_id = (request.POST.get("irradiancia") or "").strip()
+            panel_id = (request.POST.get("panel") or "").strip()
+            eficiencia = (request.POST.get("eficiencia") or "").strip()
+
+            # ✅ eficiencia solo 0.7 o 0.8
+            try:
+                eff = float(eficiencia)
+            except ValueError:
+                eff = None
+
+            if eff not in (0.7, 0.8):
+                messages.error(request, "Eficiencia inválida. Solo se permite 0.7 o 0.8.")
+                return redirect(reverse("core:numero_modulos"))
+
+            if not (proyecto_id and tipo_fact and irradiancia_id and panel_id and eficiencia):
+                messages.error(request, "Revisa el formulario. Hay errores.")
+                return redirect(reverse("core:numero_modulos"))
+
+            # tipo_fact -> DB
+            if tipo_fact == "mensual":
+                tipo_fact_db = "MENSUAL"
+                consumos = {m["key"]: float(request.POST.get(m["name"]) or 0) for m in meses}
+            elif tipo_fact == "bimestral":
+                tipo_fact_db = "BIMESTRAL"
+                consumos = {f"bim{i}": float(request.POST.get(f"consumo_bim{i}") or 0) for i in range(1, 7)}
+            else:
+                messages.error(request, "Tipo de facturación inválido.")
+                return redirect(reverse("core:numero_modulos"))
+
+            # objetos + permisos
+            proyecto = Proyecto.objects.filter(id=proyecto_id).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect(reverse("core:numero_modulos"))
+
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(user_id):
+                messages.error(request, "No tienes permisos para usar este proyecto.")
+                return redirect(reverse("core:numero_modulos"))
+
+            irradiancia = Irradiancia.objects.filter(id=irradiancia_id).first()
+            panel = PanelSolar.objects.filter(id=panel_id).first()
+            if not irradiancia or not panel:
+                messages.error(request, "Irradiancia o panel inválidos.")
+                return redirect(reverse("core:numero_modulos"))
+
+            # guardar NumeroPaneles
+            obj, created = NumeroPaneles.objects.update_or_create(
+                proyecto=proyecto,
+                defaults={
+                    "tipo_facturacion": tipo_fact_db,
+                    "irradiancia": irradiancia,
+                    "panel": panel,
+                    "eficiencia": eff,
+                    "consumos": consumos,
+                },
+            )
+
+            # resultado
+            resultado_obj, _ = ResultadoPaneles.objects.get_or_create(numero_paneles=obj)
+
+            # ====== CÁLCULO REAL (el que ya te funciona) ======
+            pot_kw = float(panel.potencia) / 1000.0
+            eff = float(obj.eficiencia)
+
+            if tipo_fact_db == "MENSUAL":
+                consumo_prom = sum(float(consumos.get(k, 0) or 0) for k in ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]) / 12.0
+                dias_periodo_ref = 30.0
+                hsp_prom = (
+                    float(irradiancia.ene)+float(irradiancia.feb)+float(irradiancia.mar)+float(irradiancia.abr)+
+                    float(irradiancia.may)+float(irradiancia.jun)+float(irradiancia.jul)+float(irradiancia.ago)+
+                    float(irradiancia.sep)+float(irradiancia.oct)+float(irradiancia.nov)+float(irradiancia.dic)
+                ) / 12.0
+            else:
+                consumo_prom = sum(float(consumos.get(f"bim{i}", 0) or 0) for i in range(1, 7)) / 6.0
+                dias_periodo_ref = 60.0
+                hsp_prom = (
+                    float(irradiancia.feb)+float(irradiancia.abr)+float(irradiancia.jun)+
+                    float(irradiancia.ago)+float(irradiancia.oct)+float(irradiancia.dic)
+                ) / 6.0
+
+            energia_modulo_periodo = pot_kw * hsp_prom * eff * dias_periodo_ref
+            no_modulos = math.ceil((consumo_prom * 1.1) / energia_modulo_periodo) if energia_modulo_periodo > 0 else 0
+
+            potencia_total = float(D(no_modulos * pot_kw, 3))
+
+            gen_por_periodo = {}
+            if tipo_fact_db == "MENSUAL":
+                for k in ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]:
+                    gen_por_periodo[k] = float(D(potencia_total * float(getattr(irradiancia, k)) * eff * 30.0, 3))
+            else:
+                mapeo = {"bim1":"feb","bim2":"abr","bim3":"jun","bim4":"ago","bim5":"oct","bim6":"dic"}
+                for bim, mes in mapeo.items():
+                    gen_por_periodo[bim] = float(D(potencia_total * float(getattr(irradiancia, mes)) * eff * 60.0, 3))
+
+            generacion_anual = float(D(sum(float(v) for v in gen_por_periodo.values()), 3))
+
+            resultado_obj.no_modulos = no_modulos
+            resultado_obj.potencia_total = D(potencia_total, 3)
+            resultado_obj.generacion_anual = D(generacion_anual, 3)
+            resultado_obj.generacion_por_periodo = gen_por_periodo
+            resultado_obj.save(update_fields=["no_modulos", "potencia_total", "generacion_anual", "generacion_por_periodo"])
+
+            messages.success(request, "✅ Cálculo realizado correctamente.")
+
+            # ✅ IMPORTANTE: redirigir con proyecto_id para que el GET reconstruya tabla+gráficas
+            return redirect(f"{reverse('core:numero_modulos')}?proyecto_id={proyecto.id}")
+
+    # =========================
+    # ✅ SIEMPRE armar tabla + chart data si hay np_obj y resultado (GET o POST)
+    # =========================
+    tabla_periodos = []
+    chart_labels = []
+    chart_consumo = []
+    chart_generacion = []
+
+    if np_obj and resultado:
+        cons = np_obj.consumos or {}
+        genp = (resultado.generacion_por_periodo or {})
+
+        if np_obj.tipo_facturacion == "MENSUAL":
+            orden = [("ene","Ene"),("feb","Feb"),("mar","Mar"),("abr","Abr"),("may","May"),("jun","Jun"),
+                     ("jul","Jul"),("ago","Ago"),("sep","Sep"),("oct","Oct"),("nov","Nov"),("dic","Dic")]
+        else:
+            orden = [("bim1","Bim 1"),("bim2","Bim 2"),("bim3","Bim 3"),("bim4","Bim 4"),("bim5","Bim 5"),("bim6","Bim 6")]
+
+        for key, label in orden:
+            c = float(cons.get(key, 0) or 0)
+            g = float(genp.get(key, 0) or 0)
+            tabla_periodos.append({"label": label, "consumo": round(c, 3), "generacion": round(g, 3)})
+            chart_labels.append(label)
+            chart_consumo.append(round(c, 3))
+            chart_generacion.append(round(g, 3))
+
+    context = {
+        "proyectos": proyectos,
+        "irradiancias": irradiancias,
+        "paneles": paneles,
+        "meses": meses,
+        "bimestres": bimestres,
+
+        "np_obj": np_obj,
+        "resultado": resultado,
+        "selected_proyecto_id": selected_proyecto_id,
+
+        # ✅ HTML tabla + charts (NOMBRES NUEVOS)
+        "tabla_periodos": tabla_periodos,
+        "chart_labels": chart_labels,
+        "chart_consumo": chart_consumo,
+        "chart_generacion": chart_generacion,
+
+        # ✅ ALIAS para que tu template viejo funcione (NOMBRES QUE USA EL TEMPLATE)
+        "chart_cons": chart_consumo,
+        "chart_gen": chart_generacion,
+    }
+    return render(request, "core/pages/numero_modulos.html", context)
+
+from django.views.decorators.http import require_GET
+
+@require_session_login
+@require_GET
+def numero_modulos_data(request):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+    is_admin = (session_tipo == "Administrador")
+
+    proyecto_id = (request.GET.get("proyecto_id") or "").strip()
+    if not proyecto_id.isdigit():
+        return JsonResponse({"ok": False, "error": "proyecto_id inválido"}, status=400)
+
+    proyecto = Proyecto.objects.filter(id=int(proyecto_id)).first()
+    if not proyecto:
+        return JsonResponse({"ok": False, "error": "Proyecto no existe"}, status=404)
+
+    # Permisos: si NO es admin, el proyecto debe ser del usuario
+    if not is_admin and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+        return JsonResponse({"ok": False, "error": "Sin permisos"}, status=403)
+
+    np = NumeroPaneles.objects.filter(proyecto=proyecto).select_related("irradiancia", "panel").first()
+    if not np:
+        # No existe aún registro para ese proyecto => ok pero vacío
+        return JsonResponse({"ok": True, "exists": False})
+
+    return JsonResponse({
+        "ok": True,
+        "exists": True,
+        "data": {
+            "tipo_facturacion": (np.tipo_facturacion or "").lower(),  # "mensual" / "bimestral"
+            "eficiencia": str(np.eficiencia) if np.eficiencia is not None else "",
+            "irradiancia_id": np.irradiancia_id,
+            "panel_id": np.panel_id,
+            "consumos": np.consumos or {},
+        }
+    })

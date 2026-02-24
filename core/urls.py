@@ -36,8 +36,18 @@ urlpatterns = [
     # Dimensionamiento
     path("dimensionamiento/calculo-modulos/", views.dimensionamiento_calculo_modulos, name="dimensionamiento_calculo_modulos"),
     path("dimensionamiento/", views.dimensionamiento_dimensionamiento, name="dimensionamiento_dimensionamiento"),
+    path("numero-modulos/data/", views.numero_modulos_data, name="numero_modulos_data"),
+    # ✅ REQUERIDO: Número de módulos (nuevo módulo)
+    path("numero-modulos/", views.numero_modulos_view, name="numero_modulos"),
+# ✅ EXPORTS:
+    path("numero-modulos/<int:proyecto_id>/pdf/", views.numero_modulos_pdf, name="numero_modulos_pdf"),
 
-    # Cálculos
+path(
+    "dimensionamiento/<int:proyecto_id>/pdf/",
+    views.dimensionamiento_pdf,
+    name="dimensionamiento_pdf",
+),
+        # Cálculos
     path("calculos/dc/", views.calculo_dc, name="calculo_dc"),
     path("calculos/ac/", views.calculo_ac, name="calculo_ac"),
     path("calculos/caida-tension/", views.calculo_caida_tension, name="calculo_caida_tension"),

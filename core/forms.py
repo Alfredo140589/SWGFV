@@ -1,5 +1,7 @@
 from django import forms
-from .models import Usuario, Proyecto
+import re
+
+from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles
 
 
 # ======================================================
@@ -21,7 +23,6 @@ class LoginForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Ingrese su contraseña"}
         ),
     )
-    # Debe coincidir con name="captcha" en login.html
     captcha = forms.CharField(
         label="Captcha",
         required=True,
@@ -32,22 +33,11 @@ class LoginForm(forms.Form):
 
 
 # ======================================================
-# RECUPERACIÓN DE CONTRASEÑA (POR TOKEN LINK)
+# RECUPERACIÓN DE CONTRASEÑA
 # ======================================================
 class PasswordRecoveryRequestForm(forms.Form):
     email = forms.EmailField(
         label="Correo electrónico",
-        required=True,
-        widget=forms.EmailInput(
-            attrs={"class": "form-control", "placeholder": "Correo registrado"}
-        ),
-    )
-
-
-from django import forms
-
-class PasswordRecoveryRequestForm(forms.Form):
-    email = forms.EmailField(
         max_length=150,
         widget=forms.EmailInput(attrs={
             "class": "form-control",
@@ -85,10 +75,6 @@ class PasswordResetForm(forms.Form):
 # ======================================================
 # ALTA / MODIFICACIÓN DE USUARIO
 # ======================================================
-from django import forms
-from .models import Usuario
-
-
 class UsuarioCreateForm(forms.ModelForm):
     password = forms.CharField(
         label="Contraseña",
@@ -126,8 +112,6 @@ class UsuarioCreateForm(forms.ModelForm):
         email = (self.cleaned_data.get("Correo_electronico") or "").strip().lower()
         if not email:
             return email
-
-        # Validación case-insensitive
         if Usuario.objects.filter(Correo_electronico__iexact=email).exists():
             raise forms.ValidationError("Ya existe un usuario con ese correo.")
         return email
@@ -206,11 +190,6 @@ class UsuarioUpdateForm(forms.ModelForm):
 # ======================================================
 # PROYECTOS
 # ======================================================
-import re
-from django import forms
-from .models import Proyecto
-
-
 class ProyectoCreateForm(forms.ModelForm):
     class Meta:
         model = Proyecto
@@ -233,7 +212,6 @@ class ProyectoCreateForm(forms.ModelForm):
 
     def clean_Coordenadas(self):
         value = (self.cleaned_data.get("Coordenadas") or "").strip()
-        # Esperamos "lat, lon"
         m = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$", value)
         if not m:
             raise forms.ValidationError("Coordenadas inválidas. Usa formato: latitud, longitud (ej. 19.4326, -99.1332)")
@@ -255,9 +233,209 @@ class ProyectoCreateForm(forms.ModelForm):
 class ProyectoUpdateForm(ProyectoCreateForm):
     class Meta(ProyectoCreateForm.Meta):
         pass
-class ProyectoUpdateForm(ProyectoCreateForm):
+
+
+# =========================================================
+# ✅ FORM “VIEJO/UI”: NumeroModulosForm (para que NO truene el import)
+# =========================================================
+FACTURACION_CHOICES = [
+    ("mensual", "Mensual"),
+    ("bimestral", "Bimestral"),
+]
+
+MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+BIMESTRES = ["Bim1", "Bim2", "Bim3", "Bim4", "Bim5", "Bim6"]
+
+
+class NumeroModulosForm(forms.Form):
+    proyecto = forms.ModelChoiceField(
+        queryset=Proyecto.objects.none(),
+        label="Proyecto",
+        empty_label="Selecciona un proyecto",
+        widget=forms.Select(attrs={"class": "form-select"})
+    )
+
+    tipo_facturacion = forms.ChoiceField(
+        choices=FACTURACION_CHOICES,
+        label="Tipo de facturación CFE",
+        widget=forms.Select(attrs={"class": "form-select", "id": "tipo_facturacion"})
+    )
+
+    irradiancia = forms.ModelChoiceField(
+        queryset=Irradiancia.objects.all().order_by("estado", "ciudad"),
+        label="Irradiancia promedio (Ciudad)",
+        empty_label="Selecciona ciudad/estado",
+        widget=forms.Select(attrs={"class": "form-select"})
+    )
+
+    eficiencia = forms.FloatField(
+        label="Eficiencia (%)",
+        min_value=0,
+        max_value=100,
+        widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "Ej. 85"})
+    )
+
+    panel = forms.ModelChoiceField(
+        queryset=PanelSolar.objects.all().order_by("marca", "modelo"),
+        label="Marca y modelo del panel",
+        empty_label="Selecciona un panel",
+        widget=forms.Select(attrs={"class": "form-select"})
+    )
+
+    # Campos consumos mensuales
+    for m in MESES:
+        locals()[f"consumo_{m.lower()}"] = forms.FloatField(
+            required=False,
+            label=f"Consumo {m} (kWh)",
+            widget=forms.NumberInput(attrs={"class": "form-control"})
+        )
+
+    # Campos consumos bimestrales
+    for i, b in enumerate(BIMESTRES, start=1):
+        locals()[f"consumo_bim{i}"] = forms.FloatField(
+            required=False,
+            label=f"Consumo {b} (kWh)",
+            widget=forms.NumberInput(attrs={"class": "form-control"})
+        )
+
+    def __init__(self, *args, **kwargs):
+        user_id = kwargs.pop("user_id", None)
+        is_admin = kwargs.pop("is_admin", False)
+        super().__init__(*args, **kwargs)
+
+        if is_admin:
+            self.fields["proyecto"].queryset = Proyecto.objects.all().order_by("-id")
+        else:
+            if user_id:
+                self.fields["proyecto"].queryset = Proyecto.objects.filter(ID_Usuario_id=user_id).order_by("-id")
+            else:
+                self.fields["proyecto"].queryset = Proyecto.objects.none()
+
+
+# =========================================================
+# ✅ FORM REAL: NumeroPanelesForm (para guardar sin fórmulas)
+# =========================================================
+class NumeroPanelesForm(forms.ModelForm):
     """
-    Reutiliza las mismas validaciones y widgets del create.
+    Form del módulo Cálculo de número de módulos.
+    - Guarda en NumeroPaneles (BD)
+    - Construye consumos como JSON (sin fórmulas aún)
     """
-    class Meta(ProyectoCreateForm.Meta):
-        pass
+
+    # ✅ Acepta lo que manda tu HTML: mensual/bimestral
+    tipo_facturacion = forms.ChoiceField(
+        choices=[("mensual", "Mensual"), ("bimestral", "Bimestral")],
+        widget=forms.Select(attrs={"class": "form-select", "id": "tipoFacturacion"}),
+    )
+
+    consumo_ene = forms.DecimalField(required=False, min_value=0)
+    consumo_feb = forms.DecimalField(required=False, min_value=0)
+    consumo_mar = forms.DecimalField(required=False, min_value=0)
+    consumo_abr = forms.DecimalField(required=False, min_value=0)
+    consumo_may = forms.DecimalField(required=False, min_value=0)
+    consumo_jun = forms.DecimalField(required=False, min_value=0)
+    consumo_jul = forms.DecimalField(required=False, min_value=0)
+    consumo_ago = forms.DecimalField(required=False, min_value=0)
+    consumo_sep = forms.DecimalField(required=False, min_value=0)
+    consumo_oct = forms.DecimalField(required=False, min_value=0)
+    consumo_nov = forms.DecimalField(required=False, min_value=0)
+    consumo_dic = forms.DecimalField(required=False, min_value=0)
+
+    consumo_bim1 = forms.DecimalField(required=False, min_value=0)
+    consumo_bim2 = forms.DecimalField(required=False, min_value=0)
+    consumo_bim3 = forms.DecimalField(required=False, min_value=0)
+    consumo_bim4 = forms.DecimalField(required=False, min_value=0)
+    consumo_bim5 = forms.DecimalField(required=False, min_value=0)
+    consumo_bim6 = forms.DecimalField(required=False, min_value=0)
+
+    class Meta:
+        model = NumeroPaneles
+        fields = ["proyecto", "tipo_facturacion", "irradiancia", "panel", "eficiencia"]
+        widgets = {
+            "proyecto": forms.Select(attrs={"class": "form-select"}),
+            "irradiancia": forms.Select(attrs={"class": "form-select"}),
+            "panel": forms.Select(attrs={"class": "form-select"}),
+            "eficiencia": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0", "max": "100"}),
+        }
+
+    def __init__(self, *args, user_id=None, is_admin=False, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if is_admin:
+            self.fields["proyecto"].queryset = Proyecto.objects.all().order_by("-id")
+        else:
+            if user_id:
+                self.fields["proyecto"].queryset = Proyecto.objects.filter(ID_Usuario_id=user_id).order_by("-id")
+            else:
+                self.fields["proyecto"].queryset = Proyecto.objects.none()
+
+        self.fields["irradiancia"].queryset = Irradiancia.objects.all().order_by("estado", "ciudad")
+        self.fields["panel"].queryset = PanelSolar.objects.all().order_by("marca", "modelo")
+
+    def clean_tipo_facturacion(self):
+        v = (self.cleaned_data.get("tipo_facturacion") or "").strip().lower()
+        if v == "mensual":
+            return "MENSUAL"
+        if v == "bimestral":
+            return "BIMESTRAL"
+        raise forms.ValidationError("Tipo de facturación inválido.")
+
+    def clean(self):
+        cleaned = super().clean()
+        tipo = (cleaned.get("tipo_facturacion") or "").upper()
+
+        consumos = {}
+        if tipo == "MENSUAL":
+            meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+            for m in meses:
+                key = f"consumo_{m}"
+                val = cleaned.get(key)
+                consumos[m] = float(val) if val is not None else 0.0
+
+        elif tipo == "BIMESTRAL":
+            for i in range(1, 7):
+                key = f"consumo_bim{i}"
+                val = cleaned.get(key)
+                consumos[f"bim{i}"] = float(val) if val is not None else 0.0
+
+        cleaned["consumos"] = consumos
+        return cleaned
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.consumos = self.cleaned_data.get("consumos", {})
+        if commit:
+            obj.save()
+        return obj
+
+# core/forms.py
+from django import forms
+from .models import Dimensionamiento, DimensionamientoDetalle, Inversor, MicroInversor
+
+
+class DimensionamientoForm(forms.ModelForm):
+    class Meta:
+        model = Dimensionamiento
+        fields = ["tipo_inversor", "no_inversores"]
+        widgets = {
+            "tipo_inversor": forms.Select(attrs={"class": "form-select", "id": "tipoInstalacion"}),
+            "no_inversores": forms.NumberInput(attrs={"class": "form-control", "min": 1, "id": "noInversores"}),
+        }
+
+
+class DimensionamientoDetalleForm(forms.ModelForm):
+    """
+    OJO:
+    - En UI solo se usará UNO (inversor o micro_inversor) según el tipo.
+    - Igual dejamos ambos campos para poder validar y guardar.
+    """
+    class Meta:
+        model = DimensionamientoDetalle
+        fields = ["inversor", "micro_inversor", "no_cadenas", "modulos_por_cadena", "indice"]
+        widgets = {
+            "indice": forms.NumberInput(attrs={"class": "form-control", "readonly": "readonly"}),
+            "inversor": forms.Select(attrs={"class": "form-select"}),
+            "micro_inversor": forms.Select(attrs={"class": "form-select"}),
+            "no_cadenas": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "modulos_por_cadena": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        }

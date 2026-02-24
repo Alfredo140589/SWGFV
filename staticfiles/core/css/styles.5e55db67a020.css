@@ -1,0 +1,351 @@
+/* core/static/core/css/styles.css */
+/* SWGFV - Look tipo "antes": fondo visible + navbar verde + panel blanco */
+
+:root{
+  --swgfv-primary:#001F3F;      /* azul marino */
+  --swgfv-accent:#18b89b;       /* verde navbar */
+  --swgfv-accent-dark:#129c83;  /* hover */
+  --swgfv-text:#0b1220;
+}
+
+*{ box-sizing: border-box; }
+
+html, body{ height: 100%; }
+
+body{
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--swgfv-text);
+
+  /* Fondo tipo captura */
+  background-color: #e9eef6;
+  background-image: url("../img/imagen2.62c47fe6cc33.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* IMPORTANTE:
+   Antes tu velo blanco era muy fuerte (0.45).
+   Lo bajamos para que la imagen se vea como en tu captura. */
+body::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.20); /* MÁS ligero */
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* =========================
+   HEADER
+   ========================= */
+.swgfv-header{
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+
+/* =========================
+   HEADER: LOGO + TÍTULO
+   ========================= */
+
+/* Aumenta el alto visual del bloque superior del header */
+.swgfv-header .container-fluid.py-2{
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+}
+
+/* Logo más grande pero proporcional */
+.brand-logo{
+  height: 80px !important;   /* 🔥 más grande */
+  width: auto !important;
+  object-fit: contain;
+  display: block;
+}
+
+/* Título proporcional al logo */
+.brand-title{
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0;
+}
+
+
+.brand-title{
+  margin: 0;
+  color: var(--swgfv-primary);
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+/* Botones superiores */
+.btn-swgfv{
+  background: var(--swgfv-accent) !important; /* antes eran verdes */
+  color: #fff !important;
+  border: none !important;
+  border-radius: 10px;
+  padding: .6rem 1.1rem;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.10);
+}
+
+.btn-swgfv:hover{
+  background: var(--swgfv-accent-dark) !important;
+  color: #fff !important;
+}
+
+/* =========================
+   NAVBAR (FORZADA)
+   ========================= */
+.swgfv-nav{
+  background: var(--swgfv-accent) !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+}
+
+/* fuerza el color en links aunque Bootstrap meta estilos */
+.swgfv-nav .navbar-nav .nav-link,
+.swgfv-nav .navbar-nav .nav-link:visited{
+  color: #fff !important;
+  font-weight: 800;
+  padding: 1rem 1.15rem;
+}
+
+.swgfv-nav .navbar-nav .nav-link:hover,
+.swgfv-nav .navbar-nav .nav-link:focus{
+  color: #fff !important;
+  opacity: .92;
+}
+
+/* dropdown */
+.swgfv-nav .dropdown-menu{
+  border: none !important;
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0,0,0,0.18);
+  padding: .55rem;
+}
+
+.swgfv-nav .dropdown-item{
+  border-radius: 12px;
+  font-weight: 700;
+  padding: .6rem .8rem;
+}
+
+.swgfv-nav .dropdown-item:hover{
+  background: rgba(24,184,155,0.16);
+}
+
+/* Toggler */
+.navbar-toggler{
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.navbar-toggler-icon{
+  filter: invert(1);
+}
+
+/* =========================
+   CONTENIDO / LAYOUT
+   ========================= */
+
+/* tu <div class="container my-4"> */
+.container.my-4{
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+/* Para que el panel se vea centrado y grande como en la captura */
+.container.my-4 .card{
+  max-width: 1200px;     /* panel amplio */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Cards con efecto “panel blanco” */
+.card{
+  border: none !important;
+  border-radius: 22px !important;
+  background: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 45px rgba(0,0,0,0.18) !important;
+}
+
+.card-body{
+  padding: 2rem !important;
+}
+
+/* Títulos grandes como en la imagen */
+.card h1, .card h2, .card h3{
+  color: var(--swgfv-primary);
+  font-weight: 900;
+}
+
+/* Inputs */
+.form-control, .form-select{
+  border-radius: 12px !important;
+  padding: .7rem .9rem !important;
+  border: 1px solid rgba(0,0,0,0.12) !important;
+}
+
+.form-control:focus, .form-select:focus{
+  border-color: rgba(24,184,155,0.55) !important;
+  box-shadow: 0 0 0 .22rem rgba(24,184,155,0.20) !important;
+}
+
+/* Botón principal en formularios (Guardar, etc.) */
+.btn.btn-primary{
+  background: var(--swgfv-primary) !important;
+  border: none !important;
+  border-radius: 12px;
+  padding: .65rem 1.2rem;
+  font-weight: 800;
+}
+
+.btn.btn-primary:hover{
+  background: #0b2f5b !important;
+}
+
+/* Tablas */
+.table{
+  border-radius: 14px;
+  overflow: hidden;
+}
+.table thead th{
+  background: rgba(0,31,63,0.08);
+  color: var(--swgfv-primary);
+  font-weight: 900;
+}
+
+/* Alerts */
+.alert{
+  border-radius: 14px;
+}
+
+/* responsive */
+@media (max-width: 768px){
+  .brand-title{ font-size: 1rem; }
+  .swgfv-nav .navbar-nav .nav-link{ padding: .85rem 1rem; }
+  .card-body{ padding: 1.3rem !important; }
+}
+
+/* =========================
+   LOGIN (estilo tipo imagen)
+   ========================= */
+
+.login-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+
+.login-topbar-inner {
+  padding: 14px 20px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.login-title {
+  font-weight: 700;
+  color: #0b2a4a;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+/* Fondo con imagen */
+.login-hero {
+  min-height: calc(100vh - 86px);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px 16px;
+}
+
+/* Tarjeta centrada */
+.login-card {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: blur(6px);
+
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(0,0,0,0.18);
+
+  padding: 34px 34px 22px;
+}
+
+.login-card-title {
+  text-align: center;
+  font-weight: 800;
+  color: #0b2a4a;
+  margin-bottom: 24px;
+}
+
+/* Botón rojo ancho */
+.btn-login {
+  background: #c8102e;
+  color: #fff;
+  font-weight: 700;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: none;
+}
+
+.btn-login:hover {
+  background: #ad0e28;
+  color: #fff;
+}
+
+.login-link {
+  color: #0b2a4a;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-link:hover {
+  text-decoration: underline;
+}
+
+/* Captcha estilo caja */
+.login-captcha-box {
+  font-weight: 800;
+  color: #0b2a4a;
+  background: rgba(13, 110, 253, 0.08);
+  border: 1px solid rgba(13, 110, 253, 0.25);
+  padding: 10px 14px;
+  border-radius: 10px;
+  min-width: 140px;
+  text-align: center;
+}
+
+.login-footer {
+  color: rgba(11,42,74,.75);
+  font-size: 13px;
+}
+
+.swgfv-header {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+/* Evita salto raro debajo del navbar */
+.swgfv-nav{
+  margin-bottom: 0 !important;
+}
+

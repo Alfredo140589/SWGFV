@@ -73,7 +73,7 @@ class Proyecto(models.Model):
 # BLOQUEO LOGIN (TABLA login_locks)
 # =========================
 class LoginLock(models.Model):
-    usuario_key = models.CharField(max_length=150, unique=True)  # correo/usuario normalizado
+    usuario_key = models.CharField(max_length=150, unique=True)
     fails = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
 
@@ -85,13 +85,12 @@ class LoginLock(models.Model):
             return False
         return timezone.now() < self.locked_until
 
-
-def remaining_minutes(self) -> int:
-    if not self.is_locked():
-        return 0
-    delta = self.locked_until - timezone.now()
-    seconds = max(0, int(delta.total_seconds()))
-    return max(1, (seconds + 59) // 60)
+    def remaining_minutes(self) -> int:
+        if not self.is_locked():
+            return 0
+        delta = self.locked_until - timezone.now()
+        seconds = max(0, int(delta.total_seconds()))
+        return max(1, (seconds + 59) // 60)
 
 # =========================
 # BITÁCORA / AUDIT (TABLA audit_logs)
@@ -171,8 +170,6 @@ class PanelSolar(models.Model):
     vmp = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)       # V
     imp = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)       # A
 
-    # Opcional (si luego nos pasas eficiencia del módulo)
-    module_efficiency = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     class Meta:
         verbose_name = "Panel Solar"
@@ -182,30 +179,49 @@ class PanelSolar(models.Model):
     def __str__(self):
         return f"{self.marca} {self.modelo} ({self.potencia or 0}W)"
 
-
 # =========================
 # [MODULO] NUMERO DE PANELES (CAPTURA)
 # Ruta: core/models.py
 # =========================
 class NumeroPaneles(models.Model):
+    """
+    Guarda la configuración del cálculo (sin fórmulas por ahora).
+    Relación:
+    - 1 Proyecto -> 1 NumeroPaneles (OneToOne)
+    - 1 NumeroPaneles -> 1 PanelSolar (FK)  ✅ (por UI actual: se selecciona 1 panel)
+    - 1 NumeroPaneles -> 1 Irradiancia (FK)
+    - 1 NumeroPaneles -> 1 ResultadoPaneles (OneToOne) (placeholder)
+    """
+
     TIPO_FACTURACION = (
         ("MENSUAL", "Mensual"),
         ("BIMESTRAL", "Bimestral"),
     )
 
-    # IMPORTANTE:
-    # Un proyecto tiene un registro de “numero_paneles” (1 a 1).
-    # Si necesitas permitir varios cálculos por proyecto después, lo cambiamos a ForeignKey.
-    proyecto = models.OneToOneField("Proyecto", on_delete=models.CASCADE, related_name="numero_paneles")
-
-    panel = models.ForeignKey(PanelSolar, on_delete=models.PROTECT, related_name="calculos_numero_paneles")
-    irradiancia = models.ForeignKey(Irradiancia, on_delete=models.PROTECT, related_name="calculos_numero_paneles")
+    proyecto = models.OneToOneField(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="numero_paneles",
+    )
 
     tipo_facturacion = models.CharField(max_length=10, choices=TIPO_FACTURACION)
 
-    # Captura:
-    eficiencia = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)  # % o factor (lo definimos después)
-    consumos = models.JSONField(default=dict)  # aquí guardaremos 12 meses o 6 bimestres
+    irradiancia = models.ForeignKey(
+        "Irradiancia",
+        on_delete=models.PROTECT,
+        related_name="calculos_numero_paneles",
+    )
+
+    # ✅ En tu UI actual eliges 1 panel, así que FK es lo correcto.
+    panel = models.ForeignKey(
+        "PanelSolar",
+        on_delete=models.PROTECT,
+        related_name="calculos_numero_paneles",
+    )
+
+    # Captura
+    eficiencia = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    consumos = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -223,11 +239,22 @@ class NumeroPaneles(models.Model):
 # Ruta: core/models.py
 # =========================
 class ResultadoPaneles(models.Model):
-    numero_paneles = models.OneToOneField(NumeroPaneles, on_delete=models.CASCADE, related_name="resultado")
+    """
+    Placeholder de resultados (sin fórmulas aún).
+    Relación: 1 ResultadoPaneles <-> 1 NumeroPaneles (OneToOne)
+    """
+
+    numero_paneles = models.OneToOneField(
+        "NumeroPaneles",
+        on_delete=models.CASCADE,
+        related_name="resultado",
+    )
 
     no_modulos = models.IntegerField(null=True, blank=True)
-    generacion_por_periodo = models.JSONField(default=dict, blank=True)  # mensual o bimestral
-    generacion_anual = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    generacion_por_periodo = models.JSONField(default=dict, blank=True)
+    generacion_anual = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+
+    potencia_total = models.FloatField(null=True, blank=True)
 
     # placeholders para gráficas (luego lo hacemos con Chart.js y guardamos config/datos)
     grafica_1 = models.JSONField(default=dict, blank=True)
@@ -242,3 +269,133 @@ class ResultadoPaneles(models.Model):
 
     def __str__(self):
         return f"ResultadoPaneles - NumeroPaneles {self.numero_paneles_id}"
+
+# =========================
+# [MODULO] INVERSORES (CATÁLOGO)
+# Ruta: core/models.py
+# =========================
+class Inversor(models.Model):
+    marca = models.CharField(max_length=80)
+    modelo = models.CharField(max_length=120)
+
+    # opcionales (si después los ocupas)
+    potencia_w = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    voltaje_salida = models.CharField(max_length=50, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Inversor"
+        verbose_name_plural = "Inversores"
+        ordering = ["marca", "modelo"]
+        db_table = "inversores"
+
+    def __str__(self):
+        return f"{self.marca} {self.modelo}"
+
+
+# =========================
+# [MODULO] MICRO INVERSORES (CATÁLOGO)
+# Ruta: core/models.py
+# =========================
+class MicroInversor(models.Model):
+    marca = models.CharField(max_length=80)
+    modelo = models.CharField(max_length=120)
+
+    # opcionales (si después los ocupas)
+    potencia_w = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    canales = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Micro inversor"
+        verbose_name_plural = "Micro inversores"
+        ordering = ["marca", "modelo"]
+        db_table = "micro_inversores"
+
+    def __str__(self):
+        return f"{self.marca} {self.modelo}"
+
+# =========================
+# [MODULO] DIMENSIONAMIENTO (CABECERA)
+# 1 Proyecto -> 1 Dimensionamiento
+# =========================
+class Dimensionamiento(models.Model):
+    TIPO_INVERSOR = (
+        ("INVERSOR", "Inversor"),
+        ("MICRO", "Micro inversor"),
+    )
+
+    proyecto = models.OneToOneField(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="dimensionamiento",
+    )
+
+    tipo_inversor = models.CharField(max_length=10, choices=TIPO_INVERSOR)
+
+    # total de inversores/microinversores capturados en UI
+    no_inversores = models.PositiveIntegerField(default=1)
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "dimensionamiento"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Dimensionamiento - Proyecto {self.proyecto_id}"
+
+
+# =========================
+# [MODULO] DIMENSIONAMIENTO (DETALLE POR INVERSOR)
+# Dimensionamiento -> muchos detalles
+# =========================
+class DimensionamientoDetalle(models.Model):
+    dimensionamiento = models.ForeignKey(
+        "Dimensionamiento",
+        on_delete=models.CASCADE,
+        related_name="detalles",
+    )
+
+    # Cada detalle puede ser inversor O micro inversor (solo uno)
+    inversor = models.ForeignKey(
+        "Inversor",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="dimensionamiento_detalles",
+    )
+
+    micro_inversor = models.ForeignKey(
+        "MicroInversor",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="dimensionamiento_detalles",
+    )
+
+    no_cadenas = models.PositiveIntegerField(default=1)
+    modulos_por_cadena = models.PositiveIntegerField(default=1)
+    # NUEVO: lista con módulos por cada cadena [9,10,8...]
+    modulos_por_cadena_lista = models.JSONField(default=list, blank=True)
+
+    # Para identificar “Inversor 1 / Inversor 2…”
+    indice = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "dimensionamiento_detalle"
+        ordering = ["indice"]
+        constraints = [
+            models.UniqueConstraint(fields=["dimensionamiento", "indice"], name="uniq_dim_indice"),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Regla: solo uno puede estar lleno
+        if self.inversor_id and self.micro_inversor_id:
+            raise ValidationError("No puedes asignar inversor y micro inversor al mismo tiempo.")
+        if not self.inversor_id and not self.micro_inversor_id:
+            raise ValidationError("Debes seleccionar un inversor o un micro inversor.")
+
+    def __str__(self):
+        return f"Detalle {self.indice} - Dim {self.dimensionamiento_id}"
+

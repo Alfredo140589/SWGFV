@@ -1,4 +1,358 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+<!-- TEMPLATE: numero_modulos.html CARGADO ✅ -->
+{% extends "core/layout.html" %}
+{% load static %}
+{% load extras %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block page_content %}
+<div class="card shadow-sm border-0 mt-3">
+  <div class="card-body">
+
+    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Cálculo de número de módulos</h2>
+
+    <form method="post" action="">
+      {% csrf_token %}
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="proyectoSelect">Selecciona el proyecto</label>
+          <select class="form-select" name="proyecto" id="proyectoSelect" required>
+            <option value="">-- Selecciona --</option>
+            {% for p in proyectos %}
+              {% if selected_proyecto_id == p.id %}
+                <option value="{{ p.id }}" selected>{{ p.Nombre_Proyecto }}</option>
+              {% else %}
+                <option value="{{ p.id }}">{{ p.Nombre_Proyecto }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">Solo aparecen tus proyectos registrados.</div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="tipoFacturacion">Tipo de facturación CFE</label>
+          <select class="form-select" name="tipo_facturacion" id="tipoFacturacion" required>
+            {% if np_obj and np_obj.tipo_facturacion == "MENSUAL" %}
+              <option value="mensual" selected>Mensual (12 consumos)</option>
+              <option value="bimestral">Bimestral (6 consumos)</option>
+            {% elif np_obj and np_obj.tipo_facturacion == "BIMESTRAL" %}
+              <option value="mensual">Mensual (12 consumos)</option>
+              <option value="bimestral" selected>Bimestral (6 consumos)</option>
+            {% else %}
+              <option value="mensual">Mensual (12 consumos)</option>
+              <option value="bimestral">Bimestral (6 consumos)</option>
+            {% endif %}
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="irradianciaSelect">Irradiancia promedio (selecciona ciudad)</label>
+          <select class="form-select" name="irradiancia" id="irradianciaSelect" required>
+            <option value="">-- Selecciona ciudad --</option>
+            {% for i in irradiancias %}
+              {% if np_obj and np_obj.irradiancia_id == i.id %}
+                <option value="{{ i.id }}" selected>
+                  {{ i.ciudad }} - {{ i.estado }} (Prom: {{ i.promedio }})
+                </option>
+              {% else %}
+                <option value="{{ i.id }}">
+                  {{ i.ciudad }} - {{ i.estado }} (Prom: {{ i.promedio }})
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="eficienciaSelect">Eficiencia (factor)</label>
+          <select class="form-select" name="eficiencia" id="eficienciaSelect" required>
+            <option value="">-- Selecciona --</option>
+            {% if np_obj and np_obj.eficiencia == 0.7 %}
+              <option value="0.7" selected>0.7</option>
+              <option value="0.8">0.8</option>
+            {% elif np_obj and np_obj.eficiencia == 0.8 %}
+              <option value="0.7">0.7</option>
+              <option value="0.8" selected>0.8</option>
+            {% else %}
+              <option value="0.7">0.7</option>
+              <option value="0.8">0.8</option>
+            {% endif %}
+          </select>
+          <div class="form-text">No es porcentaje. Ej: 0.7</div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          <label class="form-label fw-semibold" for="panelSelect">Marca y modelo del panel</label>
+          <select class="form-select" name="panel" id="panelSelect" required>
+            <option value="">-- Selecciona panel --</option>
+            {% for m in paneles %}
+              {% if np_obj and np_obj.panel_id == m.id %}
+                <option value="{{ m.id }}" selected>
+                  {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
+                </option>
+              {% else %}
+                <option value="{{ m.id }}">
+                  {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <h3 class="h6 fw-bold mb-2">Consumos (kWh)</h3>
+
+      <div id="bloqueMensual" class="row g-2 mb-3">
+        {% for mes in meses %}
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="id_{{ mes.key }}">{{ mes.label }}</label>
+            <input
+              class="form-control"
+              type="number"
+              id="id_{{ mes.key }}"
+              name="{{ mes.name }}"
+              step="0.01"
+              min="0"
+              placeholder="kWh"
+              value="{% if np_obj %}{{ np_obj.consumos|get_item:mes.key|default_if_none:'' }}{% endif %}">
+          </div>
+        {% endfor %}
+      </div>
+
+      <div id="bloqueBimestral" class="row g-2 mb-3" style="display:none;">
+        {% for b in bimestres %}
+          <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="id_{{ b.key }}">{{ b.label }}</label>
+            <input
+              class="form-control"
+              type="number"
+              id="id_{{ b.key }}"
+              name="{{ b.name }}"
+              step="0.01"
+              min="0"
+              placeholder="kWh"
+              value="{% if np_obj %}{{ np_obj.consumos|get_item:b.key|default_if_none:'' }}{% endif %}">
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-success" type="submit" name="action" value="calcular">Calcular</button>
+        <button class="btn btn-outline-secondary" type="reset">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ✅ RESULTADOS -->
+<div class="card shadow-sm border-0 mt-3">
+  <div class="card-body">
+    <h3 class="h6 fw-bold text-primary-emphasis mb-3">Resultados</h3>
+
+    {% if np_obj and resultado %}
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="border rounded p-3 h-100">
+            <div class="small text-muted">Nombre del proyecto</div>
+            <div class="fw-semibold">{{ np_obj.proyecto.Nombre_Proyecto }}</div>
+
+            <hr class="my-2">
+
+            <div class="small text-muted">Tipo de facturación</div>
+            <div class="fw-semibold">{{ np_obj.tipo_facturacion }}</div>
+
+            <div class="small text-muted mt-2">Eficiencia</div>
+            <div class="fw-semibold">{{ np_obj.eficiencia }}</div>
+
+            <div class="small text-muted mt-2">Modelo del módulo</div>
+            <div class="fw-semibold">
+              {{ np_obj.panel.marca }} - {{ np_obj.panel.modelo }} ({{ np_obj.panel.potencia }} W)
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="border rounded p-3 h-100">
+            <div class="small text-muted">Número de módulos</div>
+            <div class="display-6 fw-bold mb-2">{{ resultado.no_modulos }}</div>
+
+            <div class="small text-muted">Potencia total instalada (kW)</div>
+            <div class="fw-semibold">{{ resultado.potencia_total }}</div>
+
+            <div class="small text-muted mt-2">Generación anual (kWh)</div>
+            <div class="fw-semibold">{{ resultado.generacion_anual }}</div>
+
+            <hr class="my-2">
+
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-outline-danger btn-sm" href="{% url 'core:numero_modulos_pdf' np_obj.proyecto.id %}">
+                Descargar PDF
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ TABLA CONSUMOS -->
+      <div class="mt-4">
+        <h4 class="h6 fw-bold mb-2">Tabla de consumos ({{ np_obj.tipo_facturacion }})</h4>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Periodo</th>
+                <th class="text-end">Consumo (kWh)</th>
+                <th class="text-end">Generación (kWh)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if tabla_periodos %}
+                {% for row in tabla_periodos %}
+                  <tr>
+                    <td>{{ row.label }}</td>
+                    <td class="text-end">{{ row.consumo }}</td>
+                    <td class="text-end">{{ row.generacion }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="3" class="text-center text-muted">Aún no hay datos para mostrar.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ✅ GRÁFICAS -->
+      <div class="row g-3 mt-2">
+        <div class="col-12 col-lg-6">
+          <div class="border rounded p-3">
+            <h5 class="h6 fw-bold mb-2">Gráfica 1: Generación por periodo</h5>
+            <div style="height:320px;">
+              <canvas id="chartGen"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+          <div class="border rounded p-3">
+            <h5 class="h6 fw-bold mb-2">Gráfica 2: Generación vs Consumo</h5>
+            <div style="height:320px;">
+              <canvas id="chartGenVsCons"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    {% else %}
+      <div class="alert alert-secondary mb-0">
+        Selecciona un proyecto y presiona <b>Calcular</b>. Aquí se mostrarán resultados, tabla y gráficas.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+{# ✅ IMPORTANTE: json_script debe quedar FUERA de cualquier <script> #}
+{{ chart_labels|json_script:"labelsData" }}
+{{ chart_generacion|json_script:"genData" }}
+{{ chart_consumo|json_script:"consData" }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  // ==========================
+  // ✅ Toggle consumos
+  // ==========================
+  const tipo = document.getElementById("tipoFacturacion");
+  const mensual = document.getElementById("bloqueMensual");
+  const bimestral = document.getElementById("bloqueBimestral");
+
+  function toggleConsumos() {
+    if (!tipo || !mensual || !bimestral) return;
+    const v = tipo.value;
+    if (v === "bimestral") {
+      mensual.style.display = "none";
+      bimestral.style.display = "";
+    } else {
+      mensual.style.display = "";
+      bimestral.style.display = "none";
+    }
+  }
+
+  if (tipo) {
+    tipo.addEventListener("change", toggleConsumos);
+    toggleConsumos();
+  }
+
+  // ==========================
+  // ✅ GRÁFICAS
+  // ==========================
+  const labelsEl = document.getElementById("labelsData");
+  const genEl = document.getElementById("genData");
+  const consEl = document.getElementById("consData");
+
+  // si no hay data (no se ha calculado), no intentamos dibujar
+  if (!labelsEl || !genEl || !consEl) return;
+
+  let labels = [];
+  let gen = [];
+  let cons = [];
+
+  try {
+    labels = JSON.parse(labelsEl.textContent || "[]");
+    gen = JSON.parse(genEl.textContent || "[]");
+    cons = JSON.parse(consEl.textContent || "[]");
+  } catch (e) {
+    console.error("JSON inválido para gráficas:", e);
+    return;
+  }
+
+  if (!Array.isArray(labels) || labels.length === 0) return;
+
+  // ✅ Si hay canvas, dibujamos
+  const c1 = document.getElementById("chartGen");
+  if (c1) {
+    new Chart(c1, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{ label: "Generación (kWh)", data: gen }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
+
+  const c2 = document.getElementById("chartGenVsCons");
+  if (c2) {
+    new Chart(c2, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          { label: "Consumo (kWh)", data: cons },
+          { label: "Generación (kWh)", data: gen }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -1,4 +1,327 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+{% extends "core/layout.html" %}
+{% load static %}
+{% load extras %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block page_content %}
+<div class="card shadow-sm border-0 mt-3">
+  <div class="card-body">
+    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Dimensionamiento</h2>
+
+    <form method="post" action="">
+      {% csrf_token %}
+
+      <!-- Proyecto -->
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="proyectoSelect">Selecciona el proyecto</label>
+
+          <select class="form-select" name="proyecto" id="proyectoSelect" required>
+            <option value="">-- Selecciona --</option>
+
+            {% for p in proyectos %}
+              {% if selected_proyecto_id == p.id %}
+                <option value="{{ p.id }}" selected="selected">{{ p.Nombre_Proyecto }}</option>
+              {% else %}
+                <option value="{{ p.id }}">{{ p.Nombre_Proyecto }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+
+          <div class="form-text">Al seleccionar, se cargan los datos del proyecto.</div>
+        </div>
+      </div>
+
+      {% if proyecto %}
+      <!-- Info del proyecto -->
+      <div class="border rounded p-3 mb-3">
+        <div class="row g-2">
+          <div class="col-12 col-md-3">
+            <div class="small text-muted">Número de fases</div>
+            <div class="fw-semibold">{{ proyecto.Numero_Fases }}</div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <div class="small text-muted">Voltaje</div>
+            <div class="fw-semibold">{{ proyecto.Voltaje_Nominal }}</div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <div class="small text-muted">Número de módulos</div>
+            <div class="fw-semibold">
+              {% if info_modulos.no_modulos is not None %}
+                {{ info_modulos.no_modulos }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- ✅ NUEVO: potencia_total -->
+          <div class="col-12 col-md-3">
+            <div class="small text-muted">Potencia total (kW)</div>
+            <div class="fw-semibold">
+              {% if potencia_total %}
+                {{ potencia_total }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 mt-2">
+            <div class="small text-muted">Modelo del módulo</div>
+            <div class="fw-semibold">
+              {% if info_modulos.modelo_modulo %}
+                {{ info_modulos.modelo_modulo }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Tipo instalación + cantidad -->
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="tipoInstalacion">Tipo de instalación</label>
+          <select class="form-select" name="tipo_inversor" id="tipoInstalacion" required>
+            {% if current_tipo == "MICRO" %}
+              <option value="INVERSOR">Inversor</option>
+              <option value="MICRO" selected="selected">Micro inversor</option>
+            {% else %}
+              <option value="INVERSOR" selected="selected">Inversor</option>
+              <option value="MICRO">Micro inversor</option>
+            {% endif %}
+          </select>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="noInversores">Número de inversores o micro inversores</label>
+          <input
+            class="form-control"
+            type="number"
+            min="1"
+            name="no_inversores"
+            id="noInversores"
+            value="{{ current_no_inv|default:1 }}"
+            required
+          >
+        </div>
+      </div>
+
+      <!-- ✅ Catálogos ocultos (se leen desde JS) -->
+      <div class="d-none">
+        <select id="tplInversores">
+          <option value="">-- Selecciona --</option>
+          {% for inv in inversores %}
+            <option value="{{ inv.id }}">{{ inv }}</option>
+          {% endfor %}
+        </select>
+
+        <select id="tplMicro">
+          <option value="">-- Selecciona --</option>
+          {% for mi in micro_inversores %}
+            <option value="{{ mi.id }}">{{ mi }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Contenedor dinámico -->
+      <div class="border rounded p-3 mb-3">
+        <h3 class="h6 fw-bold mb-3">Configuración por inversor</h3>
+        <div id="contenedorInversores"></div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+        <button class="btn btn-outline-secondary" type="reset">Cancelar</button>
+        <button class="btn btn-success" type="submit" name="action" value="guardar">Guardar</button>
+      </div>
+    </form>
+
+    <!-- ✅ TABLA ABAJO (config guardada) -->
+    {% if detalles_guardados %}
+      <hr class="my-4">
+      <h3 class="h6 fw-bold mb-3">Configuración guardada</h3>
+
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 90px;">#</th>
+              <th>Modelo</th>
+              <th style="width: 140px;">Cadenas</th>
+              <th>Módulos por cadena</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in detalles_guardados %}
+              <tr>
+                <td>{{ d.indice }}</td>
+                <td>
+                  {% if d.inversor %}
+                    {{ d.inversor }}
+                  {% elif d.micro_inversor %}
+                    {{ d.micro_inversor }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>{{ d.no_cadenas }}</td>
+                <td>
+                  {% if d.modulos_por_cadena_lista and d.modulos_por_cadena_lista|length > 0 %}
+                    {% for v in d.modulos_por_cadena_lista %}
+                      <span class="badge text-bg-secondary me-1">Cad {{ forloop.counter }}: {{ v }}</span>
+                    {% endfor %}
+                  {% else %}
+                    {{ d.modulos_por_cadena }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if proyecto %}
+        <a class="btn btn-outline-danger"
+           href="{% url 'core:dimensionamiento_pdf' proyecto.id %}">
+          Descargar PDF
+        </a>
+      {% endif %}
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+
+{{ precarga|json_script:"precargaData" }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const proyectoSelect = document.getElementById("proyectoSelect");
+  const tipoInstalacion = document.getElementById("tipoInstalacion");
+  const noInversores = document.getElementById("noInversores");
+  const contenedor = document.getElementById("contenedorInversores");
+
+  const precargaEl = document.getElementById("precargaData");
+  const precarga = precargaEl ? JSON.parse(precargaEl.textContent || "[]") : [];
+
+  const tplInv = document.getElementById("tplInversores");
+  const tplMic = document.getElementById("tplMicro");
+
+  function getOptionsHTML() {
+    const tipo = (tipoInstalacion?.value || "INVERSOR").toUpperCase();
+    if (tipo === "MICRO") {
+      return tplMic ? tplMic.innerHTML : '<option value="">-- Selecciona --</option>';
+    }
+    return tplInv ? tplInv.innerHTML : '<option value="">-- Selecciona --</option>';
+  }
+
+  function renderCadenas(i, cantidad, valores) {
+    const cont = document.getElementById(`cadenas_container_${i}`);
+    if (!cont) return;
+
+    cont.innerHTML = "";
+    const vals = Array.isArray(valores) ? valores : [];
+
+    for (let c = 1; c <= cantidad; c++) {
+      const val = (vals[c-1] !== undefined && vals[c-1] !== null) ? vals[c-1] : 1;
+
+      const div = document.createElement("div");
+      div.className = "col-12 col-md-4";
+      div.innerHTML = `
+        <label class="form-label fw-semibold" for="modulos_${i}_${c}">Módulos cadena ${c}</label>
+        <input class="form-control" type="number" min="1" name="modulos_${i}_${c}" id="modulos_${i}_${c}" value="${val}" required>
+      `;
+      cont.appendChild(div);
+    }
+  }
+
+  function buildBloque(i) {
+    const tipo = (tipoInstalacion?.value || "INVERSOR").toUpperCase();
+    const optionsHtml = getOptionsHTML();
+
+    const pre = precarga.find(x => Number(x.indice) === Number(i)) || {};
+    const modeloId = pre.modelo_id || "";
+    const cadenas = parseInt(pre.no_cadenas || 1, 10);
+    const modulosLista = pre.modulos_por_cadena_lista || []; // ✅ si luego la mandas en precarga
+    const modulos = pre.modulos_por_cadena || 1;
+
+    const block = document.createElement("div");
+    block.className = "border rounded p-3 mb-3";
+
+    block.innerHTML = `
+      <div class="fw-bold mb-2">${tipo === "MICRO" ? "Micro inversor" : "Inversor"} ${i}</div>
+
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="modelo_${i}">Seleccione el modelo</label>
+          <select class="form-select" name="modelo_${i}" id="modelo_${i}" required>
+            ${optionsHtml}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <label class="form-label fw-semibold" for="cadenas_${i}">Número de cadenas</label>
+          <input class="form-control" type="number" min="1" name="cadenas_${i}" id="cadenas_${i}" value="${cadenas}" required>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2" id="cadenas_container_${i}"></div>
+    `;
+
+    // set modelo seleccionado
+    const sel = block.querySelector(`#modelo_${i}`);
+    if (sel && modeloId) sel.value = String(modeloId);
+
+    // pintar cadenas
+    const inputCadenas = block.querySelector(`#cadenas_${i}`);
+
+    // si no hay lista, usamos el valor viejo repetido
+    let valores = modulosLista.length ? modulosLista : Array.from({length: cadenas}, () => modulos);
+    renderCadenas(i, cadenas, valores);
+
+    inputCadenas.addEventListener("input", function () {
+      let n = parseInt(this.value || "1", 10);
+      if (!Number.isFinite(n) || n < 1) n = 1;
+      if (n > 20) n = 20;
+      renderCadenas(i, n, []); // al cambiar, reinicia a 1
+    });
+
+    return block;
+  }
+
+  function renderBloques() {
+    if (!contenedor) return;
+    contenedor.innerHTML = "";
+
+    let n = parseInt(noInversores?.value || "1", 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > 20) n = 20;
+
+    for (let i = 1; i <= n; i++) {
+      contenedor.appendChild(buildBloque(i));
+    }
+  }
+
+  if (proyectoSelect) {
+    proyectoSelect.addEventListener("change", function () {
+      const val = proyectoSelect.value;
+      const baseUrl = window.location.pathname;
+      window.location.href = val ? `${baseUrl}?proyecto_id=${val}` : baseUrl;
+    });
+  }
+
+  if (tipoInstalacion) tipoInstalacion.addEventListener("change", renderBloques);
+  if (noInversores) noInversores.addEventListener("input", renderBloques);
+
+  renderBloques();
+});
+</script>
+{% endblock %}
