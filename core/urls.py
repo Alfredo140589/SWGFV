@@ -41,7 +41,8 @@ urlpatterns = [
     path("numero-modulos/", views.numero_modulos_view, name="numero_modulos"),
 # ✅ EXPORTS:
     path("numero-modulos/<int:proyecto_id>/pdf/", views.numero_modulos_pdf, name="numero_modulos_pdf"),
-
+# Catálogos
+    path("catalogos/paneles/alta/", views.panel_solar_alta, name="panel_solar_alta"),
 path(
     "dimensionamiento/<int:proyecto_id>/pdf/",
     views.dimensionamiento_pdf,

@@ -84,24 +84,34 @@
       </div>
 
       <div class="row g-3 mb-4">
-        <div class="col-12">
-          <label class="form-label fw-semibold" for="panelSelect">Marca y modelo del panel</label>
-          <select class="form-select" name="panel" id="panelSelect" required>
-            <option value="">-- Selecciona panel --</option>
-            {% for m in paneles %}
-              {% if np_obj and np_obj.panel_id == m.id %}
-                <option value="{{ m.id }}" selected>
-                  {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
-                </option>
-              {% else %}
-                <option value="{{ m.id }}">
-                  {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
-                </option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </div>
-      </div>
+  <div class="col-12">
+    <div class="d-flex align-items-center justify-content-between gap-2">
+      <label class="form-label fw-semibold mb-0" for="panelSelect">Marca y modelo del panel</label>
+
+      {% if request.session.tipo == "Administrador" %}
+        <a class="btn btn-outline-primary btn-sm"
+           href="{% url 'core:panel_solar_alta' %}?next={{ request.get_full_path|urlencode }}">
+          + Agregar panel
+        </a>
+      {% endif %}
+    </div>
+
+    <select class="form-select mt-2" name="panel" id="panelSelect" required>
+      <option value="">-- Selecciona panel --</option>
+      {% for m in paneles %}
+        {% if np_obj and np_obj.panel_id == m.id %}
+          <option value="{{ m.id }}" selected>
+            {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
+          </option>
+        {% else %}
+          <option value="{{ m.id }}">
+            {{ m.marca }} - {{ m.modelo }} ({{ m.potencia }} W)
+          </option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </div>
+</div>
 
       <h3 class="h6 fw-bold mb-2">Consumos (kWh)</h3>
 

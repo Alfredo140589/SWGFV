@@ -407,6 +407,43 @@ class NumeroPanelesForm(forms.ModelForm):
         if commit:
             obj.save()
         return obj
+# =========================================================
+# ✅ FORM: Alta de Panel Solar (Catálogo)
+# =========================================================
+class PanelSolarCreateForm(forms.ModelForm):
+    class Meta:
+        model = PanelSolar
+        fields = ["id_modulo", "marca", "modelo", "potencia", "voc", "isc", "vmp", "imp"]
+        widgets = {
+            "id_modulo": forms.NumberInput(attrs={"class": "form-control", "readonly": "readonly"}),
+            "marca": forms.TextInput(attrs={"class": "form-control", "placeholder": "Marca"}),
+            "modelo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Modelo"}),
+            "potencia": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "voc": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "isc": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "vmp": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "imp": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+        }
+
+    def clean_id_modulo(self):
+        """
+        Ya no exigimos que el usuario capture id_modulo.
+        El servidor lo asigna automáticamente.
+        Solo validamos si llega un valor manual por manipulación.
+        """
+        v = self.cleaned_data.get("id_modulo")
+        if v is None:
+            return v  # el server lo pondrá
+
+        if PanelSolar.objects.filter(id_modulo=v).exists():
+            raise forms.ValidationError("Ese id_modulo ya existe. Se asignará automáticamente.")
+        return v
+
+    def clean_modelo(self):
+        v = (self.cleaned_data.get("modelo") or "").strip()
+        if not v:
+            raise forms.ValidationError("El modelo es obligatorio.")
+        return v
 
 # core/forms.py
 from django import forms

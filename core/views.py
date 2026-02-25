@@ -21,6 +21,7 @@ from django.contrib.staticfiles import finders
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from core.forms import PanelSolarCreateForm
 
 from .forms import (
     LoginForm,
@@ -1040,7 +1041,54 @@ def dimensionamiento_calculo_modulos(request):
         "chart_generacion": chart_generacion,
     }
     return render(request, "core/pages/dimensionamiento_calculo_modulos.html", context)
+# =========================================================
+# CATÁLOGOS: Alta de Panel Solar
+# =========================================================
+@require_session_login
+@require_http_methods(["GET", "POST"])
+def panel_solar_alta(request):
+    session_tipo = (request.session.get("tipo") or "").strip()
 
+    # ✅ Seguridad recomendada: solo Admin puede insertar catálogos
+    if session_tipo != "Administrador":
+        messages.error(request, "No tienes permisos para agregar paneles solares.")
+        return redirect("core:dimensionamiento_calculo_modulos")
+
+    next_url = (request.GET.get("next") or "").strip()
+    form = PanelSolarCreateForm(request.POST or None)
+
+    # ✅ Siguiente id_modulo automático (último + 1)
+    ultimo = PanelSolar.objects.order_by("-id_modulo").first()
+    next_id = (ultimo.id_modulo + 1) if ultimo else 1
+
+    # ✅ Prefill solo en GET (form vacío)
+    if request.method == "GET":
+        form.initial["id_modulo"] = next_id
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        # ✅ Cancelar: no guarda nada
+        if action == "cancel":
+            messages.info(request, "Operación cancelada. No se guardó ningún panel.")
+            return redirect(next_url or "core:dimensionamiento_calculo_modulos")
+
+        # ✅ Guardar
+        if form.is_valid():
+            panel = form.save(commit=False)
+
+            # ✅ Fuerza id_modulo automático en servidor
+            ultimo = PanelSolar.objects.order_by("-id_modulo").first()
+            panel.id_modulo = (ultimo.id_modulo + 1) if ultimo else 1
+
+            panel.save()
+
+            messages.success(request, f"✅ Panel agregado: {panel.marca} {panel.modelo}")
+            return redirect(next_url or "core:dimensionamiento_calculo_modulos")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    return render(request, "core/pages/panel_solar_alta.html", {"form": form, "next_url": next_url})
 
 # =========================================================
 # DIMENSIONAMIENTO (por inversor)
