@@ -69,9 +69,21 @@
       </div>
 
       <div class="d-flex gap-2 mt-4">
-        <button class="btn btn-swgfv" type="submit">Guardar proyecto</button>
-        <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">Ir a consulta</a>
-      </div>
+  <!-- Guardar -->
+  <button class="btn btn-swgfv" type="submit" name="action" value="save">
+    Guardar proyecto
+  </button>
+
+  <!-- Cancelar: limpia el formulario sin guardar -->
+  <button class="btn btn-outline-danger" type="submit" name="action" value="cancel">
+    Cancelar
+  </button>
+
+  <!-- Ir a consulta -->
+  <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">
+    Ir a consulta
+  </a>
+</div>
     </form>
   </div>
 </div>

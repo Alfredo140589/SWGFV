@@ -142,7 +142,6 @@ def _read_reset_token(token: str):
 def login_view(request):
     """
     Login con captcha firmado + lock por usuario (LoginLock en BD).
-    Parche: evita 500, registra el traceback en logs si algo explota.
     """
     try:
         if request.session.get("usuario") and request.session.get("tipo"):
@@ -412,7 +411,6 @@ def debug_sesion(request):
     }
     return JsonResponse(data, json_dumps_params={"ensure_ascii": False, "indent": 2})
 
-
 # =========================================================
 # PROYECTOS
 # =========================================================
@@ -429,22 +427,37 @@ def proyecto_alta(request):
         messages.error(request, "Usuario inválido o inactivo.")
         return redirect("core:logout")
 
+    # ✅ Instancia del form (POST o vacío)
     form = ProyectoCreateForm(request.POST or None)
+
     if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+
+        # ✅ CANCELAR: no guarda nada y limpia formulario
+        if action == "cancel":
+            messages.info(request, "Operación cancelada. El formulario fue limpiado.")
+            return redirect("core:proyecto_alta")  # recarga por GET y queda vacío
+
+        # ✅ GUARDAR: flujo normal
         if form.is_valid():
             proyecto = form.save(commit=False)
             proyecto.ID_Usuario = user
             proyecto.save()
 
-            log_event(request, "PROJECT_CREATED", f"Creó proyecto: {proyecto.Nombre_Proyecto}", "Proyecto", proyecto.id)
+            log_event(
+                request,
+                "PROJECT_CREATED",
+                f"Creó proyecto: {proyecto.Nombre_Proyecto}",
+                "Proyecto",
+                proyecto.id
+            )
 
             messages.success(request, "✅ Proyecto registrado correctamente.")
             return redirect("core:proyecto_alta")
+
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
     return render(request, "core/pages/proyecto_alta.html", {"form": form})
-
-
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_consulta(request):
@@ -1122,7 +1135,7 @@ def dimensionamiento_dimensionamiento(request):
 
             no_inversores = int(no_inv_raw)
 
-            # ✅ Guardar/actualizar cabecera
+            # Guardar/actualizar cabecera
             dim, _ = Dimensionamiento.objects.update_or_create(
                 proyecto=proyecto,
                 defaults={
@@ -1131,7 +1144,7 @@ def dimensionamiento_dimensionamiento(request):
                 }
             )
 
-            # ✅ Guardar detalles
+            # Guardar detalles
             errores = False
             saved_indices = set()
 
