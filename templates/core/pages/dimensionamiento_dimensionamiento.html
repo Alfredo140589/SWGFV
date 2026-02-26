@@ -85,8 +85,26 @@
       <!-- Tipo instalación + cantidad -->
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-6">
-          <label class="form-label fw-semibold" for="tipoInstalacion">Tipo de instalación</label>
-          <select class="form-select" name="tipo_inversor" id="tipoInstalacion" required>
+          <!-- ✅ MODIFICADO (Paso 5): botones + Agregar según tipo -->
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <label class="form-label fw-semibold mb-0" for="tipoInstalacion">Tipo de instalación</label>
+
+            {% if request.session.tipo == "Administrador" %}
+              <div class="d-flex gap-2">
+                <a id="btnAddInv" class="btn btn-outline-primary btn-sm"
+                   href="{% url 'core:inversor_alta' %}?next={{ request.get_full_path|urlencode }}">
+                  + Agregar inversor
+                </a>
+
+                <a id="btnAddMicro" class="btn btn-outline-primary btn-sm d-none"
+                   href="{% url 'core:micro_inversor_alta' %}?next={{ request.get_full_path|urlencode }}">
+                  + Agregar micro
+                </a>
+              </div>
+            {% endif %}
+          </div>
+
+          <select class="form-select mt-2" name="tipo_inversor" id="tipoInstalacion" required>
             {% if current_tipo == "MICRO" %}
               <option value="INVERSOR">Inversor</option>
               <option value="MICRO" selected="selected">Micro inversor</option>
@@ -214,6 +232,28 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const tplInv = document.getElementById("tplInversores");
   const tplMic = document.getElementById("tplMicro");
+
+  // ✅ NUEVO (Paso 6): Botones Agregar catálogo según tipo
+  const btnAddInv = document.getElementById("btnAddInv");
+  const btnAddMicro = document.getElementById("btnAddMicro");
+
+  function toggleAddButtons() {
+    const tipo = (tipoInstalacion?.value || "INVERSOR").toUpperCase();
+    if (!btnAddInv || !btnAddMicro) return;
+
+    if (tipo === "MICRO") {
+      btnAddInv.classList.add("d-none");
+      btnAddMicro.classList.remove("d-none");
+    } else {
+      btnAddInv.classList.remove("d-none");
+      btnAddMicro.classList.add("d-none");
+    }
+  }
+
+  if (tipoInstalacion) {
+    tipoInstalacion.addEventListener("change", toggleAddButtons);
+    toggleAddButtons();
+  }
 
   function getOptionsHTML() {
     const tipo = (tipoInstalacion?.value || "INVERSOR").toUpperCase();

@@ -2,7 +2,7 @@ from django import forms
 import re
 
 from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles
-
+from .models import Inversor, MicroInversor
 
 # ======================================================
 # LOGIN
@@ -444,7 +444,87 @@ class PanelSolarCreateForm(forms.ModelForm):
         if not v:
             raise forms.ValidationError("El modelo es obligatorio.")
         return v
+# =========================================================
+# ✅ FORMS: Alta de Catálogos (Inversor / MicroInversor)
+# =========================================================
+class InversorCreateForm(forms.ModelForm):
+    class Meta:
+        model = Inversor
+        fields = [
+            "marca", "modelo",
+            "potencia",
+            "corriente_entrada", "corriente_salida",
+            "voltaje_arranque", "voltaje_maximo_entrada",
+            "no_mppt", "no_fases",
+            "voltaje_nominal",
+        ]
+        widgets = {
+            "marca": forms.TextInput(attrs={"class": "form-control", "placeholder": "Marca"}),
+            "modelo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Modelo"}),
 
+            "potencia": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "corriente_entrada": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "corriente_salida": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "voltaje_arranque": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "voltaje_maximo_entrada": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "no_mppt": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "no_fases": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+
+            "voltaje_nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej. 127/220"}),
+        }
+
+    # ✅ obligatorios en UI
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        requeridos = [
+            "marca","modelo","potencia","corriente_entrada","corriente_salida",
+            "voltaje_arranque","voltaje_maximo_entrada","no_mppt","no_fases","voltaje_nominal"
+        ]
+        for f in requeridos:
+            self.fields[f].required = True
+
+
+class MicroInversorCreateForm(forms.ModelForm):
+    class Meta:
+        model = MicroInversor
+        fields = [
+            "marca", "modelo",
+            "potencia",
+            "corriente_entrada", "corriente_salida",
+            "voltaje_arranque", "voltaje_maximo_entrada",
+            "no_mppt", "no_fases",
+            "voltaje_nominal",
+        ]
+        widgets = {
+            "marca": forms.TextInput(attrs={"class": "form-control", "placeholder": "Marca"}),
+            "modelo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Modelo"}),
+
+            "potencia": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "corriente_entrada": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "corriente_salida": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "voltaje_arranque": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+            "voltaje_maximo_entrada": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": 0}),
+
+            "no_mppt": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "no_fases": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+
+            "voltaje_nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ej. 127/220"}),
+        }
+
+    # ✅ obligatorios en UI
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        requeridos = [
+            "marca","modelo","potencia","corriente_entrada","corriente_salida",
+            "voltaje_arranque","voltaje_maximo_entrada","no_mppt","no_fases","voltaje_nominal"
+        ]
+        for f in requeridos:
+            self.fields[f].required = True
 # core/forms.py
 from django import forms
 from .models import Dimensionamiento, DimensionamientoDetalle, Inversor, MicroInversor

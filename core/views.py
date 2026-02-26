@@ -22,6 +22,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from core.forms import PanelSolarCreateForm
+from core.forms import InversorCreateForm, MicroInversorCreateForm
 
 from .forms import (
     LoginForm,
@@ -1326,6 +1327,72 @@ def dimensionamiento_dimensionamiento(request):
     }
 
     return render(request, "core/pages/dimensionamiento_dimensionamiento.html", context)
+
+# =========================================================
+# CATÁLOGOS: Alta de Inversor
+# =========================================================
+@require_session_login
+@require_http_methods(["GET", "POST"])
+def inversor_alta(request):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    if session_tipo != "Administrador":
+        messages.error(request, "No tienes permisos para acceder a este módulo.")
+        return redirect("core:menu_principal")
+
+    next_url = (request.GET.get("next") or "").strip() or reverse("core:dimensionamiento_dimensionamiento")
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            return redirect(next_url)
+
+        form = InversorCreateForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "✅ Inversor guardado correctamente.")
+            return redirect(next_url)
+        messages.error(request, "Revisa el formulario.")
+    else:
+        form = InversorCreateForm()
+
+    return render(request, "core/pages/inversor_alta.html", {
+        "form": form,
+        "next_url": next_url,
+    })
+
+# =========================================================
+# CATÁLOGOS: Alta de MicroInversor
+# =========================================================
+@require_session_login
+@require_http_methods(["GET", "POST"])
+def micro_inversor_alta(request):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    if session_tipo != "Administrador":
+        messages.error(request, "No tienes permisos para acceder a este módulo.")
+        return redirect("core:menu_principal")
+
+    next_url = (request.GET.get("next") or "").strip() or reverse("core:dimensionamiento_dimensionamiento")
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            return redirect(next_url)
+
+        form = MicroInversorCreateForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "✅ Micro inversor guardado correctamente.")
+            return redirect(next_url)
+        messages.error(request, "Revisa el formulario.")
+    else:
+        form = MicroInversorCreateForm()
+
+    return render(request, "core/pages/micro_inversor_alta.html", {
+        "form": form,
+        "next_url": next_url,
+    })
 
 @require_session_login
 def calculo_dc(request):

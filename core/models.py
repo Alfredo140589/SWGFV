@@ -269,6 +269,7 @@ class ResultadoPaneles(models.Model):
 
     def __str__(self):
         return f"ResultadoPaneles - NumeroPaneles {self.numero_paneles_id}"
+from django.db import models
 
 # =========================
 # [MODULO] INVERSORES (CATÁLOGO)
@@ -278,9 +279,15 @@ class Inversor(models.Model):
     marca = models.CharField(max_length=80)
     modelo = models.CharField(max_length=120)
 
-    # opcionales (si después los ocupas)
-    potencia_w = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    voltaje_salida = models.CharField(max_length=50, blank=True, default="")
+    # ✅ Campos requeridos (en BD los dejamos null/blank para migrar sin romper)
+    potencia = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # W
+    corriente_entrada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # A
+    corriente_salida = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # A
+    voltaje_arranque = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # V
+    voltaje_maximo_entrada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # V
+    no_mppt = models.PositiveIntegerField(null=True, blank=True)
+    no_fases = models.PositiveIntegerField(null=True, blank=True)
+    voltaje_nominal = models.CharField(max_length=50, null=True, blank=True)  # ej. 127/220
 
     class Meta:
         verbose_name = "Inversor"
@@ -300,9 +307,15 @@ class MicroInversor(models.Model):
     marca = models.CharField(max_length=80)
     modelo = models.CharField(max_length=120)
 
-    # opcionales (si después los ocupas)
-    potencia_w = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    canales = models.PositiveIntegerField(null=True, blank=True)
+    # ✅ Campos requeridos (en BD los dejamos null/blank para migrar sin romper)
+    potencia = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # W
+    corriente_entrada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # A
+    corriente_salida = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # A
+    voltaje_arranque = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # V
+    voltaje_maximo_entrada = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # V
+    no_mppt = models.PositiveIntegerField(null=True, blank=True)
+    no_fases = models.PositiveIntegerField(null=True, blank=True)
+    voltaje_nominal = models.CharField(max_length=50, null=True, blank=True)  # ej. 127/220
 
     class Meta:
         verbose_name = "Micro inversor"
@@ -312,7 +325,6 @@ class MicroInversor(models.Model):
 
     def __str__(self):
         return f"{self.marca} {self.modelo}"
-
 # =========================
 # [MODULO] DIMENSIONAMIENTO (CABECERA)
 # 1 Proyecto -> 1 Dimensionamiento
