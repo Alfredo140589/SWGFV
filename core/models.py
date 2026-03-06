@@ -411,3 +411,143 @@ class DimensionamientoDetalle(models.Model):
     def __str__(self):
         return f"Detalle {self.indice} - Dim {self.dimensionamiento_id}"
 
+# =========================================================
+# [MODULO] CONDUCTORES (CATÁLOGO DESDE CSV)
+# Tabla: conductores
+# =========================================================
+class Conductor(models.Model):
+    id_conductor = models.IntegerField(primary_key=True, db_column="id_conductor")
+    calibre_cable = models.CharField(max_length=20, db_column="calibre_cable")
+
+    # En CSV vienen con "/" en el nombre -> usamos db_column para mapear
+    tubo_1_2_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_1/2_pulgada")
+    tubo_3_4_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_3/4_pulgada")
+    tubo_1_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_1_pulgada")
+    tubo_1_1_4_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_1_1/4_pulgada")
+    tubo_1_1_2_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_1_1/2_pulgada")
+    tubo_2_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_2_pulgada")
+    tubo_2_1_2_pulgada = models.PositiveIntegerField(default=0, db_column="tubo_2_1/2_pulgada")
+
+    class Meta:
+        db_table = "conductores"
+        ordering = ["id_conductor"]
+
+    def __str__(self):
+        return f"{self.calibre_cable}"
+
+
+# =========================================================
+# [MODULO] CONDULETS (CAPTURA)
+# Tabla: condulets
+# 1 CalculoDC -> 1 Condulet
+# =========================================================
+class Condulet(models.Model):
+    # Django crea id automático; lo dejamos como PK real
+    tipo_ll = models.PositiveIntegerField(default=0)
+    tipo_lr = models.PositiveIntegerField(default=0)
+    tipo_lb = models.PositiveIntegerField(default=0)
+    tipo_t = models.PositiveIntegerField(default=0)
+    tipo_c = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "condulets"
+
+    def total(self) -> int:
+        return int(self.tipo_ll or 0) + int(self.tipo_lr or 0) + int(self.tipo_lb or 0) + int(self.tipo_t or 0) + int(self.tipo_c or 0)
+
+    def __str__(self):
+        return f"Condulets (LL:{self.tipo_ll}, LR:{self.tipo_lr}, LB:{self.tipo_lb}, T:{self.tipo_t}, C:{self.tipo_c})"
+
+
+# =========================================================
+# [MODULO] RESULTADO CÁLCULO DC (RESULTADOS)
+# Tabla: resultado_calculo_dc
+# 1 CalculoDC -> 1 ResultadoCalculoDC
+# =========================================================
+class ResultadoCalculoDC(models.Model):
+    amperaje_fusible = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    total_de_cadenas = models.PositiveIntegerField(null=True, blank=True)
+    total_fusibles = models.PositiveIntegerField(null=True, blank=True)
+    metros_totales_cable = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    calibre_tuberia = models.CharField(max_length=40, null=True, blank=True)
+    total_tubos = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "resultado_calculo_dc"
+
+    def __str__(self):
+        return f"Resultado DC (cadenas={self.total_de_cadenas}, fusibles={self.total_fusibles})"
+
+
+# =========================================================
+# [MODULO] CÁLCULO DC (CABECERA POR INVERSOR/MICRO)
+# Tabla: calculo_dc
+#
+# IMPORTANTE:
+# - Tu requerimiento pide capturar "por cada inversor o micro inversor".
+# - Para poder guardarlo bien, lo modelamos como: 1 Proyecto -> muchos CalculoDC
+#   (uno por cada DimensionamientoDetalle/indice).
+# =========================================================
+class CalculoDC(models.Model):
+    proyecto = models.ForeignKey(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="calculos_dc",
+        db_column="Id_Proyecto",
+    )
+
+    # referencia al detalle del dimensionamiento (Inversor 1,2,3…)
+    dimensionamiento_detalle = models.ForeignKey(
+        "DimensionamientoDetalle",
+        on_delete=models.CASCADE,
+        related_name="calculos_dc",
+        null=True,
+        blank=True,
+    )
+
+    indice = models.PositiveIntegerField(default=1)
+
+    # datos capturados
+    metros_lineales = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    calibre_cable_solar = models.CharField(max_length=20, null=True, blank=True)
+    hilos_tuberia = models.PositiveIntegerField(null=True, blank=True)
+
+    # relaciones “1 a 1”
+    condulet = models.OneToOneField(
+        "Condulet",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column="Id_condulet",
+        related_name="calculo_dc",
+    )
+
+    conductor = models.ForeignKey(
+        "Conductor",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column="Id_conductores",
+        related_name="calculos_dc",
+    )
+
+    resultado_dc = models.OneToOneField(
+        "ResultadoCalculoDC",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column="Id_resultadoo_dc",
+        related_name="calculo_dc",
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "calculo_dc"
+        ordering = ["proyecto_id", "indice"]
+        constraints = [
+            models.UniqueConstraint(fields=["proyecto", "indice"], name="uniq_calculo_dc_proyecto_indice"),
+        ]
+
+    def __str__(self):
+        return f"CalculoDC - Proyecto {self.proyecto_id} - idx {self.indice}"

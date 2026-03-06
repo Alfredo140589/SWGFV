@@ -18,11 +18,24 @@ from django.db.models import Q
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
 from django.contrib.staticfiles import finders
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, KeepTogether
+from reportlab.platypus import Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from core.forms import PanelSolarCreateForm
 from core.forms import InversorCreateForm, MicroInversorCreateForm
+from decimal import Decimal, ROUND_UP
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
+
+from core.utils.pdf_utils import (
+    build_fortia_doc,
+    get_fortia_styles,
+    draw_fortia_letterhead,
+    add_fortia_header,
+    make_info_table,
+    make_data_table,
+    add_fortia_footer,
+)
 
 from .forms import (
     LoginForm,
@@ -33,6 +46,7 @@ from .forms import (
     PasswordRecoveryRequestForm,
     PasswordResetForm,
     NumeroPanelesForm,
+
 )
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
@@ -40,7 +54,8 @@ from .models import (
     Usuario, Proyecto, LoginLock, AuditLog,
     Irradiancia, PanelSolar, NumeroPaneles, ResultadoPaneles,
     Inversor, MicroInversor,
-    Dimensionamiento, DimensionamientoDetalle
+    Dimensionamiento, DimensionamientoDetalle,
+    Conductor, Condulet, ResultadoCalculoDC, CalculoDC
 )
 
 logger = logging.getLogger(__name__)
@@ -1395,9 +1410,622 @@ def micro_inversor_alta(request):
     })
 
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def calculo_dc(request):
-    return _render_menu_page(request, "core/pages/calculo_dc.html", "Cálculo DC")
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
 
+    # Proyectos por permisos
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    proyecto = None
+    dim = None
+    detalles = []
+    np_obj = None
+    resultado_paneles = None
+
+    bloques = []
+
+    # resumen general
+    resumen = {
+        "no_modulos": None,
+        "modelo_modulo": None,
+        "voc_modulo": None,
+        "isc_modulo": None,
+        "no_inversores": None,
+    }
+
+    # =========================
+    # Cargar proyecto + número de módulos + dimensionamiento
+    # =========================
+    if selected_proyecto_id:
+        proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
+
+        if proyecto and session_tipo != "Administrador":
+            if int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para acceder a ese proyecto.")
+                return redirect("core:calculo_dc")
+
+        if proyecto:
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if np_obj:
+                resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if dim:
+                detalles = list(
+                    DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                    .select_related("inversor", "micro_inversor")
+                    .order_by("indice")
+                )
+
+            # resumen superior
+            if resultado_paneles:
+                resumen["no_modulos"] = resultado_paneles.no_modulos
+
+            if np_obj and np_obj.panel:
+                resumen["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+                resumen["voc_modulo"] = np_obj.panel.voc
+                resumen["isc_modulo"] = np_obj.panel.isc
+
+            if dim:
+                resumen["no_inversores"] = dim.no_inversores
+
+            existentes = {
+                int(x.indice): x
+                for x in CalculoDC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_dc", "conductor")
+            }
+
+            for d in detalles:
+                calc = existentes.get(int(d.indice))
+                modelo_txt = str(d.inversor or d.micro_inversor or "—")
+
+                # número de módulos por inversor = suma de la lista por cadena
+                lista_modulos = d.modulos_por_cadena_lista or []
+                if lista_modulos:
+                    total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
+                else:
+                    total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+
+                bloques.append({
+                    "indice": d.indice,
+                    "modelo": modelo_txt,
+                    "tipo": dim.tipo_inversor if dim else "INVERSOR",
+                    "detalle_id": d.id,
+                    "no_cadenas": d.no_cadenas,
+                    "modulos_por_inversor": total_modulos_inversor,
+                    "val": calc,
+                    "res": (calc.resultado_dc if calc and calc.resultado_dc_id else None),
+                    "condulet": (calc.condulet if calc and calc.condulet_id else None),
+                })
+
+    # =========================
+    # POST: calcular / cancelar
+    # =========================
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            return redirect("core:calculo_dc")
+
+        if action == "calcular":
+            proyecto_id_raw = (request.POST.get("proyecto") or "").strip()
+            if not proyecto_id_raw.isdigit():
+                messages.error(request, "Selecciona un proyecto válido.")
+                return redirect("core:calculo_dc")
+
+            proyecto = Proyecto.objects.filter(id=int(proyecto_id_raw)).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect("core:calculo_dc")
+
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para calcular en ese proyecto.")
+                return redirect("core:calculo_dc")
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if not dim:
+                messages.error(request, "Primero guarda el Dimensionamiento del proyecto.")
+                return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+            detalles = list(
+                DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                .select_related("inversor", "micro_inversor")
+                .order_by("indice")
+            )
+            if not detalles:
+                messages.error(request, "No hay detalles de dimensionamiento para este proyecto.")
+                return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if not np_obj or not np_obj.panel or np_obj.panel.isc is None:
+                messages.error(request, "No se pudo obtener Isc del panel. Primero completa 'Cálculo de módulos' y selecciona un panel con Isc.")
+                return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+            isc = Decimal(str(np_obj.panel.isc))
+
+            def resolver_amperaje_proteccion(isc_value: Decimal) -> Decimal:
+                calculado = isc_value * Decimal("1.25") * Decimal("1.25")
+                if calculado <= Decimal("20"):
+                    return Decimal("20")
+                elif calculado <= Decimal("25"):
+                    return Decimal("25")
+                else:
+                    return Decimal("32")
+
+            amperaje_fusible = resolver_amperaje_proteccion(isc)
+
+            def resolver_calibre_tuberia(conductor: Conductor, hilos: int):
+                cols = [
+                    ("tubo_1_2_pulgada", "Tubo 1/2\" pared delgada"),
+                    ("tubo_3_4_pulgada", "Tubo 3/4\" pared delgada"),
+                    ("tubo_1_pulgada", "Tubo 1\" pared delgada"),
+                    ("tubo_1_1_4_pulgada", "Tubo 1 1/4\" pared delgada"),
+                    ("tubo_1_1_2_pulgada", "Tubo 1 1/2\" pared delgada"),
+                    ("tubo_2_pulgada", "Tubo 2\" pared delgada"),
+                    ("tubo_2_1_2_pulgada", "Tubo 2 1/2\" pared delgada"),
+                ]
+
+                for attr, label in cols:
+                    cap = int(getattr(conductor, attr, 0) or 0)
+                    if cap >= int(hilos):
+                        return label
+
+                return cols[-1][1]
+
+            hubo_error = False
+
+            for d in detalles:
+                idx = int(d.indice)
+
+                metros_raw = (request.POST.get(f"metros_lineales_{idx}") or "").strip()
+                calibre_raw = (request.POST.get(f"calibre_cable_solar_{idx}") or "").strip()
+                hilos_raw = (request.POST.get(f"hilos_tuberia_{idx}") or "").strip()
+
+                ll_raw = (request.POST.get(f"condulet_ll_{idx}") or "0").strip()
+                lr_raw = (request.POST.get(f"condulet_lr_{idx}") or "0").strip()
+                lb_raw = (request.POST.get(f"condulet_lb_{idx}") or "0").strip()
+                t_raw = (request.POST.get(f"condulet_t_{idx}") or "0").strip()
+                c_raw = (request.POST.get(f"condulet_c_{idx}") or "0").strip()
+
+                try:
+                    metros_lineales = Decimal(metros_raw)
+                    if metros_lineales <= 0:
+                        raise ValueError()
+                except Exception:
+                    messages.error(request, f"Metros lineales inválidos en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                if not calibre_raw:
+                    messages.error(request, f"Selecciona calibre del cable solar en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                if not hilos_raw.isdigit() or int(hilos_raw) < 1:
+                    messages.error(request, f"Hilos por tubería inválidos en inversor {idx}.")
+                    hubo_error = True
+                    continue
+                hilos = int(hilos_raw)
+
+                def to_int0(x):
+                    try:
+                        v = int(x)
+                        return v if v >= 0 else 0
+                    except Exception:
+                        return 0
+
+                ll = to_int0(ll_raw)
+                lr = to_int0(lr_raw)
+                lb = to_int0(lb_raw)
+                tt = to_int0(t_raw)
+                cc = to_int0(c_raw)
+
+                conductor = Conductor.objects.filter(calibre_cable__iexact=calibre_raw).first()
+                if not conductor:
+                    messages.error(request, f"No se encontró el calibre '{calibre_raw}' en la tabla conductores.")
+                    hubo_error = True
+                    continue
+
+                calibre_tuberia = resolver_calibre_tuberia(conductor, hilos)
+
+                # total de cadenas por inversor (NO global)
+                total_cadenas = int(d.no_cadenas or 0)
+                total_fusibles = total_cadenas * 2
+
+                # metros totales cable = total_cadenas * 2 * metros_lineales
+                metros_totales_cable = Decimal(str(total_cadenas)) * Decimal("2") * metros_lineales
+
+                # número total de tubos = metros_lineales / 3, redondeado hacia arriba
+                total_tubos = int((metros_lineales / Decimal("3")).quantize(Decimal("1"), rounding=ROUND_UP))
+
+                condulet_obj = Condulet.objects.create(
+                    tipo_ll=ll,
+                    tipo_lr=lr,
+                    tipo_lb=lb,
+                    tipo_t=tt,
+                    tipo_c=cc,
+                )
+
+                resultado_obj = ResultadoCalculoDC.objects.create(
+                    amperaje_fusible=amperaje_fusible,
+                    total_de_cadenas=total_cadenas,
+                    total_fusibles=total_fusibles,
+                    metros_totales_cable=metros_totales_cable,
+                    calibre_tuberia=calibre_tuberia,
+                    total_tubos=total_tubos,
+                )
+
+                existente = CalculoDC.objects.filter(proyecto=proyecto, indice=idx).select_related("condulet", "resultado_dc").first()
+                if existente:
+                    old_condulet = existente.condulet
+                    old_res = existente.resultado_dc
+
+                    existente.metros_lineales = metros_lineales
+                    existente.calibre_cable_solar = calibre_raw
+                    existente.hilos_tuberia = hilos
+                    existente.conductor = conductor
+                    existente.condulet = condulet_obj
+                    existente.resultado_dc = resultado_obj
+                    existente.dimensionamiento_detalle = d
+                    existente.save()
+
+                    if old_condulet:
+                        old_condulet.delete()
+                    if old_res:
+                        old_res.delete()
+                else:
+                    CalculoDC.objects.create(
+                        proyecto=proyecto,
+                        dimensionamiento_detalle=d,
+                        indice=idx,
+                        metros_lineales=metros_lineales,
+                        calibre_cable_solar=calibre_raw,
+                        hilos_tuberia=hilos,
+                        conductor=conductor,
+                        condulet=condulet_obj,
+                        resultado_dc=resultado_obj,
+                    )
+
+            if hubo_error:
+                return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+            messages.success(request, "✅ Cálculo DC realizado y guardado correctamente.")
+            return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+    calibres = list(Conductor.objects.values_list("calibre_cable", flat=True).order_by("id_conductor"))
+
+    context = {
+        "proyectos": proyectos,
+        "selected_proyecto_id": selected_proyecto_id,
+        "proyecto": proyecto,
+        "bloques": bloques,
+        "calibres": calibres,
+        "panel_voc": resumen["voc_modulo"],
+        "resumen": resumen,
+    }
+    return render(request, "core/pages/calculo_dc.html", context)
+
+@require_session_login
+@require_http_methods(["GET"])
+def calculo_dc_pdf(request, proyecto_id: int):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:calculo_dc")
+
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para descargar este PDF.")
+            return redirect("core:calculo_dc")
+
+    registros = list(
+        CalculoDC.objects.filter(proyecto=proyecto)
+        .select_related(
+            "resultado_dc",
+            "condulet",
+            "dimensionamiento_detalle",
+            "dimensionamiento_detalle__inversor",
+            "dimensionamiento_detalle__micro_inversor",
+            "conductor",
+        )
+        .order_by("indice")
+    )
+
+    if not registros:
+        messages.error(request, "No hay cálculos DC guardados para este proyecto.")
+        return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+    np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+    resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first() if np_obj else None
+    dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+
+    filename = f"SWGFV_CalculoDC_Proyecto_{proyecto.id}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        leftMargin=1.8 * cm,
+        rightMargin=1.8 * cm,
+        topMargin=2.0 * cm,
+        bottomMargin=2.0 * cm,
+        title=f"Cálculo DC - Proyecto {proyecto.id}",
+        author="SWGFV",
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "DC_Title",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=13,
+        leading=16,
+        textColor=colors.HexColor("#0B2E59"),
+        spaceAfter=5,
+        alignment=TA_JUSTIFY,
+    )
+
+    subtitle_style = ParagraphStyle(
+        "DC_Subtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#555555"),
+        spaceAfter=3,
+        alignment=TA_CENTER,
+    )
+
+    section_style = ParagraphStyle(
+        "DC_Section",
+        parent=styles["Heading3"],
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=12,
+        textColor=colors.white,
+        backColor=colors.HexColor("#0B2E59"),
+        borderPadding=(4, 4, 4),
+        spaceBefore=8,
+        spaceAfter=8,
+        alignment=TA_CENTER,
+    )
+
+    label_style = ParagraphStyle(
+        "DC_Label",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5,
+        textColor=colors.HexColor("#0B2E59"),
+        leading=10,
+    )
+
+    value_style = ParagraphStyle(
+        "DC_Value",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        textColor=colors.HexColor("#222222"),
+        leading=10,
+    )
+
+    small_style = ParagraphStyle(
+        "DC_Small",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7.5,
+        leading=9,
+        textColor=colors.HexColor("#555555"),
+        alignment=TA_CENTER,
+    )
+
+    elements = []
+
+    # =========================================================
+    # DATOS PREVIOS
+    # =========================================================
+    modelo_modulo = "—"
+    voc_modulo = "—"
+    isc_modulo = "—"
+    no_modulos = "—"
+    no_inversores = "—"
+
+    if np_obj and np_obj.panel:
+        modelo_modulo = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+        voc_modulo = str(np_obj.panel.voc or "—")
+        isc_modulo = str(np_obj.panel.isc or "—")
+
+    if resultado_paneles:
+        no_modulos = str(resultado_paneles.no_modulos or "—")
+
+    if dim:
+        no_inversores = str(dim.no_inversores or "—")
+
+    fecha_generacion = timezone.localtime().strftime("%d/%m/%Y %H:%M")
+
+    # =========================================================
+    # TÍTULO
+    # =========================================================
+    elements.append(Spacer(1, 1.4 * cm))
+    elements.append(Paragraph("Reporte técnico de cálculo de corriente continua (DC)", title_style))
+    elements.append(Paragraph("Sistema Web de Gestión de Proyectos Fotovoltaicos", subtitle_style))
+    elements.append(Spacer(1, 0.15 * cm))
+
+    # =========================================================
+    # DATOS GENERALES
+    # =========================================================
+    elements.append(Paragraph("Datos generales del proyecto", section_style))
+
+    general_data = [
+        [
+            Paragraph("<b>Proyecto</b>", label_style),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), value_style),
+            Paragraph("<b>Empresa</b>", label_style),
+            Paragraph(str(proyecto.Nombre_Empresa or "—"), value_style),
+        ],
+        [
+            Paragraph("<b>Voltaje nominal</b>", label_style),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), value_style),
+            Paragraph("<b>Número de fases</b>", label_style),
+            Paragraph(str(proyecto.Numero_Fases or "—"), value_style),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", label_style),
+            Paragraph(no_modulos, value_style),
+            Paragraph("<b>Número de inversores</b>", label_style),
+            Paragraph(no_inversores, value_style),
+        ],
+        [
+            Paragraph("<b>Voc del módulo</b>", label_style),
+            Paragraph(voc_modulo, value_style),
+            Paragraph("<b>Isc del módulo</b>", label_style),
+            Paragraph(isc_modulo, value_style),
+        ],
+        [
+            Paragraph("<b>Modelo del módulo</b>", label_style),
+            Paragraph(modelo_modulo, value_style),
+            Paragraph("<b>Fecha de generación</b>", label_style),
+            Paragraph(fecha_generacion, value_style),
+        ],
+    ]
+
+    general_table = Table(general_data, colWidths=[3.0 * cm, 5.5 * cm, 3.0 * cm, 5.2 * cm])
+    general_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.Color(1, 1, 1, alpha=0.90)),
+        ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#C9D3E0")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(general_table)
+    elements.append(Spacer(1, 0.35 * cm))
+
+    # =========================================================
+    # RESULTADOS POR INVERSOR
+    # =========================================================
+    elements.append(Paragraph("Resultados por inversor / micro inversor", section_style))
+
+    for r in registros:
+        det = r.dimensionamiento_detalle
+        modelo = str((det.inversor if det else None) or (det.micro_inversor if det else None) or "—")
+        tipo_equipo = "Micro inversor" if det and det.micro_inversor_id else "Inversor"
+
+        lista_modulos = det.modulos_por_cadena_lista if det else []
+        if lista_modulos:
+            modulos_por_inversor = sum(int(v or 0) for v in lista_modulos)
+            modulos_cadena_txt = ", ".join([f"Cad {i+1}: {v}" for i, v in enumerate(lista_modulos)])
+        else:
+            modulos_por_inversor = int((det.no_cadenas or 0) * (det.modulos_por_cadena or 0)) if det else 0
+            modulos_cadena_txt = str(det.modulos_por_cadena or "—") if det else "—"
+
+        res = r.resultado_dc
+        con = r.condulet
+
+        block_title = Paragraph(
+            f"{tipo_equipo} {r.indice} - {modelo}",
+            ParagraphStyle(
+                f"block_{r.indice}",
+                parent=styles["Heading4"],
+                fontName="Helvetica-Bold",
+                fontSize=9.5,
+                textColor=colors.HexColor("#0B2E59"),
+                spaceAfter=6,
+                spaceBefore=4,
+                alignment=TA_JUSTIFY,
+            )
+        )
+        elements.append(block_title)
+
+        data = [
+            [
+                Paragraph("<b>Número de series</b>", label_style),
+                Paragraph(str(det.no_cadenas if det else "—"), value_style),
+                Paragraph("<b>Número de módulos por inversor</b>", label_style),
+                Paragraph(str(modulos_por_inversor), value_style),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", label_style),
+                Paragraph(modulos_cadena_txt, value_style),
+                Paragraph("<b>Metros lineales</b>", label_style),
+                Paragraph(str(r.metros_lineales or "—"), value_style),
+            ],
+            [
+                Paragraph("<b>Calibre cable solar</b>", label_style),
+                Paragraph(str(r.calibre_cable_solar or "—"), value_style),
+                Paragraph("<b>Hilos por tubería</b>", label_style),
+                Paragraph(str(r.hilos_tuberia or "—"), value_style),
+            ],
+            [
+                Paragraph("<b>Amperaje protección</b>", label_style),
+                Paragraph(f"{getattr(res, 'amperaje_fusible', '—')} A" if res else "—", value_style),
+                Paragraph("<b>Total de cadenas</b>", label_style),
+                Paragraph(str(getattr(res, "total_de_cadenas", "—")) if res else "—", value_style),
+            ],
+            [
+                Paragraph("<b>Total fusibles</b>", label_style),
+                Paragraph(str(getattr(res, "total_fusibles", "—")) if res else "—", value_style),
+                Paragraph("<b>Metros totales cable</b>", label_style),
+                Paragraph(str(getattr(res, "metros_totales_cable", "—")) if res else "—", value_style),
+            ],
+            [
+                Paragraph("<b>Calibre tubería</b>", label_style),
+                Paragraph(str(getattr(res, "calibre_tuberia", "—")) if res else "—", value_style),
+                Paragraph("<b>Total tubos</b>", label_style),
+                Paragraph(str(getattr(res, "total_tubos", "—")) if res else "—", value_style),
+            ],
+            [
+                Paragraph("<b>Condulets LL / LR / LB / T / C</b>", label_style),
+                Paragraph(
+                    f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
+                    value_style
+                ),
+                Paragraph("<b>Total condulets</b>", label_style),
+                Paragraph(str(con.total() if con else 0), value_style),
+            ],
+        ]
+
+        table = Table(data, colWidths=[3.8 * cm, 4.1 * cm, 4.0 * cm, 4.1 * cm])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.Color(1, 1, 1, alpha=0.92)),
+            ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#C9D3E0")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.Color(1, 1, 1, alpha=0.96), colors.HexColor("#F8FBFF")]),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 0.25 * cm))
+
+    # =========================================================
+    # FONDO / MEMBRETE
+    # =========================================================
+    def draw_page_background(canvas, doc):
+        width, height = letter
+
+        bg_path = finders.find("core/img/hoja_membretada.png")
+        if bg_path:
+            try:
+                canvas.drawImage(bg_path, 0, 0, width=width, height=height, preserveAspectRatio=False, mask='auto')
+            except Exception:
+                pass
+
+    doc.build(elements, onFirstPage=draw_page_background, onLaterPages=draw_page_background)
+    return response
 
 @require_session_login
 def calculo_ac(request):
@@ -1462,98 +2090,63 @@ def proyecto_pdf(request, proyecto_id: int):
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=letter,
-        leftMargin=2.0 * cm,
-        rightMargin=2.0 * cm,
-        topMargin=1.6 * cm,
-        bottomMargin=1.6 * cm,
-        title=f"Proyecto {proyecto.id}",
-        author="SWGFV",
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "SWGFVTitle",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=16,
-        textColor=colors.HexColor("#001F3F"),
-        spaceAfter=10,
-    )
-    sub_style = ParagraphStyle(
-        "SWGFVSub",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=10,
-        textColor=colors.HexColor("#333333"),
-        spaceAfter=10,
-    )
-
+    doc = build_fortia_doc(response, f"Proyecto {proyecto.id}")
+    pdfs = get_fortia_styles()
     elements = []
-
-    logo_path = finders.find("core/img/logo1.png")
-    if logo_path:
-        try:
-            img = RLImage(logo_path, width=3.0 * cm, height=3.0 * cm)
-            elements.append(img)
-            elements.append(Spacer(1, 0.3 * cm))
-        except Exception:
-            pass
-
-    elements.append(Paragraph("SWGFV - Ficha del Proyecto", title_style))
 
     generado_por = request.session.get("usuario", "")
     tipo = request.session.get("tipo", "")
     fecha = timezone.localtime().strftime("%d/%m/%Y %H:%M")
 
-    elements.append(Paragraph(f"<b>Generado por:</b> {generado_por} ({tipo})", sub_style))
-    elements.append(Paragraph(f"<b>Fecha:</b> {fecha}", sub_style))
-    elements.append(Spacer(1, 0.2 * cm))
+    add_fortia_header(
+        elements,
+        "Ficha técnica del proyecto",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
+
+    elements.append(Paragraph("Datos generales del proyecto", pdfs["section"]))
 
     data = [
-        ["Campo", "Valor"],
-        ["ID", str(proyecto.id)],
-        ["Nombre del proyecto", proyecto.Nombre_Proyecto or "—"],
-        ["Empresa", proyecto.Nombre_Empresa or "—"],
-        ["Dirección", proyecto.Direccion or "—"],
-        ["Coordenadas", proyecto.Coordenadas or "—"],
-        ["Voltaje nominal", proyecto.Voltaje_Nominal or "—"],
-        ["Número de fases", str(proyecto.Numero_Fases)],
-        ["Usuario asociado", getattr(proyecto.ID_Usuario, "Correo_electronico", "—") or "—"],
+        [
+            Paragraph("<b>ID</b>", pdfs["label"]),
+            Paragraph(str(proyecto.id), pdfs["value"]),
+            Paragraph("<b>Fecha de generación</b>", pdfs["label"]),
+            Paragraph(fecha, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Nombre del proyecto</b>", pdfs["label"]),
+            Paragraph(proyecto.Nombre_Proyecto or "—", pdfs["value"]),
+            Paragraph("<b>Generado por</b>", pdfs["label"]),
+            Paragraph(f"{generado_por} ({tipo})", pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Empresa</b>", pdfs["label"]),
+            Paragraph(proyecto.Nombre_Empresa or "—", pdfs["value"]),
+            Paragraph("<b>Usuario asociado</b>", pdfs["label"]),
+            Paragraph(getattr(proyecto.ID_Usuario, "Correo_electronico", "—") or "—", pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Dirección</b>", pdfs["label"]),
+            Paragraph(proyecto.Direccion or "—", pdfs["value"]),
+            Paragraph("<b>Coordenadas</b>", pdfs["label"]),
+            Paragraph(proyecto.Coordenadas or "—", pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(proyecto.Voltaje_Nominal or "—", pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases), pdfs["value"]),
+        ],
     ]
 
-    table = Table(data, colWidths=[5.2 * cm, 11.5 * cm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 10),
-        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-        ("TOPPADDING", (0, 0), (-1, 0), 8),
-        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 10),
-        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#111111")),
-        ("ALIGN", (0, 1), (0, -1), "LEFT"),
-        ("ALIGN", (1, 1), (1, -1), "LEFT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#B0B7C3")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 1), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
-    ]))
+    info_table = make_info_table(data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm])
+    elements.append(info_table)
 
-    elements.append(table)
-    elements.append(Spacer(1, 0.6 * cm))
+    add_fortia_footer(elements, pdfs)
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
     return response
-
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.legends import Legend
@@ -1586,14 +2179,17 @@ def numero_modulos_pdf(request, proyecto_id: int):
         messages.error(request, "No hay resultado calculado para este proyecto.")
         return redirect("core:numero_modulos")
 
-    # Orden de periodos
     if np_obj.tipo_facturacion == "MENSUAL":
         orden = [
-            ("ene","Ene"),("feb","Feb"),("mar","Mar"),("abr","Abr"),("may","May"),("jun","Jun"),
-            ("jul","Jul"),("ago","Ago"),("sep","Sep"),("oct","Oct"),("nov","Nov"),("dic","Dic"),
+            ("ene", "Ene"), ("feb", "Feb"), ("mar", "Mar"), ("abr", "Abr"),
+            ("may", "May"), ("jun", "Jun"), ("jul", "Jul"), ("ago", "Ago"),
+            ("sep", "Sep"), ("oct", "Oct"), ("nov", "Nov"), ("dic", "Dic"),
         ]
     else:
-        orden = [("bim1","Bim 1"),("bim2","Bim 2"),("bim3","Bim 3"),("bim4","Bim 4"),("bim5","Bim 5"),("bim6","Bim 6")]
+        orden = [
+            ("bim1", "Bim 1"), ("bim2", "Bim 2"), ("bim3", "Bim 3"),
+            ("bim4", "Bim 4"), ("bim5", "Bim 5"), ("bim6", "Bim 6")
+        ]
 
     cons = np_obj.consumos or {}
     genp = resultado.generacion_por_periodo or {}
@@ -1602,85 +2198,62 @@ def numero_modulos_pdf(request, proyecto_id: int):
     consumo_vals = [float(cons.get(k, 0) or 0) for k, _ in orden]
     gen_vals = [float(genp.get(k, 0) or 0) for k, _ in orden]
 
-    # PDF response
     filename = f"SWGFV_NumeroModulos_Proyecto_{proyecto.id}.pdf"
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=letter,
-        leftMargin=2.0 * cm,
-        rightMargin=2.0 * cm,
-        topMargin=1.6 * cm,
-        bottomMargin=1.6 * cm,
-        title=f"Número de módulos - Proyecto {proyecto.id}",
-        author="SWGFV",
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "T",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=16,
-        textColor=colors.HexColor("#001F3F"),
-        spaceAfter=10,
-    )
-    sub_style = ParagraphStyle(
-        "S",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=10,
-        textColor=colors.HexColor("#333333"),
-        spaceAfter=8,
-    )
-
+    doc = build_fortia_doc(response, f"Número de módulos - Proyecto {proyecto.id}")
+    pdfs = get_fortia_styles()
     elements = []
 
-    # ✅ LOGO
-    logo_path = finders.find("core/img/logo1.png")
-    if logo_path:
-        try:
-            elements.append(RLImage(logo_path, width=3.0 * cm, height=3.0 * cm))
-            elements.append(Spacer(1, 0.2 * cm))
-        except Exception:
-            pass
+    add_fortia_header(
+        elements,
+        "Reporte técnico de número de módulos",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
 
-    elements.append(Paragraph("SWGFV - Reporte: Número de módulos", title_style))
+    elements.append(Paragraph("Resumen del cálculo", pdfs["section"]))
 
-    elements.append(Paragraph(f"<b>Proyecto:</b> {proyecto.Nombre_Proyecto or '—'}", sub_style))
-    elements.append(Paragraph(f"<b>Tipo de facturación:</b> {np_obj.tipo_facturacion}", sub_style))
-    elements.append(Paragraph(f"<b>Eficiencia:</b> {np_obj.eficiencia}", sub_style))
-    elements.append(Paragraph(f"<b>Módulo:</b> {np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)", sub_style))
-    elements.append(Paragraph(f"<b>Número de módulos:</b> {resultado.no_modulos}", sub_style))
-    elements.append(Paragraph(f"<b>Potencia total instalada (kW):</b> {resultado.potencia_total}", sub_style))
-    elements.append(Paragraph(f"<b>Generación anual (kWh):</b> {resultado.generacion_anual}", sub_style))
-    elements.append(Spacer(1, 0.3 * cm))
+    resumen_data = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(proyecto.Nombre_Proyecto or "—", pdfs["value"]),
+            Paragraph("<b>Tipo de facturación</b>", pdfs["label"]),
+            Paragraph(np_obj.tipo_facturacion, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Eficiencia</b>", pdfs["label"]),
+            Paragraph(str(np_obj.eficiencia), pdfs["value"]),
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(str(resultado.no_modulos), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Módulo</b>", pdfs["label"]),
+            Paragraph(f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)", pdfs["value"]),
+            Paragraph("<b>Potencia total (kW)</b>", pdfs["label"]),
+            Paragraph(str(resultado.potencia_total), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Generación anual (kWh)</b>", pdfs["label"]),
+            Paragraph(str(resultado.generacion_anual), pdfs["value"]),
+            Paragraph("<b>Irradiancia</b>", pdfs["label"]),
+            Paragraph(f"{np_obj.irradiancia.ciudad}, {np_obj.irradiancia.estado}", pdfs["value"]),
+        ],
+    ]
 
-    # ✅ TABLA Consumo vs Generación
+    elements.append(make_info_table(resumen_data, [3.0 * cm, 5.4 * cm, 3.2 * cm, 4.9 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    elements.append(Paragraph("Consumo vs generación por periodo", pdfs["section"]))
+
     data = [["Periodo", "Consumo (kWh)", "Generación (kWh)"]]
     for i in range(len(labels)):
         data.append([labels[i], f"{consumo_vals[i]:.3f}", f"{gen_vals[i]:.3f}"])
 
-    table = Table(data, colWidths=[4.0 * cm, 6.0 * cm, 6.0 * cm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#B0B7C3")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
-        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    elements.append(table)
-    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(make_data_table(data, [4.0 * cm, 6.0 * cm, 6.0 * cm]))
+    elements.append(Spacer(1, 0.35 * cm))
 
-    # ✅ Gráfica 1: Generación por periodo (ReportLab chart)
     def make_bar_chart(title, series, cat_names):
         d = Drawing(500, 220)
         chart = VerticalBarChart()
@@ -1691,32 +2264,32 @@ def numero_modulos_pdf(request, proyecto_id: int):
         chart.data = [series]
         chart.categoryAxis.categoryNames = cat_names
         chart.valueAxis.valueMin = 0
-
         chart.bars[0].fillColor = HexColor("#2E86DE")
         d.add(chart)
-
-        d_title = Paragraph(f"<b>{title}</b>", sub_style)
-        return d_title, d
+        return Paragraph(f"<b>{title}</b>", pdfs["value"]), d
 
     t1, g1 = make_bar_chart("Gráfica 1: Generación por periodo (kWh)", gen_vals, labels)
-    elements.append(t1)
-    elements.append(Spacer(1, 0.1 * cm))
-    elements.append(g1)
-    elements.append(Spacer(1, 0.3 * cm))
 
-    # ✅ Gráfica 2: Generación vs Consumo (2 series)
+    grafica1 = [
+        t1,
+        Spacer(1, 0.1 * cm),
+        g1,
+    ]
+
+    elements.append(KeepTogether(grafica1))
+    elements.append(Spacer(1, 0.25 * cm))
+
     d2 = Drawing(500, 240)
     chart2 = VerticalBarChart()
     chart2.x = 30
     chart2.y = 30
     chart2.height = 160
     chart2.width = 440
-    chart2.data = [consumo_vals, gen_vals]   # dos series
+    chart2.data = [consumo_vals, gen_vals]
     chart2.categoryAxis.categoryNames = labels
     chart2.valueAxis.valueMin = 0
-
-    chart2.bars[0].fillColor = HexColor("#E67E22")  # consumo
-    chart2.bars[1].fillColor = HexColor("#2ECC71")  # generación
+    chart2.bars[0].fillColor = HexColor("#E67E22")
+    chart2.bars[1].fillColor = HexColor("#2ECC71")
 
     legend = Legend()
     legend.x = 360
@@ -1730,12 +2303,19 @@ def numero_modulos_pdf(request, proyecto_id: int):
     d2.add(chart2)
     d2.add(legend)
 
-    elements.append(Paragraph("<b>Gráfica 2: Generación vs Consumo</b>", sub_style))
-    elements.append(Spacer(1, 0.1 * cm))
-    elements.append(d2)
+    grafica2 = [
+        Paragraph("<b>Gráfica 2: Generación vs consumo</b>", pdfs["value"]),
+        Spacer(1, 0.1 * cm),
+        d2
+    ]
 
-    doc.build(elements)
+    elements.append(KeepTogether(grafica2))
+
+    add_fortia_footer(elements, pdfs)
+
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
     return response
+
 # ==========================
 # EXPORTAR USUARIOS CSV
 # ==========================
@@ -1775,63 +2355,43 @@ def usuarios_export_pdf(request):
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=letter,
-        leftMargin=2.0 * cm,
-        rightMargin=2.0 * cm,
-        topMargin=1.6 * cm,
-        bottomMargin=1.6 * cm,
-        title="Usuarios SWGFV",
-        author="SWGFV",
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "TitleSWGFV",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=16,
-        textColor=colors.HexColor("#001F3F"),
-        spaceAfter=10,
-    )
-
+    doc = build_fortia_doc(response, "Usuarios SWGFV")
+    pdfs = get_fortia_styles()
     elements = []
 
-    logo_path = finders.find("core/img/logo1.png")
-    if logo_path:
-        try:
-            elements.append(RLImage(logo_path, width=3.0 * cm, height=3.0 * cm))
-            elements.append(Spacer(1, 0.3 * cm))
-        except Exception:
-            pass
+    add_fortia_header(
+        elements,
+        "Listado de usuarios",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
 
-    elements.append(Paragraph("SWGFV - Listado de Usuarios", title_style))
-    elements.append(Spacer(1, 0.3 * cm))
+    elements.append(Paragraph("Usuarios registrados en el sistema", pdfs["section"]))
 
-    data = [["ID", "Nombre completo", "Correo", "Tipo", "Activo"]]
+    data = [[
+        "ID",
+        "Nombre completo",
+        "Correo electrónico",
+        "Tipo",
+        "Activo"
+    ]]
+
     for u in Usuario.objects.all().order_by("ID_Usuario"):
         nombre = f"{u.Nombre} {u.Apellido_Paterno} {u.Apellido_Materno}"
-        data.append([str(u.ID_Usuario), nombre, u.Correo_electronico, u.Tipo, "Sí" if u.Activo else "No"])
+        data.append([
+            str(u.ID_Usuario),
+            nombre,
+            u.Correo_electronico,
+            u.Tipo,
+            "Sí" if u.Activo else "No",
+        ])
 
-    table = Table(data, colWidths=[1.2 * cm, 6.0 * cm, 5.5 * cm, 2.6 * cm, 1.8 * cm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#001F3F")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 10),
-        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-        ("GRID", (0, 0), (-1, -1), 0.6, colors.HexColor("#B0B7C3")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F3F6FA")]),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    tabla = make_data_table(data, [1.2 * cm, 5.5 * cm, 6.0 * cm, 2.3 * cm, 1.8 * cm])
+    elements.append(tabla)
 
-    elements.append(table)
-    doc.build(elements)
+    add_fortia_footer(elements, pdfs)
+
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
 
     log_event(request, "USERS_EXPORT_PDF", "Descargó listado de usuarios en PDF", "Usuario", "")
     return response
@@ -1845,49 +2405,127 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.platypus import TableStyle
 
+@require_session_login
+@require_http_methods(["GET"])
 def dimensionamiento_pdf(request, proyecto_id):
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib import colors
-    from reportlab.platypus import TableStyle
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
 
-    proyecto = Proyecto.objects.get(id=proyecto_id)
-    detalles = DimensionamientoDetalle.objects.filter(
-        dimensionamiento__proyecto=proyecto
-    ).select_related("inversor", "micro_inversor").order_by("indice")
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:dimensionamiento_dimensionamiento")
+
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para descargar este PDF.")
+            return redirect("core:dimensionamiento_dimensionamiento")
+
+    detalles = list(
+        DimensionamientoDetalle.objects.filter(dimensionamiento__proyecto=proyecto)
+        .select_related("inversor", "micro_inversor")
+        .order_by("indice")
+    )
+
+    if not detalles:
+        messages.error(request, "No hay dimensionamiento guardado para este proyecto.")
+        return redirect("core:dimensionamiento_dimensionamiento")
+
+    dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+    np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+    resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first() if np_obj else None
+
     response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = f"attachment; filename=dimensionamiento_{proyecto_id}.pdf"
+    response["Content-Disposition"] = f'attachment; filename="dimensionamiento_{proyecto_id}.pdf"'
 
-    doc = SimpleDocTemplate(response)
+    doc = build_fortia_doc(response, f"Dimensionamiento {proyecto_id}")
+    pdfs = get_fortia_styles()
     elements = []
-    styles = getSampleStyleSheet()
 
-    elements.append(Paragraph(f"Proyecto: {proyecto.Nombre_Proyecto}", styles["Heading2"]))
-    elements.append(Spacer(1, 12))
+    add_fortia_header(
+        elements,
+        "Reporte técnico de dimensionamiento",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
 
-    data = [["Inversor", "Modelo", "Cadenas", "Módulos/cadena"]]
+    elements.append(Paragraph("Resumen del proyecto", pdfs["section"]))
+
+    modelo_modulo = "—"
+    no_modulos = "—"
+    potencia_total = "—"
+
+    if np_obj and np_obj.panel:
+        modelo_modulo = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+
+    if resultado_paneles:
+        no_modulos = str(resultado_paneles.no_modulos or "—")
+        potencia_total = str(resultado_paneles.potencia_total or "—")
+
+    resumen_data = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(proyecto.Nombre_Proyecto or "—", pdfs["value"]),
+            Paragraph("<b>Tipo de instalación</b>", pdfs["label"]),
+            Paragraph(dim.tipo_inversor if dim else "—", pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de inversores</b>", pdfs["label"]),
+            Paragraph(str(dim.no_inversores if dim else "—"), pdfs["value"]),
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(no_modulos, pdfs["value"]),
+            Paragraph("<b>Potencia total (kW)</b>", pdfs["label"]),
+            Paragraph(potencia_total, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Módulo seleccionado</b>", pdfs["label"]),
+            Paragraph(modelo_modulo, pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+        ],
+    ]
+
+    elements.append(make_info_table(resumen_data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    elements.append(Paragraph("Configuración por inversor / micro inversor", pdfs["section"]))
+
+    data = [[
+        "#",
+        "Modelo",
+        "Cadenas",
+        "Módulos por cadena",
+        "Módulos por inversor"
+    ]]
 
     for d in detalles:
         modelo = d.inversor or d.micro_inversor
         mods = d.modulos_por_cadena_lista or []
+
         if mods:
             mods_txt = ", ".join([f"Cad {idx + 1}: {val}" for idx, val in enumerate(mods)])
+            total_modulos_inversor = sum(int(v or 0) for v in mods)
         else:
             mods_txt = str(d.modulos_por_cadena)
+            total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
 
-        data.append([d.indice, str(modelo), d.no_cadenas, mods_txt])
+        data.append([
+            str(d.indice),
+            str(modelo),
+            str(d.no_cadenas),
+            mods_txt,
+            str(total_modulos_inversor),
+        ])
 
-    table = Table(data)
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-        ("GRID", (0,0), (-1,-1), 1, colors.black),
-    ]))
+    elements.append(make_data_table(data, [1.0 * cm, 5.5 * cm, 2.0 * cm, 6.0 * cm, 2.5 * cm]))
+    add_fortia_footer(elements, pdfs)
 
-    elements.append(table)
-    doc.build(elements)
-
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
     return response
-
 
 # ==========================
 # ACTIVIDAD / BITÁCORA
