@@ -55,6 +55,7 @@ path(
     path("calculos/dc/", views.calculo_dc, name="calculo_dc"),
     path("calculos/dc/<int:proyecto_id>/pdf/", views.calculo_dc_pdf, name="calculo_dc_pdf"),
     path("calculos/ac/", views.calculo_ac, name="calculo_ac"),
+    path("calculos/ac/<int:proyecto_id>/pdf/", views.calculo_ac_pdf, name="calculo_ac_pdf"),
     path("calculos/caida-tension/", views.calculo_caida_tension, name="calculo_caida_tension"),
 
     # Recursos

@@ -1,4 +1,238 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+{% extends "core/layout.html" %}
+{% load static %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block page_content %}
+<div class="card shadow-sm border-0 mt-3">
+  <div class="card-body">
+    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Cálculo AC (Corriente Alterna)</h2>
+
+    <form method="post" action="">
+      {% csrf_token %}
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="proyectoSelect">Selecciona el proyecto</label>
+          <select class="form-select" name="proyecto" id="proyectoSelect" required>
+            <option value="">-- Selecciona --</option>
+            {% for p in proyectos %}
+              <option value="{{ p.id }}" {% if selected_proyecto_id == p.id %}selected="selected"{% endif %}>
+                {{ p.Nombre_Proyecto }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Al seleccionar, se cargan automáticamente los datos del proyecto y del dimensionamiento.</div>
+        </div>
+      </div>
+
+      {% if proyecto %}
+        <div class="border rounded p-3 mb-4">
+          <h3 class="h6 fw-bold mb-3">Información automática del proyecto</h3>
+
+          <div class="row g-3">
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Número de módulos</div>
+              <div class="fw-semibold">{{ resumen.no_modulos|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Voc del módulo</div>
+              <div class="fw-semibold">{{ resumen.voc_modulo|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Isc del módulo</div>
+              <div class="fw-semibold">{{ resumen.isc_modulo|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Número de inversores</div>
+              <div class="fw-semibold">{{ resumen.no_inversores|default:"—" }}</div>
+            </div>
+          <div class="col-12 col-md-3">
+            <div class="small text-muted">Número de fases</div>
+           <div class="fw-semibold">{{ resumen.numero_fases|default:"—" }}</div>
+            </div>
+            <div class="col-12">
+              <div class="small text-muted">Modelo del módulo</div>
+              <div class="fw-semibold">{{ resumen.modelo_modulo|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if proyecto and bloques|length > 0 %}
+        {% for b in bloques %}
+          <div class="border rounded p-3 mb-3">
+            <div class="fw-bold mb-3">
+              {% if b.tipo == "MICRO" %}Micro inversor{% else %}Inversor{% endif %} {{ b.indice }}
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Modelo de inversor</div>
+                <div class="fw-semibold">{{ b.modelo }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Número de series por inversor</div>
+                <div class="fw-semibold">{{ b.no_cadenas }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Número de módulos por inversor</div>
+                <div class="fw-semibold">{{ b.modulos_por_inversor }}</div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-semibold">Número de metros lineales por cada serie</label>
+                <input class="form-control" type="number" step="0.001" min="0.001"
+                       name="metros_lineales_ac_{{ b.indice }}"
+                       value="{{ b.val.metros_lineales_ac|default:'' }}" required>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-semibold">Calibre del cable THHW</label>
+                <select class="form-select" name="calibre_cable_thhw_{{ b.indice }}" required>
+                  <option value="">-- Selecciona --</option>
+                  {% for c in calibres %}
+                    <option value="{{ c }}" {% if b.val and b.val.calibre_cable_thhw == c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-semibold">Número de hilos por tubería</label>
+                <input class="form-control" type="number" min="1"
+                       name="hilos_tuberia_ac_{{ b.indice }}"
+                       value="{{ b.val.hilos_tuberia_ac|default:'' }}" required>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-12">
+                <div class="fw-semibold mb-2">Condulets</div>
+              </div>
+
+              <div class="col-6 col-md-2">
+                <label class="form-label">Tipo LL</label>
+                <input class="form-control" type="number" min="0" name="condulet_ll_{{ b.indice }}"
+                       value="{{ b.condulet.tipo_ll|default:0 }}">
+              </div>
+
+              <div class="col-6 col-md-2">
+                <label class="form-label">Tipo LR</label>
+                <input class="form-control" type="number" min="0" name="condulet_lr_{{ b.indice }}"
+                       value="{{ b.condulet.tipo_lr|default:0 }}">
+              </div>
+
+              <div class="col-6 col-md-2">
+                <label class="form-label">Tipo LB</label>
+                <input class="form-control" type="number" min="0" name="condulet_lb_{{ b.indice }}"
+                       value="{{ b.condulet.tipo_lb|default:0 }}">
+              </div>
+
+              <div class="col-6 col-md-2">
+                <label class="form-label">Tipo T</label>
+                <input class="form-control" type="number" min="0" name="condulet_t_{{ b.indice }}"
+                       value="{{ b.condulet.tipo_t|default:0 }}">
+              </div>
+
+              <div class="col-6 col-md-2">
+                <label class="form-label">Tipo C</label>
+                <input class="form-control" type="number" min="0" name="condulet_c_{{ b.indice }}"
+                       value="{{ b.condulet.tipo_c|default:0 }}">
+              </div>
+            </div>
+
+            {% if b.res %}
+              <hr class="my-3">
+              <div class="row g-3">
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Amperaje de la protección</div>
+                  <div class="fw-semibold">{{ b.res.amperaje_proteccion }} A</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Número de protecciones por cadena</div>
+                  <div class="fw-semibold">1</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Número total de protecciones</div>
+                  <div class="fw-semibold">{{ b.res.total_protecciones }}</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Metros totales de cable</div>
+                  <div class="fw-semibold">{{ b.res.metros_totales_cable_ac }}</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Calibre de tubería</div>
+                  <div class="fw-semibold">{{ b.res.calibre_tuberia_ac }}</div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <div class="small text-muted">Número total de tubos</div>
+                  <div class="fw-semibold">{{ b.res.total_tubos_ac }}</div>
+                </div>
+
+                <div class="col-12">
+                  <div class="small text-muted">Número y tipo total de condulets</div>
+                  <div class="fw-semibold">
+                    LL: {{ b.condulet.tipo_ll|default:0 }},
+                    LR: {{ b.condulet.tipo_lr|default:0 }},
+                    LB: {{ b.condulet.tipo_lb|default:0 }},
+                    T: {{ b.condulet.tipo_t|default:0 }},
+                    C: {{ b.condulet.tipo_c|default:0 }}
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+          <button class="btn btn-outline-secondary" type="submit" name="action" value="cancel">Cancelar</button>
+          <button class="btn btn-success" type="submit" name="action" value="calcular">Calcular</button>
+
+          {% if proyecto %}
+            <a class="btn btn-outline-danger ms-auto" href="{% url 'core:calculo_ac_pdf' proyecto.id %}">
+              Descargar PDF
+            </a>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <div class="alert alert-info">
+          Selecciona un proyecto. Si no aparecen inversores/micro inversores, primero guarda el módulo <b>Dimensionamiento</b>.
+        </div>
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+          <button class="btn btn-outline-secondary" type="submit" name="action" value="cancel">Cancelar</button>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const proyectoSelect = document.getElementById("proyectoSelect");
+  if (proyectoSelect) {
+    proyectoSelect.addEventListener("change", function () {
+      const val = proyectoSelect.value;
+      const baseUrl = window.location.pathname;
+      window.location.href = val ? `${baseUrl}?proyecto_id=${val}` : baseUrl;
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -551,3 +551,87 @@ class CalculoDC(models.Model):
 
     def __str__(self):
         return f"CalculoDC - Proyecto {self.proyecto_id} - idx {self.indice}"
+
+# =========================================================
+# [MODULO] RESULTADO CÁLCULO AC (RESULTADOS)
+# Tabla: resultado_calculo_ac
+# =========================================================
+class ResultadoCalculoAC(models.Model):
+    amperaje_proteccion = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    total_de_cadenas_ac = models.PositiveIntegerField(null=True, blank=True)
+    total_protecciones = models.PositiveIntegerField(null=True, blank=True)
+    metros_totales_cable_ac = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    calibre_tuberia_ac = models.CharField(max_length=40, null=True, blank=True)
+    total_tubos_ac = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "resultado_calculo_ac"
+
+    def __str__(self):
+        return f"Resultado AC (protección={self.amperaje_proteccion}, cadenas={self.total_de_cadenas_ac})"
+
+
+# =========================================================
+# [MODULO] CÁLCULO AC (CABECERA POR INVERSOR/MICRO)
+# Tabla: calculo_ac
+# =========================================================
+class CalculoAC(models.Model):
+    proyecto = models.ForeignKey(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="calculos_ac",
+        db_column="Id_Proyecto",
+    )
+
+    dimensionamiento_detalle = models.ForeignKey(
+        "DimensionamientoDetalle",
+        on_delete=models.CASCADE,
+        related_name="calculos_ac",
+        null=True,
+        blank=True,
+    )
+
+    indice = models.PositiveIntegerField(default=1)
+
+    metros_lineales_ac = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    calibre_cable_thhw = models.CharField(max_length=20, null=True, blank=True)
+    hilos_tuberia_ac = models.PositiveIntegerField(null=True, blank=True)
+
+    condulet = models.OneToOneField(
+        "Condulet",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column="Id_condulet",
+        related_name="calculo_ac",
+    )
+
+    conductor = models.ForeignKey(
+        "Conductor",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column="Id_conductores",
+        related_name="calculos_ac",
+    )
+
+    resultado_ac = models.OneToOneField(
+        "ResultadoCalculoAC",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column="Id_resultadoo_ac",
+        related_name="calculo_ac",
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "calculo_ac"
+        ordering = ["proyecto_id", "indice"]
+        constraints = [
+            models.UniqueConstraint(fields=["proyecto", "indice"], name="uniq_calculo_ac_proyecto_indice"),
+        ]
+
+    def __str__(self):
+        return f"CalculoAC - Proyecto {self.proyecto_id} - idx {self.indice}"

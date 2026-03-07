@@ -12,15 +12,12 @@ class Command(BaseCommand):
     help = "Importa inversores y microinversores desde CSV (data/inversor.csv y data/microinversor.csv)"
 
     def handle(self, *args, **kwargs):
-        # ✅ RUTAS PORTABLES (funciona en Windows, Linux y Render)
-        base_dir = Path(settings.BASE_DIR)  # carpeta raíz del proyecto (donde está manage.py)
+        base_dir = Path(settings.BASE_DIR)
         inv_path = base_dir / "data" / "inversor.csv"
         micro_path = base_dir / "data" / "microinversor.csv"
 
-        # Si tus CSV se guardaron con BOM (muy común en Excel), utf-8-sig lo maneja perfecto.
         enc = "utf-8-sig"
 
-        # Validación rápida: si no existen, fallar con mensaje claro
         if not inv_path.exists():
             raise FileNotFoundError(f"No se encontró: {inv_path}  (asegúrate que exista data/inversor.csv en el servidor)")
         if not micro_path.exists():
@@ -55,18 +52,31 @@ class Command(BaseCommand):
             for row in reader:
                 marca = clean_text(row.get("Marca"))
                 modelo = clean_text(row.get("Modelo"))
-                potencia_w = to_decimal(row.get("Potencia"))  # ✅ W
-                volt_nom = clean_text(row.get("Voltaje nominal"))
 
                 if not marca or not modelo:
                     continue
+
+                potencia = to_decimal(row.get("Potencia"))
+                corriente_entrada = to_decimal(row.get("Corriente de entrada"))
+                corriente_salida = to_decimal(row.get("Corriente de salida"))
+                voltaje_arranque = to_decimal(row.get("Voltaje de arranque"))
+                voltaje_maximo_entrada = to_decimal(row.get("Voltaje máximo de entrada"))
+                no_mppt = to_int(row.get("No mppt"))
+                no_fases = to_int(row.get("No fases"))
+                voltaje_nominal = clean_text(row.get("Voltaje nominal"))
 
                 _, created = Inversor.objects.update_or_create(
                     marca=marca,
                     modelo=modelo,
                     defaults={
-                        "potencia_w": potencia_w,     # ✅ W
-                        "voltaje_salida": volt_nom,   # texto (como lo tienes en tu modelo)
+                        "potencia": potencia,
+                        "corriente_entrada": corriente_entrada,
+                        "corriente_salida": corriente_salida,
+                        "voltaje_arranque": voltaje_arranque,
+                        "voltaje_maximo_entrada": voltaje_maximo_entrada,
+                        "no_mppt": no_mppt,
+                        "no_fases": no_fases,
+                        "voltaje_nominal": voltaje_nominal,
                     },
                 )
 
@@ -94,18 +104,31 @@ class Command(BaseCommand):
             for row in reader:
                 marca = clean_text(row.get("Marca"))
                 modelo = clean_text(row.get("Modelo"))
-                potencia_w = to_decimal(row.get("Potencia"))  # ✅ W
-                canales = to_int(row.get("No mppt"))
 
                 if not marca or not modelo:
                     continue
+
+                potencia = to_decimal(row.get("Potencia"))
+                corriente_entrada = to_decimal(row.get("Corriente de entrada"))
+                corriente_salida = to_decimal(row.get("Corriente de salida"))
+                voltaje_arranque = to_decimal(row.get("Voltaje de arranque"))
+                voltaje_maximo_entrada = to_decimal(row.get("Voltaje máximo de entrada"))
+                no_mppt = to_int(row.get("No mppt"))
+                no_fases = to_int(row.get("No fases"))
+                voltaje_nominal = clean_text(row.get("Voltaje nominal"))
 
                 _, created = MicroInversor.objects.update_or_create(
                     marca=marca,
                     modelo=modelo,
                     defaults={
-                        "potencia_w": potencia_w,  # ✅ W
-                        "canales": canales,
+                        "potencia": potencia,
+                        "corriente_entrada": corriente_entrada,
+                        "corriente_salida": corriente_salida,
+                        "voltaje_arranque": voltaje_arranque,
+                        "voltaje_maximo_entrada": voltaje_maximo_entrada,
+                        "no_mppt": no_mppt,
+                        "no_fases": no_fases,
+                        "voltaje_nominal": voltaje_nominal,
                     },
                 )
 

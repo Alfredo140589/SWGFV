@@ -55,7 +55,8 @@ from .models import (
     Irradiancia, PanelSolar, NumeroPaneles, ResultadoPaneles,
     Inversor, MicroInversor,
     Dimensionamiento, DimensionamientoDetalle,
-    Conductor, Condulet, ResultadoCalculoDC, CalculoDC
+    Conductor, Condulet, ResultadoCalculoDC, CalculoDC,
+    ResultadoCalculoAC, CalculoAC
 )
 
 logger = logging.getLogger(__name__)
@@ -1439,8 +1440,8 @@ def calculo_dc(request):
         "voc_modulo": None,
         "isc_modulo": None,
         "no_inversores": None,
+        "numero_fases": None,
     }
-
     # =========================
     # Cargar proyecto + número de módulos + dimensionamiento
     # =========================
@@ -1476,7 +1477,7 @@ def calculo_dc(request):
 
             if dim:
                 resumen["no_inversores"] = dim.no_inversores
-
+            resumen["numero_fases"] = proyecto.Numero_Fases
             existentes = {
                 int(x.indice): x
                 for x in CalculoDC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_dc", "conductor")
@@ -2028,9 +2029,500 @@ def calculo_dc_pdf(request, proyecto_id: int):
     return response
 
 @require_session_login
-def calculo_ac(request):
-    return _render_menu_page(request, "core/pages/calculo_ac.html", "Cálculo AC")
+@require_http_methods(["GET"])
+def calculo_ac_pdf(request, proyecto_id: int):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
 
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:calculo_ac")
+
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para descargar este PDF.")
+            return redirect("core:calculo_ac")
+
+    registros = list(
+        CalculoAC.objects.filter(proyecto=proyecto)
+        .select_related(
+            "resultado_ac",
+            "condulet",
+            "dimensionamiento_detalle",
+            "dimensionamiento_detalle__inversor",
+            "dimensionamiento_detalle__micro_inversor",
+            "conductor",
+        )
+        .order_by("indice")
+    )
+
+    if not registros:
+        messages.error(request, "No hay cálculos AC guardados para este proyecto.")
+        return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+    np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+    resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first() if np_obj else None
+    dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+
+    filename = f"SWGFV_CalculoAC_Proyecto_{proyecto.id}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = build_fortia_doc(response, f"Cálculo AC - Proyecto {proyecto.id}")
+    pdfs = get_fortia_styles()
+    elements = []
+
+    add_fortia_header(
+        elements,
+        "Reporte técnico de cálculo de corriente alterna (AC)",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
+
+    elements.append(Paragraph("Datos generales del proyecto", pdfs["section"]))
+
+    modelo_modulo = "—"
+    voc_modulo = "—"
+    isc_modulo = "—"
+    no_modulos = "—"
+    no_inversores = "—"
+
+    if np_obj and np_obj.panel:
+        modelo_modulo = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+        voc_modulo = str(np_obj.panel.voc or "—")
+        isc_modulo = str(np_obj.panel.isc or "—")
+
+    if resultado_paneles:
+        no_modulos = str(resultado_paneles.no_modulos or "—")
+
+    if dim:
+        no_inversores = str(dim.no_inversores or "—")
+
+    fecha_generacion = timezone.localtime().strftime("%d/%m/%Y %H:%M")
+
+    general_data = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), pdfs["value"]),
+            Paragraph("<b>Empresa</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Empresa or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(no_modulos, pdfs["value"]),
+            Paragraph("<b>Número de inversores</b>", pdfs["label"]),
+            Paragraph(no_inversores, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voc del módulo</b>", pdfs["label"]),
+            Paragraph(voc_modulo, pdfs["value"]),
+            Paragraph("<b>Isc del módulo</b>", pdfs["label"]),
+            Paragraph(isc_modulo, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Modelo del módulo</b>", pdfs["label"]),
+            Paragraph(modelo_modulo, pdfs["value"]),
+            Paragraph("<b>Fecha de generación</b>", pdfs["label"]),
+            Paragraph(fecha_generacion, pdfs["value"]),
+        ],
+    ]
+
+    elements.append(make_info_table(general_data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+    elements.append(Paragraph("Resultados por inversor / micro inversor", pdfs["section"]))
+
+    for r in registros:
+        det = r.dimensionamiento_detalle
+        modelo = str((det.inversor if det else None) or (det.micro_inversor if det else None) or "—")
+        tipo_equipo = "Micro inversor" if det and det.micro_inversor_id else "Inversor"
+
+        lista_modulos = det.modulos_por_cadena_lista if det else []
+        if lista_modulos:
+            modulos_por_inversor = sum(int(v or 0) for v in lista_modulos)
+            modulos_cadena_txt = ", ".join([f"Cad {i+1}: {v}" for i, v in enumerate(lista_modulos)])
+        else:
+            modulos_por_inversor = int((det.no_cadenas or 0) * (det.modulos_por_cadena or 0)) if det else 0
+            modulos_cadena_txt = str(det.modulos_por_cadena or "—") if det else "—"
+
+        res = r.resultado_ac
+        con = r.condulet
+
+        elements.append(Paragraph(f"{tipo_equipo} {r.indice} — {modelo}", pdfs["block_title"]))
+
+        data = [
+            [
+                Paragraph("<b>Número de series</b>", pdfs["label"]),
+                Paragraph(str(det.no_cadenas if det else "—"), pdfs["value"]),
+                Paragraph("<b>Número de módulos por inversor</b>", pdfs["label"]),
+                Paragraph(str(modulos_por_inversor), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
+                Paragraph(modulos_cadena_txt, pdfs["value"]),
+                Paragraph("<b>Metros lineales</b>", pdfs["label"]),
+                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre cable THHW</b>", pdfs["label"]),
+                Paragraph(str(r.calibre_cable_thhw or "—"), pdfs["value"]),
+                Paragraph("<b>Hilos por tubería</b>", pdfs["label"]),
+                Paragraph(str(r.hilos_tuberia_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Amperaje protección</b>", pdfs["label"]),
+                Paragraph(f"{getattr(res, 'amperaje_proteccion', '—')} A" if res else "—", pdfs["value"]),
+                Paragraph("<b>Total de cadenas</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_de_cadenas_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Total protecciones</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_protecciones", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Metros totales cable</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "metros_totales_cable_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre tubería</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calibre_tuberia_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Total tubos</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Condulets LL / LR / LB / T / C</b>", pdfs["label"]),
+                Paragraph(
+                    f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
+                    pdfs["value"]
+                ),
+                Paragraph("<b>Total condulets</b>", pdfs["label"]),
+                Paragraph(str(con.total() if con else 0), pdfs["value"]),
+            ],
+        ]
+
+        elements.append(make_info_table(data, [3.8 * cm, 4.1 * cm, 4.0 * cm, 4.1 * cm]))
+        elements.append(Spacer(1, 0.2 * cm))
+
+    add_fortia_footer(elements, pdfs)
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
+    return response
+
+@require_session_login
+@require_http_methods(["GET", "POST"])
+def calculo_ac(request):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    proyecto = None
+    dim = None
+    detalles = []
+    np_obj = None
+    resultado_paneles = None
+
+    bloques = []
+
+    resumen = {
+        "no_modulos": None,
+        "modelo_modulo": None,
+        "voc_modulo": None,
+        "isc_modulo": None,
+        "no_inversores": None,
+        "numero_fases": None,
+    }
+
+    if selected_proyecto_id:
+        proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
+
+        if proyecto and session_tipo != "Administrador":
+            if int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para acceder a ese proyecto.")
+                return redirect("core:calculo_ac")
+
+        if proyecto:
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if np_obj:
+                resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if dim:
+                detalles = list(
+                    DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                    .select_related("inversor", "micro_inversor")
+                    .order_by("indice")
+                )
+
+            if resultado_paneles:
+                resumen["no_modulos"] = resultado_paneles.no_modulos
+
+            if np_obj and np_obj.panel:
+                resumen["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+                resumen["voc_modulo"] = np_obj.panel.voc
+                resumen["isc_modulo"] = np_obj.panel.isc
+
+            if dim:
+                resumen["no_inversores"] = dim.no_inversores
+            resumen["numero_fases"] = proyecto.Numero_Fases
+            existentes = {
+                int(x.indice): x
+                for x in CalculoAC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_ac", "conductor")
+            }
+
+            for d in detalles:
+                calc = existentes.get(int(d.indice))
+                modelo_txt = str(d.inversor or d.micro_inversor or "—")
+
+                lista_modulos = d.modulos_por_cadena_lista or []
+                if lista_modulos:
+                    total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
+                else:
+                    total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+
+                bloques.append({
+                    "indice": d.indice,
+                    "modelo": modelo_txt,
+                    "tipo": dim.tipo_inversor if dim else "INVERSOR",
+                    "detalle_id": d.id,
+                    "no_cadenas": d.no_cadenas,
+                    "modulos_por_inversor": total_modulos_inversor,
+                    "potencia_equipo": (
+                        d.inversor.potencia if d.inversor_id else
+                        d.micro_inversor.potencia if d.micro_inversor_id else None
+                    ),
+                    "val": calc,
+                    "res": (calc.resultado_ac if calc and calc.resultado_ac_id else None),
+                    "condulet": (calc.condulet if calc and calc.condulet_id else None),
+                })
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            return redirect("core:calculo_ac")
+
+        if action == "calcular":
+            proyecto_id_raw = (request.POST.get("proyecto") or "").strip()
+            if not proyecto_id_raw.isdigit():
+                messages.error(request, "Selecciona un proyecto válido.")
+                return redirect("core:calculo_ac")
+
+            proyecto = Proyecto.objects.filter(id=int(proyecto_id_raw)).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect("core:calculo_ac")
+
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para calcular en ese proyecto.")
+                return redirect("core:calculo_ac")
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if not dim:
+                messages.error(request, "Primero guarda el Dimensionamiento del proyecto.")
+                return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+            detalles = list(
+                DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                .select_related("inversor", "micro_inversor")
+                .order_by("indice")
+            )
+            if not detalles:
+                messages.error(request, "No hay detalles de dimensionamiento para este proyecto.")
+                return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+            # extraer voltaje numérico del proyecto
+            voltaje_txt = str(proyecto.Voltaje_Nominal or "").strip()
+            voltaje_num = None
+            try:
+                # toma el primer número, ej. "127/220" -> 127
+                parte = voltaje_txt.split("/")[0].strip()
+                voltaje_num = Decimal(parte)
+            except Exception:
+                messages.error(request, "El voltaje nominal del proyecto no es válido para cálculo AC.")
+                return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+            def resolver_proteccion_comercial(valor_decimal: Decimal) -> Decimal:
+                opciones = [
+                    Decimal("20"), Decimal("25"), Decimal("32"), Decimal("40"),
+                    Decimal("50"), Decimal("63"), Decimal("80"), Decimal("100"),
+                    Decimal("125"), Decimal("160"), Decimal("200"), Decimal("250"),
+                ]
+                for op in opciones:
+                    if valor_decimal <= op:
+                        return op
+                return opciones[-1]
+
+            def resolver_calibre_tuberia(conductor: Conductor, hilos: int):
+                cols = [
+                    ("tubo_1_2_pulgada", "Tubo 1/2\" pared delgada"),
+                    ("tubo_3_4_pulgada", "Tubo 3/4\" pared delgada"),
+                    ("tubo_1_pulgada", "Tubo 1\" pared delgada"),
+                    ("tubo_1_1_4_pulgada", "Tubo 1 1/4\" pared delgada"),
+                    ("tubo_1_1_2_pulgada", "Tubo 1 1/2\" pared delgada"),
+                    ("tubo_2_pulgada", "Tubo 2\" pared delgada"),
+                    ("tubo_2_1_2_pulgada", "Tubo 2 1/2\" pared delgada"),
+                ]
+                for attr, label in cols:
+                    cap = int(getattr(conductor, attr, 0) or 0)
+                    if cap >= int(hilos):
+                        return label
+                return cols[-1][1]
+
+            hubo_error = False
+
+            for d in detalles:
+                idx = int(d.indice)
+
+                metros_raw = (request.POST.get(f"metros_lineales_ac_{idx}") or "").strip()
+                calibre_raw = (request.POST.get(f"calibre_cable_thhw_{idx}") or "").strip()
+                hilos_raw = (request.POST.get(f"hilos_tuberia_ac_{idx}") or "").strip()
+
+                ll_raw = (request.POST.get(f"condulet_ll_{idx}") or "0").strip()
+                lr_raw = (request.POST.get(f"condulet_lr_{idx}") or "0").strip()
+                lb_raw = (request.POST.get(f"condulet_lb_{idx}") or "0").strip()
+                t_raw = (request.POST.get(f"condulet_t_{idx}") or "0").strip()
+                c_raw = (request.POST.get(f"condulet_c_{idx}") or "0").strip()
+
+                try:
+                    metros_lineales_ac = Decimal(metros_raw)
+                    if metros_lineales_ac <= 0:
+                        raise ValueError()
+                except Exception:
+                    messages.error(request, f"Metros lineales inválidos en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                if not calibre_raw:
+                    messages.error(request, f"Selecciona calibre del cable THHW en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                if not hilos_raw.isdigit() or int(hilos_raw) < 1:
+                    messages.error(request, f"Hilos por tubería inválidos en inversor {idx}.")
+                    hubo_error = True
+                    continue
+                hilos = int(hilos_raw)
+
+                def to_int0(x):
+                    try:
+                        v = int(x)
+                        return v if v >= 0 else 0
+                    except Exception:
+                        return 0
+
+                ll = to_int0(ll_raw)
+                lr = to_int0(lr_raw)
+                lb = to_int0(lb_raw)
+                tt = to_int0(t_raw)
+                cc = to_int0(c_raw)
+
+                conductor = Conductor.objects.filter(calibre_cable__iexact=calibre_raw).first()
+                if not conductor:
+                    messages.error(request, f"No se encontró el calibre '{calibre_raw}' en la tabla conductores.")
+                    hubo_error = True
+                    continue
+
+                potencia_equipo = None
+                if d.inversor_id and d.inversor and d.inversor.potencia is not None:
+                    potencia_equipo = Decimal(str(d.inversor.potencia))
+                elif d.micro_inversor_id and d.micro_inversor and d.micro_inversor.potencia is not None:
+                    potencia_equipo = Decimal(str(d.micro_inversor.potencia))
+
+                if potencia_equipo is None or potencia_equipo <= 0:
+                    messages.error(request, f"No se encontró potencia válida para el inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                # 1 o 2 fases -> fórmula 2 fases
+                # 3 fases -> fórmula 3 fases
+                if int(proyecto.Numero_Fases or 0) in (1, 2):
+                    amperaje_calculado = (potencia_equipo / voltaje_num) * Decimal("1.25")
+                else:
+                    amperaje_calculado = (potencia_equipo / (voltaje_num * Decimal("1.732050"))) * Decimal("1.25")
+
+                amperaje_proteccion = resolver_proteccion_comercial(amperaje_calculado)
+
+                total_de_cadenas_ac = int(d.no_cadenas or 0)
+                total_protecciones = 1
+                metros_totales_cable_ac = Decimal(str(total_de_cadenas_ac)) * Decimal("2") * metros_lineales_ac
+                calibre_tuberia_ac = resolver_calibre_tuberia(conductor, hilos)
+                total_tubos_ac = int((metros_lineales_ac / Decimal("3")).quantize(Decimal("1"), rounding=ROUND_UP))
+
+                condulet_obj = Condulet.objects.create(
+                    tipo_ll=ll,
+                    tipo_lr=lr,
+                    tipo_lb=lb,
+                    tipo_t=tt,
+                    tipo_c=cc,
+                )
+
+                resultado_obj = ResultadoCalculoAC.objects.create(
+                    amperaje_proteccion=amperaje_proteccion,
+                    total_de_cadenas_ac=total_de_cadenas_ac,
+                    total_protecciones=total_protecciones,
+                    metros_totales_cable_ac=metros_totales_cable_ac,
+                    calibre_tuberia_ac=calibre_tuberia_ac,
+                    total_tubos_ac=total_tubos_ac,
+                )
+
+                existente = CalculoAC.objects.filter(proyecto=proyecto, indice=idx).select_related("condulet", "resultado_ac").first()
+                if existente:
+                    old_condulet = existente.condulet
+                    old_res = existente.resultado_ac
+
+                    existente.metros_lineales_ac = metros_lineales_ac
+                    existente.calibre_cable_thhw = calibre_raw
+                    existente.hilos_tuberia_ac = hilos
+                    existente.conductor = conductor
+                    existente.condulet = condulet_obj
+                    existente.resultado_ac = resultado_obj
+                    existente.dimensionamiento_detalle = d
+                    existente.save()
+
+                    if old_condulet:
+                        old_condulet.delete()
+                    if old_res:
+                        old_res.delete()
+                else:
+                    CalculoAC.objects.create(
+                        proyecto=proyecto,
+                        dimensionamiento_detalle=d,
+                        indice=idx,
+                        metros_lineales_ac=metros_lineales_ac,
+                        calibre_cable_thhw=calibre_raw,
+                        hilos_tuberia_ac=hilos,
+                        conductor=conductor,
+                        condulet=condulet_obj,
+                        resultado_ac=resultado_obj,
+                    )
+
+            if hubo_error:
+                return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+            messages.success(request, "✅ Cálculo AC realizado y guardado correctamente.")
+            return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
+
+    calibres = list(Conductor.objects.values_list("calibre_cable", flat=True).order_by("id_conductor"))
+
+    context = {
+        "proyectos": proyectos,
+        "selected_proyecto_id": selected_proyecto_id,
+        "proyecto": proyecto,
+        "bloques": bloques,
+        "calibres": calibres,
+        "resumen": resumen,
+    }
+    return render(request, "core/pages/calculo_ac.html", context)
 
 @require_session_login
 def calculo_caida_tension(request):
