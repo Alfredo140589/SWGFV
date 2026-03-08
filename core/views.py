@@ -447,18 +447,20 @@ def proyecto_alta(request):
         messages.error(request, "Usuario inválido o inactivo.")
         return redirect("core:logout")
 
-    # ✅ Instancia del form (POST o vacío)
     form = ProyectoCreateForm(request.POST or None)
+    proyecto_creado = None
+
+    proyecto_id = (request.GET.get("created") or "").strip()
+    if proyecto_id.isdigit():
+        proyecto_creado = Proyecto.objects.filter(id=int(proyecto_id), ID_Usuario_id=session_id_usuario).first()
 
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
 
-        # ✅ CANCELAR: no guarda nada y limpia formulario
         if action == "cancel":
             messages.info(request, "Operación cancelada. El formulario fue limpiado.")
-            return redirect("core:proyecto_alta")  # recarga por GET y queda vacío
+            return redirect("core:proyecto_alta")
 
-        # ✅ GUARDAR: flujo normal
         if form.is_valid():
             proyecto = form.save(commit=False)
             proyecto.ID_Usuario = user
@@ -473,11 +475,18 @@ def proyecto_alta(request):
             )
 
             messages.success(request, "✅ Proyecto registrado correctamente.")
-            return redirect("core:proyecto_alta")
+            return redirect(f"{reverse('core:proyecto_alta')}?created={proyecto.id}")
 
         messages.error(request, "Revisa el formulario e intenta nuevamente.")
 
-    return render(request, "core/pages/proyecto_alta.html", {"form": form})
+    return render(
+        request,
+        "core/pages/proyecto_alta.html",
+        {
+            "form": form,
+            "proyecto_creado": proyecto_creado,
+        }
+    )
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_consulta(request):
@@ -488,13 +497,24 @@ def proyecto_consulta(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
     q_usuario = (request.GET.get("usuario") or "").strip()
-
-    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
+    proyecto_select = (request.GET.get("proyecto") or "").strip()
 
     if session_tipo == "Administrador":
+        proyectos_dropdown = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
         qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
     else:
-        qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+        proyectos_dropdown = Proyecto.objects.select_related("ID_Usuario").filter(
+            ID_Usuario_id=session_id_usuario
+        ).order_by("-id")
+        qs = proyectos_dropdown
+
+    mostrar_lista = any([proyecto_select, q_id, q_nombre, q_empresa, q_usuario])
+
+    if proyecto_select:
+        if proyecto_select.isdigit():
+            qs = qs.filter(id=int(proyecto_select))
+        else:
+            qs = Proyecto.objects.none()
 
     if q_id:
         if q_id.isdigit():
@@ -519,6 +539,8 @@ def proyecto_consulta(request):
         "q_empresa": q_empresa,
         "q_usuario": q_usuario,
         "es_admin": (session_tipo == "Administrador"),
+        "proyectos_dropdown": proyectos_dropdown,
+        "proyecto_select": proyecto_select,
     }
     return render(request, "core/pages/proyecto_consulta.html", context)
 
@@ -533,9 +555,10 @@ def proyecto_modificacion(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
     q_usuario = (request.GET.get("usuario") or "").strip()
+    mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
 
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario])
+    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario]) or (mostrar_todos and session_tipo == "Administrador")
 
     if session_tipo == "Administrador":
         qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
@@ -565,9 +588,6 @@ def proyecto_modificacion(request):
     seleccionado = None
     form = None
 
-    # =========================
-    # GET: cargar seleccionado
-    # =========================
     if q_id.isdigit():
         seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
         if seleccionado:
@@ -577,9 +597,6 @@ def proyecto_modificacion(request):
 
             form = ProyectoUpdateForm(instance=seleccionado)
 
-    # =========================
-    # POST: actualizar / eliminar
-    # =========================
     if request.method == "POST":
         post_id = (request.GET.get("id") or "").strip()
         if not post_id.isdigit():
@@ -591,16 +608,13 @@ def proyecto_modificacion(request):
             messages.error(request, "El proyecto ya no existe.")
             return redirect("core:proyecto_modificacion")
 
-        # permisos
         if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
             messages.error(request, "No tienes permisos para modificar este proyecto.")
             return redirect("core:proyecto_modificacion")
 
         action = (request.POST.get("action") or "").strip().lower()
 
-        # ✅ ELIMINAR (NO requiere edit_mode)
         if action == "delete_project":
-            # Seguridad: impedir eliminar si tiene registros relacionados (recomendado)
             tiene_relacionados = (
                 NumeroPaneles.objects.filter(proyecto=seleccionado).exists()
                 or Dimensionamiento.objects.filter(proyecto=seleccionado).exists()
@@ -621,7 +635,6 @@ def proyecto_modificacion(request):
             messages.success(request, f"✅ Proyecto eliminado: {nombre}")
             return redirect("core:proyecto_modificacion")
 
-        # ✅ UPDATE requiere edit_mode
         if not edit_mode:
             messages.error(request, "Para editar, primero presiona ✏️ Editar.")
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
@@ -652,6 +665,7 @@ def proyecto_modificacion(request):
         "seleccionado": seleccionado,
         "form": form,
         "edit_mode": edit_mode,
+        "mostrar_todos": mostrar_todos,
     }
     return render(request, "core/pages/proyecto_modificacion.html", context)
 
@@ -680,23 +694,27 @@ def gestion_usuarios_modificacion(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_ap = (request.GET.get("ap") or "").strip()
     q_am = (request.GET.get("am") or "").strip()
+    mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
 
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-    mostrar_lista = any([q_id, q_nombre, q_ap, q_am])
+    mostrar_lista = any([q_id, q_nombre, q_ap, q_am]) or mostrar_todos
 
     usuarios = Usuario.objects.none()
     if mostrar_lista:
         qs = Usuario.objects.all().order_by("ID_Usuario")
 
-        if q_id.isdigit():
-            qs = qs.filter(ID_Usuario=int(q_id))
-        elif q_id:
-            qs = Usuario.objects.none()
+        if q_id:
+            if q_id.isdigit():
+                qs = qs.filter(ID_Usuario=int(q_id))
+            else:
+                qs = Usuario.objects.none()
 
         if q_nombre:
             qs = qs.filter(Nombre__icontains=q_nombre)
+
         if q_ap:
             qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+
         if q_am:
             qs = qs.filter(Apellido_Materno__icontains=q_am)
 
@@ -781,13 +799,13 @@ def gestion_usuarios_modificacion(request):
         "q_ap": q_ap,
         "q_am": q_am,
         "mostrar_lista": mostrar_lista,
+        "mostrar_todos": mostrar_todos,
         "usuarios": usuarios,
         "seleccionado": seleccionado,
         "form": form,
         "edit_mode": edit_mode,
     }
     return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
-
 
 @require_session_login
 def cuenta_view(request):

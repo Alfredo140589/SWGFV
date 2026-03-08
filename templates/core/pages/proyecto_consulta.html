@@ -14,6 +14,18 @@
     <form method="GET" class="mb-4">
       <div class="row g-3">
 
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Selecciona un proyecto</label>
+          <select name="proyecto" class="form-select">
+            <option value="">-- Selecciona --</option>
+            {% for p in proyectos_dropdown %}
+              <option value="{{ p.id }}" {% if proyecto_select == p.id|stringformat:"s" %}selected{% endif %}>
+                ID {{ p.id }} — {{ p.Nombre_Proyecto }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
         <div class="col-12 col-md-2">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
           <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
@@ -24,13 +36,13 @@
           <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
         </div>
 
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Empresa</label>
           <input type="text" name="empresa" value="{{ q_empresa }}" class="form-control" placeholder="Empresa">
         </div>
 
         {% if es_admin %}
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Usuario (correo)</label>
           <input type="text" name="usuario" value="{{ q_usuario }}" class="form-control" placeholder="correo@...">
         </div>
@@ -73,16 +85,17 @@
               <td>{{ p.Voltaje_Nominal }}</td>
               <td>{{ p.Numero_Fases }}</td>
               <td class="text-center">
-         <a class="btn btn-sm btn-danger"
-         href="{% url 'core:proyecto_pdf' p.id %}">
-         PDF
-        </a>
-          </td>
-              {% if es_admin %}<td style="word-break: break-word;">{{ p.ID_Usuario.Correo_electronico }}</td>{% endif %}
+                <a class="btn btn-sm btn-danger" href="{% url 'core:proyecto_pdf' p.id %}">
+                  PDF
+                </a>
+              </td>
+              {% if es_admin %}
+                <td style="word-break: break-word;">{{ p.ID_Usuario.Correo_electronico }}</td>
+              {% endif %}
             </tr>
             {% empty %}
             <tr>
-              <td colspan="{% if es_admin %}8{% else %}7{% endif %}" class="text-center">
+              <td colspan="{% if es_admin %}9{% else %}8{% endif %}" class="text-center">
                 No hay resultados.
               </td>
             </tr>
@@ -92,7 +105,7 @@
       </div>
     {% else %}
       <div class="alert alert-info">
-        Realiza una búsqueda para mostrar proyectos.
+        Selecciona un proyecto o usa filtros para mostrar resultados.
       </div>
     {% endif %}
 

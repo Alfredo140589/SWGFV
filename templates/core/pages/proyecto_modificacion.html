@@ -21,7 +21,6 @@
       </div>
     {% endif %}
 
-    <!-- BÚSQUEDA -->
     <form method="GET" class="mb-4">
       <div class="row g-3">
 
@@ -52,10 +51,15 @@
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
         <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:proyecto_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+
+        {% if es_admin %}
+          <a href="{% url 'core:proyecto_modificacion' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">
+            Mostrar todos
+          </a>
+        {% endif %}
       </div>
     </form>
 
-    <!-- LISTA -->
     {% if mostrar_lista %}
       <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle">
@@ -98,7 +102,6 @@
       </div>
     {% endif %}
 
-    <!-- EDICIÓN / LECTURA -->
     {% if seleccionado and form %}
       <hr class="mb-4">
 
@@ -180,7 +183,6 @@
             </button>
           {% endif %}
 
-          <!-- ✅ ELIMINAR (NO depende de edit_mode) -->
           <button
             type="submit"
             name="action"
@@ -197,4 +199,3 @@
   </div>
 </div>
 {% endblock %}
-

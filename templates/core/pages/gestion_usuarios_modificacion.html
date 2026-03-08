@@ -48,10 +48,13 @@
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
         <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+        <a href="{% url 'core:gestion_usuarios_modificacion' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">
+          Mostrar todos
+        </a>
       </div>
     </form>
 
-    <!-- LISTA (solo si hubo búsqueda) -->
+    <!-- LISTA -->
     {% if mostrar_lista %}
       <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle">
@@ -94,7 +97,7 @@
       </div>
     {% else %}
       <div class="alert alert-info">
-        Realiza una búsqueda para mostrar usuarios.
+        Realiza una búsqueda o presiona <b>Mostrar todos</b> para listar usuarios.
       </div>
     {% endif %}
 
@@ -129,7 +132,6 @@
           </div>
         {% endif %}
 
-        <!-- fieldset deshabilita TODO si no estamos en edit_mode -->
         <fieldset {% if not edit_mode %}disabled{% endif %}>
           <div class="row g-3">
             <div class="col-12 col-md-4">
@@ -200,12 +202,13 @@
               Guardar cambios
             </button>
           {% endif %}
-{% if not seleccionado.Activo %}
-  <button type="submit" name="action" value="activate" class="btn btn-success px-4"
-          onclick="return confirm('¿Deseas activar este usuario?');">
-    Activar
-  </button>
-{% endif %}
+
+          {% if not seleccionado.Activo %}
+            <button type="submit" name="action" value="activate" class="btn btn-success px-4"
+                    onclick="return confirm('¿Deseas activar este usuario?');">
+              Activar
+            </button>
+          {% endif %}
 
           <button type="submit" name="action" value="deactivate" class="btn btn-warning px-4"
                   onclick="return confirm('¿Seguro que deseas desactivar este usuario?');">

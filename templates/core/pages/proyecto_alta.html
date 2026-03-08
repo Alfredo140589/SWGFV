@@ -7,6 +7,19 @@
   <div class="card-body">
     <h2 class="h5 fw-bold text-primary-emphasis mb-3">Alta de Proyecto</h2>
 
+    {% if proyecto_creado %}
+      <div class="alert alert-success">
+        <div class="fw-bold mb-2">Proyecto registrado correctamente</div>
+        <div><strong>ID del proyecto:</strong> {{ proyecto_creado.id }}</div>
+        <div><strong>Nombre:</strong> {{ proyecto_creado.Nombre_Proyecto }}</div>
+        <div><strong>Empresa:</strong> {{ proyecto_creado.Nombre_Empresa|default:"—" }}</div>
+        <div><strong>Dirección:</strong> {{ proyecto_creado.Direccion }}</div>
+        <div><strong>Coordenadas:</strong> {{ proyecto_creado.Coordenadas }}</div>
+        <div><strong>Voltaje nominal:</strong> {{ proyecto_creado.Voltaje_Nominal }}</div>
+        <div><strong>Número de fases:</strong> {{ proyecto_creado.Numero_Fases }}</div>
+      </div>
+    {% endif %}
+
     <form method="post" novalidate>
       {% csrf_token %}
 
@@ -17,7 +30,6 @@
       {% endif %}
 
       <div class="row g-3">
-
         <div class="col-12 col-md-6">
           <label class="form-label fw-bold">Nombre del proyecto</label>
           {{ form.Nombre_Proyecto }}
@@ -65,25 +77,21 @@
             <div class="text-danger small">{{ form.Numero_Fases.errors }}</div>
           {% endif %}
         </div>
-
       </div>
 
       <div class="d-flex gap-2 mt-4">
-  <!-- Guardar -->
-  <button class="btn btn-swgfv" type="submit" name="action" value="save">
-    Guardar proyecto
-  </button>
+        <button class="btn btn-swgfv" type="submit" name="action" value="save">
+          Guardar proyecto
+        </button>
 
-  <!-- Cancelar: limpia el formulario sin guardar -->
-  <button class="btn btn-outline-danger" type="submit" name="action" value="cancel">
-    Cancelar
-  </button>
+        <button class="btn btn-outline-danger" type="submit" name="action" value="cancel">
+          Cancelar
+        </button>
 
-  <!-- Ir a consulta -->
-  <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">
-    Ir a consulta
-  </a>
-</div>
+        <a class="btn btn-outline-secondary" href="{% url 'core:proyecto_consulta' %}">
+          Ir a consulta
+        </a>
+      </div>
     </form>
   </div>
 </div>
