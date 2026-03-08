@@ -509,6 +509,7 @@ class CalculoDC(models.Model):
 
     # datos capturados
     metros_lineales = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    metros_lineales_por_serie = models.JSONField(default=list, blank=True)
     calibre_cable_solar = models.CharField(max_length=20, null=True, blank=True)
     hilos_tuberia = models.PositiveIntegerField(null=True, blank=True)
 
@@ -635,3 +636,130 @@ class CalculoAC(models.Model):
 
     def __str__(self):
         return f"CalculoAC - Proyecto {self.proyecto_id} - idx {self.indice}"
+
+
+# =========================================================
+# [TABLA] CONDUCTORES AWG CON REACTANCIA
+# Tabla: tabla_conductores_awg_con_reactancia
+# =========================================================
+class TablaConductoresAWGConReactancia(models.Model):
+    calibre_awg = models.PositiveIntegerField(unique=True)
+    area_transversal = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    resistencia_cc = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    resistencia_ca = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    reactancia = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        db_table = "tabla_conductores_awg_con_reactancia"
+        ordering = ["calibre_awg"]
+        verbose_name = "Conductor AWG con reactancia"
+        verbose_name_plural = "Conductores AWG con reactancia"
+
+    def __str__(self):
+        return f"AWG {self.calibre_awg}"
+
+# =========================================================
+# [MODULO] RESULTADO TENSION
+# Tabla: resultado_tension
+# =========================================================
+class ResultadoTension(models.Model):
+    voltaje_tension_ac = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    porcentaje_voltaje_tension_ac = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    voltaje_tension_dc = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    porcentaje_voltaje_tension_dc = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    calculo_rt_ac = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    calculo_rt_dc = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    corriente_corregida = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        db_table = "resultado_tension"
+
+    def __str__(self):
+        return f"ResultadoTension {self.id}"
+
+
+# =========================================================
+# [MODULO] CALCULO TENSION
+# Tabla: calculo_tension
+#
+# NOTA TÉCNICA:
+# - AC se guarda por inversor/micro inversor
+# - DC se guarda por serie de cada inversor
+# Por eso agregamos indice y serie para poder persistir
+# correctamente los registros.
+# =========================================================
+class CalculoTension(models.Model):
+    proyecto = models.ForeignKey(
+        "Proyecto",
+        on_delete=models.CASCADE,
+        related_name="calculos_tension",
+        db_column="ID_Proyecto",
+    )
+
+    tension_dc = models.ForeignKey(
+        "CalculoDC",
+        on_delete=models.CASCADE,
+        related_name="calculos_tension_dc",
+        null=True,
+        blank=True,
+        db_column="ID_tension_DC",
+    )
+
+    tension_ac = models.ForeignKey(
+        "CalculoAC",
+        on_delete=models.CASCADE,
+        related_name="calculos_tension_ac",
+        null=True,
+        blank=True,
+        db_column="ID_tension_AC",
+    )
+
+    # para identificar inversor 1, 2, 3...
+    indice = models.PositiveIntegerField(default=1)
+
+    # serie solo aplica en DC; en AC queda null
+    serie = models.PositiveIntegerField(null=True, blank=True)
+
+    tipo_calculo = models.CharField(
+        max_length=2,
+        choices=(("AC", "AC"), ("DC", "DC")),
+        default="AC",
+    )
+
+    tipo_cable_ac = models.CharField(max_length=20, blank=True, default="")
+    tipo_cable_dc = models.CharField(max_length=20, blank=True, default="")
+
+    factor_potencia_ac = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    factor_potencia_dc = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+
+    temperatura_ac = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    temperatura_dc = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+
+    longitud_ac = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    longitud_dc = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+
+    resultado_tension = models.OneToOneField(
+        "ResultadoTension",
+        on_delete=models.CASCADE,
+        related_name="calculo_tension",
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "calculo_tension"
+        ordering = ["proyecto_id", "indice", "tipo_calculo", "serie"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proyecto", "indice", "tipo_calculo", "serie"],
+                name="uniq_calculo_tension_proyecto_indice_tipo_serie"
+            ),
+        ]
+
+    def __str__(self):
+        return f"CalculoTension - Proyecto {self.proyecto_id} - {self.tipo_calculo} - idx {self.indice} - serie {self.serie}"

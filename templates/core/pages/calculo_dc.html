@@ -50,9 +50,10 @@
               <div class="small text-muted">Número de inversores</div>
               <div class="fw-semibold">{{ resumen.no_inversores|default:"—" }}</div>
             </div>
+
             <div class="col-12 col-md-3">
-        <div class="small text-muted">Número de fases</div>
-      <div class="fw-semibold">{{ resumen.numero_fases|default:"—" }}</div>
+              <div class="small text-muted">Número de fases</div>
+              <div class="fw-semibold">{{ resumen.numero_fases|default:"—" }}</div>
             </div>
 
             <div class="col-12">
@@ -90,11 +91,24 @@
 
             <!-- formulario -->
             <div class="row g-3">
-              <div class="col-12 col-md-4">
+              <div class="col-12">
                 <label class="form-label fw-semibold">Número de metros lineales por cada serie</label>
-                <input class="form-control" type="number" step="0.001" min="0.001"
-                       name="metros_lineales_{{ b.indice }}"
-                       value="{{ b.val.metros_lineales|default:'' }}" required>
+                <div class="row g-2">
+                  {% for s in b.series %}
+                    <div class="col-12 col-md-4">
+                      <label class="form-label small mb-1">Serie {{ s.serie }}</label>
+                      <input
+                        class="form-control"
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        name="metros_lineales_{{ b.indice }}_{{ s.serie }}"
+                        value="{{ s.metros|default:'' }}"
+                        required
+                      >
+                    </div>
+                  {% endfor %}
+                </div>
               </div>
 
               <div class="col-12 col-md-4">

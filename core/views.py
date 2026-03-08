@@ -56,7 +56,9 @@ from .models import (
     Inversor, MicroInversor,
     Dimensionamiento, DimensionamientoDetalle,
     Conductor, Condulet, ResultadoCalculoDC, CalculoDC,
-    ResultadoCalculoAC, CalculoAC
+    ResultadoCalculoAC, CalculoAC,
+    ResultadoTension, CalculoTension,
+    TablaConductoresAWGConReactancia
 )
 
 logger = logging.getLogger(__name__)
@@ -1501,11 +1503,31 @@ def calculo_dc(request):
                     "detalle_id": d.id,
                     "no_cadenas": d.no_cadenas,
                     "modulos_por_inversor": total_modulos_inversor,
+                    "potencia_equipo": (
+                        d.inversor.potencia if d.inversor_id else
+                        d.micro_inversor.potencia if d.micro_inversor_id else None
+                    ),
                     "val": calc,
                     "res": (calc.resultado_dc if calc and calc.resultado_dc_id else None),
                     "condulet": (calc.condulet if calc and calc.condulet_id else None),
+                    "metros_por_serie": (
+                        calc.metros_lineales_por_serie if calc and calc.metros_lineales_por_serie else []),
+                    "series": [
+                        {
+                            "serie": i + 1,
+                            "modulos": v,
+                            "metros": (
+                                calc.metros_lineales_por_serie[i]
+                                if calc and calc.metros_lineales_por_serie and i < len(calc.metros_lineales_por_serie)
+                                else ""
+                            ),
+                        }
+                        for i, v in enumerate(
+                            lista_modulos if lista_modulos else [int(d.modulos_por_cadena or 0)] * int(
+                                d.no_cadenas or 0)
+                        )
+                    ],
                 })
-
     # =========================
     # POST: calcular / cancelar
     # =========================
@@ -1585,7 +1607,6 @@ def calculo_dc(request):
             for d in detalles:
                 idx = int(d.indice)
 
-                metros_raw = (request.POST.get(f"metros_lineales_{idx}") or "").strip()
                 calibre_raw = (request.POST.get(f"calibre_cable_solar_{idx}") or "").strip()
                 hilos_raw = (request.POST.get(f"hilos_tuberia_{idx}") or "").strip()
 
@@ -1595,14 +1616,28 @@ def calculo_dc(request):
                 t_raw = (request.POST.get(f"condulet_t_{idx}") or "0").strip()
                 c_raw = (request.POST.get(f"condulet_c_{idx}") or "0").strip()
 
-                try:
-                    metros_lineales = Decimal(metros_raw)
-                    if metros_lineales <= 0:
-                        raise ValueError()
-                except Exception:
-                    messages.error(request, f"Metros lineales inválidos en inversor {idx}.")
-                    hubo_error = True
+                lista_modulos = d.modulos_por_cadena_lista or []
+                if not lista_modulos:
+                    lista_modulos = [int(d.modulos_por_cadena or 0)] * int(d.no_cadenas or 0)
+
+                metros_lineales_por_serie = []
+                for num_serie in range(1, len(lista_modulos) + 1):
+                    metros_raw = (request.POST.get(f"metros_lineales_{idx}_{num_serie}") or "").strip()
+                    try:
+                        metros_serie = Decimal(metros_raw)
+                        if metros_serie <= 0:
+                            raise ValueError()
+                    except Exception:
+                        messages.error(request, f"Metros lineales inválidos en inversor {idx}, serie {num_serie}.")
+                        hubo_error = True
+                        metros_lineales_por_serie = []
+                        break
+                    metros_lineales_por_serie.append(float(metros_serie))
+
+                if not metros_lineales_por_serie:
                     continue
+
+                metros_lineales = Decimal(str(max(metros_lineales_por_serie)))
 
                 if not calibre_raw:
                     messages.error(request, f"Selecciona calibre del cable solar en inversor {idx}.")
@@ -1669,6 +1704,7 @@ def calculo_dc(request):
                     old_res = existente.resultado_dc
 
                     existente.metros_lineales = metros_lineales
+                    existente.metros_lineales_por_serie = metros_lineales_por_serie
                     existente.calibre_cable_solar = calibre_raw
                     existente.hilos_tuberia = hilos
                     existente.conductor = conductor
@@ -1687,6 +1723,7 @@ def calculo_dc(request):
                         dimensionamiento_detalle=d,
                         indice=idx,
                         metros_lineales=metros_lineales,
+                        metros_lineales_por_serie=metros_lineales_por_serie,
                         calibre_cable_solar=calibre_raw,
                         hilos_tuberia=hilos,
                         conductor=conductor,
@@ -2525,9 +2562,540 @@ def calculo_ac(request):
     return render(request, "core/pages/calculo_ac.html", context)
 
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def calculo_caida_tension(request):
-    return _render_menu_page(request, "core/pages/calculo_caida_tension.html", "Caída de Tensión")
+    from decimal import Decimal, ROUND_HALF_UP
+    import math
 
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    if session_tipo == "Administrador":
+        proyectos = Proyecto.objects.all().order_by("-id")
+    else:
+        proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+
+    selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
+    selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
+
+    proyecto = None
+    dim = None
+    detalles = []
+    np_obj = None
+    resultado_paneles = None
+
+    bloques = []
+
+    resumen = {
+        "no_modulos": None,
+        "modelo_modulo": None,
+        "voc_modulo": None,
+        "isc_modulo": None,
+        "no_inversores": None,
+        "numero_fases": None,
+        "voltaje_sitio": None,
+    }
+
+    def D(val, nd=6):
+        return Decimal(str(val)).quantize(Decimal("1." + "0" * nd), rounding=ROUND_HALF_UP)
+
+    def extraer_awg(calibre_txt: str):
+        txt = (calibre_txt or "").strip().upper()
+        if "AWG" not in txt:
+            return None
+        base = txt.replace("AWG", "").strip()
+        if "/" in base:
+            return None
+        return int(base) if base.isdigit() else None
+
+    if selected_proyecto_id:
+        proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
+
+        if proyecto and session_tipo != "Administrador":
+            if int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para acceder a ese proyecto.")
+                return redirect("core:calculo_caida_tension")
+
+        if proyecto:
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if np_obj:
+                resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if dim:
+                detalles = list(
+                    DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                    .select_related("inversor", "micro_inversor")
+                    .order_by("indice")
+                )
+
+            if resultado_paneles:
+                resumen["no_modulos"] = resultado_paneles.no_modulos
+
+            if np_obj and np_obj.panel:
+                resumen["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+                resumen["voc_modulo"] = np_obj.panel.voc
+                resumen["isc_modulo"] = np_obj.panel.isc
+
+            if dim:
+                resumen["no_inversores"] = dim.no_inversores
+
+            resumen["numero_fases"] = proyecto.Numero_Fases
+            resumen["voltaje_sitio"] = proyecto.Voltaje_Nominal
+
+            calculos_ac = {
+                int(x.indice): x
+                for x in CalculoAC.objects.filter(proyecto=proyecto).select_related("resultado_ac", "conductor")
+            }
+
+            calculos_dc = {
+                int(x.indice): x
+                for x in CalculoDC.objects.filter(proyecto=proyecto).select_related("resultado_dc", "conductor")
+            }
+
+            tensiones = list(
+                CalculoTension.objects.filter(proyecto=proyecto)
+                .select_related("resultado_tension", "tension_ac", "tension_dc")
+                .order_by("indice", "tipo_calculo", "serie")
+            )
+
+            tensiones_ac = {}
+            tensiones_dc = {}
+            for t in tensiones:
+                if t.tipo_calculo == "AC":
+                    tensiones_ac[int(t.indice)] = t
+                else:
+                    tensiones_dc[(int(t.indice), int(t.serie or 0))] = t
+
+            for d in detalles:
+                idx = int(d.indice)
+                calc_ac = calculos_ac.get(idx)
+                calc_dc = calculos_dc.get(idx)
+
+                modelo_txt = str(d.inversor or d.micro_inversor or "—")
+
+                lista_modulos = d.modulos_por_cadena_lista or []
+                if lista_modulos:
+                    total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
+                    series_dc = [{"serie": i + 1, "modulos": v} for i, v in enumerate(lista_modulos)]
+                else:
+                    total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+                    series_dc = [{"serie": i + 1, "modulos": int(d.modulos_por_cadena or 0)} for i in range(int(d.no_cadenas or 0))]
+
+                corriente_salida = None
+                if d.inversor_id and d.inversor:
+                    corriente_salida = d.inversor.corriente_salida
+                elif d.micro_inversor_id and d.micro_inversor:
+                    corriente_salida = d.micro_inversor.corriente_salida
+
+                bloques.append({
+                    "indice": idx,
+                    "tipo": dim.tipo_inversor if dim else "INVERSOR",
+                    "modelo": modelo_txt,
+                    "corriente_salida": corriente_salida,
+                    "no_cadenas": d.no_cadenas,
+                    "modulos_por_inversor": total_modulos_inversor,
+                    "longitud_total_ac": getattr(calc_ac, "metros_lineales_ac", None),
+                    "longitud_total_dc": getattr(calc_dc, "metros_lineales", None),
+                    "calc_ac": calc_ac,
+                    "tension_ac": tensiones_ac.get(idx),
+                    "series_dc": [
+                        {
+                            "serie": s["serie"],
+                            "modulos": s["modulos"],
+                            "tension_dc": tensiones_dc.get((idx, s["serie"]))
+                        }
+                        for s in series_dc
+                    ],
+                })
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            return redirect("core:calculo_caida_tension")
+
+        if action == "calcular":
+            proyecto_id_raw = (request.POST.get("proyecto") or "").strip()
+            if not proyecto_id_raw.isdigit():
+                messages.error(request, "Selecciona un proyecto válido.")
+                return redirect("core:calculo_caida_tension")
+
+            proyecto = Proyecto.objects.filter(id=int(proyecto_id_raw)).first()
+            if not proyecto:
+                messages.error(request, "Proyecto inválido.")
+                return redirect("core:calculo_caida_tension")
+
+            if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para calcular en ese proyecto.")
+                return redirect("core:calculo_caida_tension")
+
+            dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+            if not dim:
+                messages.error(request, "Primero guarda el Dimensionamiento del proyecto.")
+                return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+            np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
+            if not np_obj or not np_obj.panel:
+                messages.error(request, "Primero realiza el cálculo de módulos.")
+                return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+            detalles = list(
+                DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                .select_related("inversor", "micro_inversor")
+                .order_by("indice")
+            )
+
+            voltaje_txt = str(proyecto.Voltaje_Nominal or "").strip()
+            try:
+                voltaje_num = Decimal(voltaje_txt.split("/")[0].strip())
+            except Exception:
+                messages.error(request, "Voltaje nominal del proyecto inválido.")
+                return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+            hubo_error = False
+
+            # ===== AC por cada inversor / micro inversor =====
+            for d in detalles:
+                idx = int(d.indice)
+                calc_ac = CalculoAC.objects.filter(proyecto=proyecto, indice=idx).select_related("conductor").first()
+
+                if not calc_ac or not calc_ac.conductor:
+                    messages.error(request, f"Primero realiza el cálculo AC del inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                tipo_cable_ac = (request.POST.get(f"tipo_cable_ac_{idx}") or "").strip().lower()
+                temp_ac_raw = (request.POST.get(f"temperatura_ac_{idx}") or "").strip()
+                fp_ac_raw = (request.POST.get(f"factor_potencia_ac_{idx}") or "").strip()
+
+                if tipo_cable_ac not in ("cobre", "aluminio"):
+                    messages.error(request, f"Selecciona tipo de cable AC válido en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                try:
+                    temperatura_ac = Decimal(temp_ac_raw)
+                    factor_potencia_ac = Decimal(fp_ac_raw)
+                except Exception:
+                    messages.error(request, f"Temperatura o factor de potencia AC inválidos en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                awg = extraer_awg(calc_ac.calibre_cable_thhw)
+                if awg is None:
+                    messages.error(request, f"No se pudo relacionar el calibre THHW del inversor {idx} con tabla AWG.")
+                    hubo_error = True
+                    continue
+
+                tabla_awg = TablaConductoresAWGConReactancia.objects.filter(calibre_awg=awg).first()
+                if not tabla_awg:
+                    messages.error(request, f"No existe registro AWG {awg} en tabla_conductores_awg_con_reactancia.")
+                    hubo_error = True
+                    continue
+
+                corriente_salida = None
+                if d.inversor_id and d.inversor and d.inversor.corriente_salida is not None:
+                    corriente_salida = Decimal(str(d.inversor.corriente_salida))
+                elif d.micro_inversor_id and d.micro_inversor and d.micro_inversor.corriente_salida is not None:
+                    corriente_salida = Decimal(str(d.micro_inversor.corriente_salida))
+
+                if corriente_salida is None:
+                    messages.error(request, f"No se encontró corriente de salida válida para el inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                longitud_ac = Decimal(str(calc_ac.metros_lineales_ac or 0)) / Decimal("1000")
+                resistencia_ca = Decimal(str(tabla_awg.resistencia_ca or 0))
+                reactancia = Decimal(str(tabla_awg.reactancia or 0))
+
+                coef = Decimal("0.00393") if tipo_cable_ac == "cobre" else Decimal("0.00403")
+                calculo_rt_ac = resistencia_ca * (Decimal("1") + coef * (temperatura_ac - Decimal("20")))
+
+                raiz_fp = Decimal(str(math.sqrt(max(0.0, 1.0 - float(factor_potencia_ac) ** 2))))
+
+                if int(proyecto.Numero_Fases or 0) in (1, 2):
+                    voltaje_tension_ac = Decimal("2") * corriente_salida * longitud_ac * (
+                        (calculo_rt_ac * factor_potencia_ac) + (reactancia * raiz_fp)
+                    )
+                else:
+                    voltaje_tension_ac = Decimal(str(math.sqrt(3))) * corriente_salida * longitud_ac * (
+                        (calculo_rt_ac * factor_potencia_ac) + (reactancia * raiz_fp)
+                    )
+
+                porcentaje_voltaje_tension_ac = (voltaje_tension_ac / voltaje_num) * Decimal("100") if voltaje_num > 0 else Decimal("0")
+
+                resultado_obj = ResultadoTension.objects.create(
+                    voltaje_tension_ac=D(voltaje_tension_ac),
+                    porcentaje_voltaje_tension_ac=D(porcentaje_voltaje_tension_ac),
+                    calculo_rt_ac=D(calculo_rt_ac),
+                    corriente_corregida=D(corriente_salida),
+                )
+
+                existente = CalculoTension.objects.filter(
+                    proyecto=proyecto,
+                    indice=idx,
+                    tipo_calculo="AC",
+                    serie__isnull=True,
+                ).select_related("resultado_tension").first()
+
+                if existente and existente.resultado_tension:
+                    existente.resultado_tension.delete()
+
+                if existente:
+                    existente.tension_ac = calc_ac
+                    existente.factor_potencia_ac = factor_potencia_ac
+                    existente.temperatura_ac = temperatura_ac
+                    existente.longitud_ac = longitud_ac
+                    existente.tipo_cable_ac = tipo_cable_ac
+                    existente.resultado_tension = resultado_obj
+                    existente.save()
+                else:
+                    CalculoTension.objects.create(
+                        proyecto=proyecto,
+                        tension_ac=calc_ac,
+                        indice=idx,
+                        tipo_calculo="AC",
+                        serie=None,
+                        factor_potencia_ac=factor_potencia_ac,
+                        temperatura_ac=temperatura_ac,
+                        longitud_ac=longitud_ac,
+                        tipo_cable_ac=tipo_cable_ac,
+                        resultado_tension=resultado_obj,
+                    )
+
+            # ===== DC por cada serie de inversor (NO micro) =====
+            for d in detalles:
+                if d.micro_inversor_id:
+                    continue
+
+                idx = int(d.indice)
+                calc_dc = CalculoDC.objects.filter(proyecto=proyecto, indice=idx).select_related("conductor").first()
+
+                if not calc_dc or not calc_dc.conductor:
+                    messages.error(request, f"Primero realiza el cálculo DC del inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                tipo_cable_dc = (request.POST.get(f"tipo_cable_dc_{idx}") or "").strip().lower()
+                temp_dc_raw = (request.POST.get(f"temperatura_dc_{idx}") or "").strip()
+
+                if tipo_cable_dc not in ("cobre", "aluminio"):
+                    messages.error(request, f"Selecciona tipo de cable DC válido en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                try:
+                    temperatura_dc = Decimal(temp_dc_raw)
+                except Exception:
+                    messages.error(request, f"Temperatura DC inválida en inversor {idx}.")
+                    hubo_error = True
+                    continue
+
+                awg = extraer_awg(calc_dc.calibre_cable_solar)
+                if awg is None:
+                    messages.error(request, f"No se pudo relacionar el calibre solar del inversor {idx} con tabla AWG.")
+                    hubo_error = True
+                    continue
+
+                tabla_awg = TablaConductoresAWGConReactancia.objects.filter(calibre_awg=awg).first()
+                if not tabla_awg:
+                    messages.error(request, f"No existe registro AWG {awg} en tabla_conductores_awg_con_reactancia.")
+                    hubo_error = True
+                    continue
+
+                corriente_dc = Decimal(str(np_obj.panel.isc or 0))
+                voc_modulo = Decimal(str(np_obj.panel.voc or 0))
+                resistencia_cc = Decimal(str(tabla_awg.resistencia_cc or 0))
+
+                coef = Decimal("0.00393") if tipo_cable_dc == "cobre" else Decimal("0.00403")
+                calculo_rt_dc = resistencia_cc * (Decimal("1") + coef * (temperatura_dc - Decimal("20")))
+
+                lista_modulos = d.modulos_por_cadena_lista or []
+                if not lista_modulos:
+                    lista_modulos = [int(d.modulos_por_cadena or 0)] * int(d.no_cadenas or 0)
+
+                lista_longitudes = calc_dc.metros_lineales_por_serie or []
+
+                for num_serie, modulos_serie in enumerate(lista_modulos, start=1):
+                    if len(lista_longitudes) >= num_serie:
+                        longitud_dc = Decimal(str(lista_longitudes[num_serie - 1])) / Decimal("1000")
+                    else:
+                        longitud_dc = Decimal(str(calc_dc.metros_lineales or 0)) / Decimal("1000")
+
+                    voltaje_cadena = voc_modulo * Decimal(str(modulos_serie))
+                    voltaje_tension_dc = Decimal("2") * corriente_dc * longitud_dc * calculo_rt_dc
+                    porcentaje_voltaje_tension_dc = (voltaje_tension_dc / voltaje_cadena) * Decimal("100") if voltaje_cadena > 0 else Decimal("0")
+
+                    resultado_obj = ResultadoTension.objects.create(
+                        voltaje_tension_dc=D(voltaje_tension_dc),
+                        porcentaje_voltaje_tension_dc=D(porcentaje_voltaje_tension_dc),
+                        calculo_rt_dc=D(calculo_rt_dc),
+                        corriente_corregida=D(corriente_dc),
+                    )
+
+                    existente = CalculoTension.objects.filter(
+                        proyecto=proyecto,
+                        indice=idx,
+                        tipo_calculo="DC",
+                        serie=num_serie,
+                    ).select_related("resultado_tension").first()
+
+                    if existente and existente.resultado_tension:
+                        existente.resultado_tension.delete()
+
+                    if existente:
+                        existente.tension_dc = calc_dc
+                        existente.factor_potencia_dc = None
+                        existente.temperatura_dc = temperatura_dc
+                        existente.longitud_dc = longitud_dc
+                        existente.tipo_cable_dc = tipo_cable_dc
+                        existente.serie = num_serie
+                        existente.resultado_tension = resultado_obj
+                        existente.save()
+                    else:
+                        CalculoTension.objects.create(
+                            proyecto=proyecto,
+                            tension_dc=calc_dc,
+                            indice=idx,
+                            tipo_calculo="DC",
+                            serie=num_serie,
+                            temperatura_dc=temperatura_dc,
+                            longitud_dc=longitud_dc,
+                            tipo_cable_dc=tipo_cable_dc,
+                            resultado_tension=resultado_obj,
+                        )
+
+            if hubo_error:
+                return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+            messages.success(request, "✅ Cálculo de caída de tensión realizado correctamente.")
+            return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+    context = {
+        "proyectos": proyectos,
+        "selected_proyecto_id": selected_proyecto_id,
+        "proyecto": proyecto,
+        "resumen": resumen,
+        "bloques": bloques,
+    }
+    return render(request, "core/pages/calculo_caida_tension.html", context)
+
+@require_session_login
+@require_http_methods(["GET"])
+def calculo_caida_tension_pdf(request, proyecto_id: int):
+    session_tipo = (request.session.get("tipo") or "").strip()
+    session_id_usuario = request.session.get("id_usuario")
+
+    proyecto = Proyecto.objects.select_related("ID_Usuario").filter(id=proyecto_id).first()
+    if not proyecto:
+        messages.error(request, "Proyecto no encontrado.")
+        return redirect("core:calculo_caida_tension")
+
+    if session_tipo != "Administrador":
+        if not session_id_usuario or int(proyecto.ID_Usuario_id) != int(session_id_usuario):
+            messages.error(request, "No tienes permisos para descargar este PDF.")
+            return redirect("core:calculo_caida_tension")
+
+    registros = list(
+        CalculoTension.objects.filter(proyecto=proyecto)
+        .select_related("resultado_tension", "tension_ac", "tension_dc")
+        .order_by("indice", "tipo_calculo", "serie")
+    )
+
+    if not registros:
+        messages.error(request, "No hay cálculos de caída de tensión guardados para este proyecto.")
+        return redirect(f"{reverse('core:calculo_caida_tension')}?proyecto_id={proyecto.id}")
+
+    filename = f"SWGFV_CaidaTension_Proyecto_{proyecto.id}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = build_fortia_doc(response, f"Caida de tension - Proyecto {proyecto.id}")
+    pdfs = get_fortia_styles()
+    elements = []
+
+    add_fortia_header(
+        elements,
+        "Reporte técnico de caída de tensión",
+        "Sistema Web de Gestión de Proyectos Fotovoltaicos",
+        pdfs
+    )
+
+    elements.append(Paragraph("Proyecto", pdfs["section"]))
+
+    general = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), pdfs["value"]),
+            Paragraph("<b>Voltaje del sitio</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+            Paragraph("<b>Fecha</b>", pdfs["label"]),
+            Paragraph(str(timezone.localtime().strftime("%d/%m/%Y %H:%M")), pdfs["value"]),
+        ],
+    ]
+
+    elements.append(make_info_table(general, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+    elements.append(Paragraph("Resultados guardados", pdfs["section"]))
+
+    for r in registros:
+        res = r.resultado_tension
+        titulo = f"{r.tipo_calculo} - Inversor {r.indice}"
+        if r.tipo_calculo == "DC" and r.serie:
+            titulo += f" - Serie {r.serie}"
+
+        elements.append(Paragraph(titulo, pdfs["block_title"]))
+
+        data = [
+            [
+                Paragraph("<b>Temperatura AC</b>", pdfs["label"]),
+                Paragraph(str(r.temperatura_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Temperatura DC</b>", pdfs["label"]),
+                Paragraph(str(r.temperatura_dc or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Factor potencia AC</b>", pdfs["label"]),
+                Paragraph(str(r.factor_potencia_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Longitud AC</b>", pdfs["label"]),
+                Paragraph(str(r.longitud_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Longitud DC</b>", pdfs["label"]),
+                Paragraph(str(r.longitud_dc or "—"), pdfs["value"]),
+                Paragraph("<b>Corriente corregida</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "corriente_corregida", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Voltaje caída AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "voltaje_tension_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>% caída AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "porcentaje_voltaje_tension_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Voltaje caída DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "voltaje_tension_dc", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>% caída DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "porcentaje_voltaje_tension_dc", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>RT AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calculo_rt_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>RT DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calculo_rt_dc", "—")) if res else "—", pdfs["value"]),
+            ],
+        ]
+
+        elements.append(make_info_table(data, [3.2 * cm, 5.0 * cm, 3.2 * cm, 5.1 * cm]))
+        elements.append(Spacer(1, 0.18 * cm))
+
+    add_fortia_footer(elements, pdfs)
+    doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
+    return response
 
 @require_session_login
 def recursos_tablas(request):

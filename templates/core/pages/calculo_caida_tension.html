@@ -1,4 +1,241 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+{% extends "core/layout.html" %}
+{% load static %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block page_content %}
+<div class="card shadow-sm border-0 mt-3">
+  <div class="card-body">
+    <h2 class="h5 fw-bold text-primary-emphasis mb-3">Cálculo caída de tensión</h2>
+
+    <form method="post" action="">
+      {% csrf_token %}
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold" for="proyectoSelect">Selecciona el proyecto</label>
+          <select class="form-select" name="proyecto" id="proyectoSelect" required>
+            <option value="">-- Selecciona --</option>
+            {% for p in proyectos %}
+              <option value="{{ p.id }}" {% if selected_proyecto_id == p.id %}selected="selected"{% endif %}>
+                {{ p.Nombre_Proyecto }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Al seleccionar, se cargan automáticamente los datos del proyecto y del dimensionamiento.</div>
+        </div>
+      </div>
+
+      {% if proyecto %}
+        <div class="border rounded p-3 mb-4">
+          <h3 class="h6 fw-bold mb-3">Información automática del proyecto</h3>
+
+          <div class="row g-3">
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Número de módulos</div>
+              <div class="fw-semibold">{{ resumen.no_modulos|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Voc del módulo</div>
+              <div class="fw-semibold">{{ resumen.voc_modulo|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Isc del módulo</div>
+              <div class="fw-semibold">{{ resumen.isc_modulo|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Número de inversores</div>
+              <div class="fw-semibold">{{ resumen.no_inversores|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Número de fases</div>
+              <div class="fw-semibold">{{ resumen.numero_fases|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-3">
+              <div class="small text-muted">Voltaje del sitio</div>
+              <div class="fw-semibold">{{ resumen.voltaje_sitio|default:"—" }}</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <div class="small text-muted">Modelo del módulo</div>
+              <div class="fw-semibold">{{ resumen.modelo_modulo|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if proyecto and bloques|length > 0 %}
+        {% for b in bloques %}
+          <div class="border rounded p-3 mb-4">
+            <div class="fw-bold mb-3">
+              {% if b.tipo == "MICRO" %}Micro inversor{% else %}Inversor{% endif %} {{ b.indice }}
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Modelo de inversor</div>
+                <div class="fw-semibold">{{ b.modelo }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Corriente de salida del inversor</div>
+                <div class="fw-semibold">{{ b.corriente_salida|default:"—" }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Número de series por inversor</div>
+                <div class="fw-semibold">{{ b.no_cadenas }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Número de módulos por inversor</div>
+                <div class="fw-semibold">{{ b.modulos_por_inversor }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Longitud total del cable en AC</div>
+                <div class="fw-semibold">{{ b.longitud_total_ac|default:"—" }}</div>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <div class="small text-muted">Longitud total de cada serie</div>
+                <div class="fw-semibold">{{ b.longitud_total_dc|default:"—" }}</div>
+              </div>
+            </div>
+
+            <div class="border rounded p-3 mb-3">
+              <h4 class="h6 fw-bold mb-3">Cálculo caída de tensión en AC</h4>
+              <div class="row g-3">
+                <div class="col-12 col-md-4">
+                  <label class="form-label fw-semibold">Tipo de cable</label>
+                  <select class="form-select" name="tipo_cable_ac_{{ b.indice }}" required>
+                    <option value="">-- Selecciona --</option>
+                    <option value="cobre" {% if b.tension_ac and b.tension_ac.tipo_cable_ac == "cobre" %}selected{% endif %}>Cobre</option>
+                    <option value="aluminio" {% if b.tension_ac and b.tension_ac.tipo_cable_ac == "aluminio" %}selected{% endif %}>Aluminio</option>
+                  </select>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <label class="form-label fw-semibold">Temperatura de operación</label>
+                  <input class="form-control" type="number" step="0.001" name="temperatura_ac_{{ b.indice }}"
+                         value="{{ b.tension_ac.temperatura_ac|default:'' }}" required>
+                </div>
+
+                <div class="col-12 col-md-4">
+                  <label class="form-label fw-semibold">Factor de potencia</label>
+                  <input class="form-control" type="number" step="0.0001" min="0" max="1"
+                         name="factor_potencia_ac_{{ b.indice }}"
+                         value="{{ b.tension_ac.factor_potencia_ac|default:'' }}" required>
+                </div>
+              </div>
+
+              {% if b.tension_ac and b.tension_ac.resultado_tension %}
+                <div class="row g-3 mt-2">
+                  <div class="col-12 col-md-6">
+                    <div class="small text-muted">Voltaje de caída de tensión AC</div>
+                    <div class="fw-semibold">{{ b.tension_ac.resultado_tension.voltaje_tension_ac }}</div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <div class="small text-muted">Porcentaje de caída de tensión AC</div>
+                    <div class="fw-semibold">{{ b.tension_ac.resultado_tension.porcentaje_voltaje_tension_ac }}</div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+
+            {% if b.tipo != "MICRO" %}
+              <div class="border rounded p-3">
+                <h4 class="h6 fw-bold mb-3">Cálculo caída de tensión en DC</h4>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold">Tipo de cable</label>
+                    <select class="form-select" name="tipo_cable_dc_{{ b.indice }}" required>
+                      <option value="">-- Selecciona --</option>
+                      <option value="cobre" {% if b.series_dc and b.series_dc.0.tension_dc and b.series_dc.0.tension_dc.tipo_cable_dc == "cobre" %}selected{% endif %}>Cobre</option>
+                      <option value="aluminio" {% if b.series_dc and b.series_dc.0.tension_dc and b.series_dc.0.tension_dc.tipo_cable_dc == "aluminio" %}selected{% endif %}>Aluminio</option>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold">Temperatura de operación</label>
+                    <input class="form-control" type="number" step="0.001"
+                           name="temperatura_dc_{{ b.indice }}"
+                           value="{% if b.series_dc and b.series_dc.0.tension_dc %}{{ b.series_dc.0.tension_dc.temperatura_dc|default:'' }}{% endif %}"
+                           required>
+                  </div>
+                </div>
+
+                {% for s in b.series_dc %}
+                  <div class="border rounded p-3 mb-2">
+                    <div class="fw-semibold mb-2">Serie {{ s.serie }}</div>
+                    <div class="row g-3">
+                      <div class="col-12 col-md-4">
+                        <div class="small text-muted">Módulos en serie</div>
+                        <div class="fw-semibold">{{ s.modulos }}</div>
+                      </div>
+
+                      {% if s.tension_dc and s.tension_dc.resultado_tension %}
+                        <div class="col-12 col-md-4">
+                          <div class="small text-muted">Voltaje caída de tensión DC</div>
+                          <div class="fw-semibold">{{ s.tension_dc.resultado_tension.voltaje_tension_dc }}</div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                          <div class="small text-muted">Porcentaje de caída de tensión DC</div>
+                          <div class="fw-semibold">{{ s.tension_dc.resultado_tension.porcentaje_voltaje_tension_dc }}</div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+          <button class="btn btn-outline-secondary" type="submit" name="action" value="cancel">Cancelar</button>
+          <button class="btn btn-success" type="submit" name="action" value="calcular">Calcular</button>
+
+          {% if proyecto %}
+            <a class="btn btn-outline-danger ms-auto" href="{% url 'core:calculo_caida_tension_pdf' proyecto.id %}">
+              Descargar PDF
+            </a>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <div class="alert alert-info">
+          Selecciona un proyecto. Si no aparecen bloques, primero realiza y guarda los módulos:
+          <b>Dimensionamiento</b>, <b>Cálculo DC</b> y <b>Cálculo AC</b>.
+        </div>
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+          <button class="btn btn-outline-secondary" type="submit" name="action" value="cancel">Cancelar</button>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const proyectoSelect = document.getElementById("proyectoSelect");
+  if (proyectoSelect) {
+    proyectoSelect.addEventListener("change", function () {
+      const val = proyectoSelect.value;
+      const baseUrl = window.location.pathname;
+      window.location.href = val ? `${baseUrl}?proyecto_id=${val}` : baseUrl;
+    });
+  }
+});
+</script>
+{% endblock %}
