@@ -763,3 +763,4 @@ class CalculoTension(models.Model):
 
     def __str__(self):
         return f"CalculoTension - Proyecto {self.proyecto_id} - {self.tipo_calculo} - idx {self.indice} - serie {self.serie}"
+

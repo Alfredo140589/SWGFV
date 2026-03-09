@@ -26,6 +26,7 @@ from core.forms import PanelSolarCreateForm
 from core.forms import InversorCreateForm, MicroInversorCreateForm
 from decimal import Decimal, ROUND_UP
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
+from django.db import transaction
 
 from core.utils.pdf_utils import (
     build_fortia_doc,
@@ -615,25 +616,101 @@ def proyecto_modificacion(request):
         action = (request.POST.get("action") or "").strip().lower()
 
         if action == "delete_project":
-            tiene_relacionados = (
-                NumeroPaneles.objects.filter(proyecto=seleccionado).exists()
-                or Dimensionamiento.objects.filter(proyecto=seleccionado).exists()
-            )
-            if tiene_relacionados:
-                messages.error(
+            try:
+                with transaction.atomic():
+                    nombre = seleccionado.Nombre_Proyecto
+                    pid = seleccionado.id
+
+                    # =====================================================
+                    # 1) Eliminar objetos auxiliares de Cálculo DC
+                    # =====================================================
+                    calculos_dc = list(
+                        CalculoDC.objects.filter(proyecto=seleccionado).select_related(
+                            "condulet", "resultado_dc"
+                        )
+                    )
+
+                    condulet_ids_dc = [
+                        c.condulet_id for c in calculos_dc
+                        if getattr(c, "condulet_id", None)
+                    ]
+                    resultado_dc_ids = [
+                        c.resultado_dc_id for c in calculos_dc
+                        if getattr(c, "resultado_dc_id", None)
+                    ]
+
+                    # =====================================================
+                    # 2) Eliminar objetos auxiliares de Cálculo AC
+                    # =====================================================
+                    calculos_ac = list(
+                        CalculoAC.objects.filter(proyecto=seleccionado).select_related(
+                            "condulet", "resultado_ac"
+                        )
+                    )
+
+                    condulet_ids_ac = [
+                        c.condulet_id for c in calculos_ac
+                        if getattr(c, "condulet_id", None)
+                    ]
+                    resultado_ac_ids = [
+                        c.resultado_ac_id for c in calculos_ac
+                        if getattr(c, "resultado_ac_id", None)
+                    ]
+
+                    # =====================================================
+                    # 3) Eliminar objetos auxiliares de Cálculo de Tensión
+                    # =====================================================
+                    calculos_tension = list(
+                        CalculoTension.objects.filter(proyecto=seleccionado).select_related(
+                            "resultado_tension"
+                        )
+                    )
+
+                    resultado_tension_ids = [
+                        c.resultado_tension_id for c in calculos_tension
+                        if getattr(c, "resultado_tension_id", None)
+                    ]
+
+                    # =====================================================
+                    # 4) Eliminar primero los cálculos que apuntan a auxiliares
+                    # =====================================================
+                    CalculoTension.objects.filter(proyecto=seleccionado).delete()
+                    CalculoAC.objects.filter(proyecto=seleccionado).delete()
+                    CalculoDC.objects.filter(proyecto=seleccionado).delete()
+
+                    # =====================================================
+                    # 5) Eliminar auxiliares ya desligados
+                    # =====================================================
+                    condulet_ids = list(set(condulet_ids_dc + condulet_ids_ac))
+                    if condulet_ids:
+                        Condulet.objects.filter(id__in=condulet_ids).delete()
+
+                    if resultado_dc_ids:
+                        ResultadoCalculoDC.objects.filter(id__in=resultado_dc_ids).delete()
+
+                    if resultado_ac_ids:
+                        ResultadoCalculoAC.objects.filter(id__in=resultado_ac_ids).delete()
+
+                    if resultado_tension_ids:
+                        ResultadoTension.objects.filter(id__in=resultado_tension_ids).delete()
+
+                    # =====================================================
+                    # 6) Eliminar el proyecto
+                    #    Esto borra en cascada NumeroPaneles, ResultadoPaneles,
+                    #    Dimensionamiento, DimensionamientoDetalle y demás relaciones
+                    # =====================================================
+                    seleccionado.delete()
+
+                log_event(request, "PROJECT_DELETED", f"Eliminó proyecto: {nombre}", "Proyecto", pid)
+                messages.success(
                     request,
-                    "No se puede eliminar el proyecto porque tiene registros relacionados "
-                    "(Número de módulos y/o Dimensionamiento). Primero elimina esos registros."
+                    f"✅ Proyecto eliminado correctamente junto con todos sus registros relacionados: {nombre}"
                 )
+                return redirect("core:proyecto_modificacion")
+
+            except Exception as e:
+                messages.error(request, f"Ocurrió un error al eliminar el proyecto: {str(e)}")
                 return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
-
-            nombre = seleccionado.Nombre_Proyecto
-            pid = seleccionado.id
-            seleccionado.delete()
-
-            log_event(request, "PROJECT_DELETED", f"Eliminó proyecto: {nombre}", "Proyecto", pid)
-            messages.success(request, f"✅ Proyecto eliminado: {nombre}")
-            return redirect("core:proyecto_modificacion")
 
         if not edit_mode:
             messages.error(request, "Para editar, primero presiona ✏️ Editar.")
