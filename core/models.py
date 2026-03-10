@@ -764,3 +764,22 @@ class CalculoTension(models.Model):
     def __str__(self):
         return f"CalculoTension - Proyecto {self.proyecto_id} - {self.tipo_calculo} - idx {self.indice} - serie {self.serie}"
 
+# =========================================================
+# [MODULO] GLOSARIO DE CONCEPTOS
+# Tabla: glosario_conceptos
+# =========================================================
+class GlosarioConcepto(models.Model):
+    nombre_concepto = models.CharField(max_length=150, unique=True)
+    descripcion = models.TextField()
+    formula = models.TextField(blank=True, default="")
+    categoria = models.CharField(max_length=100, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "glosario_conceptos"
+        ordering = ["nombre_concepto"]
+        verbose_name = "Concepto del glosario"
+        verbose_name_plural = "Conceptos del glosario"
+
+    def __str__(self):
+        return self.nombre_concepto

@@ -1,4 +1,156 @@
-<h2>Página en construcción</h2>
-<p>Este módulo se implementará más adelante.</p>
+{% extends "core/layout.html" %}
 
-<a href="{% url 'core:menu_principal' %}">Volver al menú</a>
+{% block title %}SWGFV - Modificación de Conceptos{% endblock %}
+
+{% block page_content %}
+<div class="card shadow-sm bg-glass">
+  <div class="card-body p-3 p-md-4">
+
+    <h2 class="text-center mb-4" style="color: var(--swgfv-primary); font-weight: 800;">
+      Modificación de Conceptos
+    </h2>
+
+    <form method="GET" class="mb-4">
+      <div class="row g-3">
+
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+        </div>
+
+        <div class="col-12 col-md-9">
+          <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del concepto</label>
+          <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre del concepto">
+        </div>
+
+      </div>
+
+      <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <a href="{% url 'core:recursos_modificacion_concepto' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+        <a href="{% url 'core:recursos_modificacion_concepto' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">Mostrar todos</a>
+      </div>
+    </form>
+
+    {% if mostrar_lista %}
+      <div class="table-responsive mb-4">
+        <table class="table table-bordered table-striped align-middle">
+          <thead>
+            <tr>
+              <th style="width: 80px;">ID</th>
+              <th style="width: 260px;">Concepto</th>
+              <th>Categoría</th>
+              <th style="width: 120px;">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in conceptos %}
+            <tr>
+              <td>{{ c.id }}</td>
+              <td>{{ c.nombre_concepto }}</td>
+              <td>{{ c.categoria|default:"—" }}</td>
+              <td>
+                <a class="btn btn-sm btn-primary" href="{% url 'core:recursos_modificacion_concepto' %}?id={{ c.id }}">
+                  Seleccionar
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center">No hay resultados.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert alert-info">
+        Realiza una búsqueda para mostrar conceptos.
+      </div>
+    {% endif %}
+
+    {% if seleccionado and form %}
+      <hr class="mb-4">
+
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+        <h5 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">
+          Concepto seleccionado: ID {{ seleccionado.id }} — {{ seleccionado.nombre_concepto }}
+        </h5>
+
+        {% if not edit_mode %}
+          <a class="btn btn-outline-primary btn-sm"
+             href="{% url 'core:recursos_modificacion_concepto' %}?id={{ seleccionado.id }}&edit=1">
+            ✏️ Editar
+          </a>
+        {% else %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{% url 'core:recursos_modificacion_concepto' %}?id={{ seleccionado.id }}">
+            👁️ Modo lectura
+          </a>
+        {% endif %}
+      </div>
+
+      <form method="POST" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <fieldset {% if not edit_mode %}disabled{% endif %}>
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del concepto</label>
+              {{ form.nombre_concepto }}
+              {% if form.nombre_concepto.errors %}<div class="text-danger">{{ form.nombre_concepto.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Descripción</label>
+              {{ form.descripcion }}
+              {% if form.descripcion.errors %}<div class="text-danger">{{ form.descripcion.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Fórmula</label>
+              {{ form.formula }}
+              {% if form.formula.errors %}<div class="text-danger">{{ form.formula.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Categoría</label>
+              {{ form.categoria }}
+              {% if form.categoria.errors %}<div class="text-danger">{{ form.categoria.errors }}</div>{% endif %}
+            </div>
+
+          </div>
+        </fieldset>
+
+        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+          <a href="{% url 'core:recursos_modificacion_concepto' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+
+          {% if edit_mode %}
+            <button type="submit" class="btn btn-swgfv px-4">Guardar cambios</button>
+          {% else %}
+            <button type="button" class="btn btn-swgfv px-4" disabled title="Presiona ✏️ Editar para habilitar">
+              Guardar cambios
+            </button>
+          {% endif %}
+
+          <button
+            type="submit"
+            name="action"
+            value="delete"
+            class="btn btn-danger px-4"
+            onclick="return confirm('¿Seguro que deseas eliminar este concepto? Esta acción no se puede deshacer.')"
+          >
+            🗑 Eliminar
+          </button>
+        </div>
+      </form>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

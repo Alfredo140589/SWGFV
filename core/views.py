@@ -47,8 +47,10 @@ from .forms import (
     PasswordRecoveryRequestForm,
     PasswordResetForm,
     NumeroPanelesForm,
-
+    GlosarioConceptoCreateForm,
+    GlosarioConceptoUpdateForm,
 )
+
 from .auth_local import authenticate_local
 from .decorators import require_session_login, require_admin
 from .models import (
@@ -59,7 +61,8 @@ from .models import (
     Conductor, Condulet, ResultadoCalculoDC, CalculoDC,
     ResultadoCalculoAC, CalculoAC,
     ResultadoTension, CalculoTension,
-    TablaConductoresAWGConReactancia
+    TablaConductoresAWGConReactancia,
+    GlosarioConcepto,
 )
 
 logger = logging.getLogger(__name__)
@@ -3198,24 +3201,171 @@ def recursos_tablas(request):
 
 
 @require_session_login
+@require_http_methods(["GET"])
 def recursos_conceptos(request):
-    return _render_menu_page(request, "core/pages/recursos_conceptos.html", "Conceptos")
+    q = (request.GET.get("q") or "").strip()
+    categoria = (request.GET.get("categoria") or "").strip()
+
+    conceptos = GlosarioConcepto.objects.all().order_by("nombre_concepto")
+
+    if q:
+        conceptos = conceptos.filter(
+            Q(nombre_concepto__icontains=q) |
+            Q(descripcion__icontains=q) |
+            Q(formula__icontains=q) |
+            Q(categoria__icontains=q)
+        )
+
+    if categoria:
+        conceptos = conceptos.filter(categoria__iexact=categoria)
+
+    categorias = list(
+        GlosarioConcepto.objects.exclude(categoria__exact="")
+        .values_list("categoria", flat=True)
+        .distinct()
+        .order_by("categoria")
+    )
+
+    context = {
+        "conceptos": conceptos,
+        "q": q,
+        "categoria": categoria,
+        "categorias": categorias,
+    }
+    return render(request, "core/pages/recursos_conceptos.html", context)
 
 
 @require_admin
+@require_http_methods(["GET", "POST"])
 def recursos_alta_concepto(request):
-    return _render_menu_page(request, "core/pages/recursos_alta_concepto.html", "Alta de Concepto")
+    form = GlosarioConceptoCreateForm(request.POST or None)
 
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            messages.info(request, "Operación cancelada.")
+            return redirect("core:recursos_alta_concepto")
+
+        if form.is_valid():
+            obj = form.save()
+
+            log_event(
+                request,
+                "RESOURCE_CONCEPT_CREATED",
+                f"Creó concepto: {obj.nombre_concepto}",
+                "GlosarioConcepto",
+                obj.id
+            )
+
+            messages.success(request, "✅ Concepto dado de alta correctamente.")
+            return redirect("core:recursos_alta_concepto")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    return render(request, "core/pages/recursos_alta_concepto.html", {"form": form})
+
+
+@require_admin
+@require_http_methods(["GET", "POST"])
+def recursos_modificacion_concepto(request):
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
+    edit_mode = (request.GET.get("edit") or "").strip() == "1"
+
+    mostrar_lista = any([q_id, q_nombre]) or mostrar_todos
+
+    conceptos = GlosarioConcepto.objects.none()
+    if mostrar_lista:
+        qs = GlosarioConcepto.objects.all().order_by("nombre_concepto")
+
+        if q_id:
+            if q_id.isdigit():
+                qs = qs.filter(id=int(q_id))
+            else:
+                qs = GlosarioConcepto.objects.none()
+
+        if q_nombre:
+            qs = qs.filter(nombre_concepto__icontains=q_nombre)
+
+        conceptos = qs
+
+    seleccionado = None
+    form = None
+
+    if q_id.isdigit():
+        seleccionado = GlosarioConcepto.objects.filter(id=int(q_id)).first()
+        if seleccionado:
+            form = GlosarioConceptoUpdateForm(instance=seleccionado)
+
+    if request.method == "POST":
+        post_id = (request.GET.get("id") or "").strip()
+
+        if not post_id.isdigit():
+            messages.error(request, "Selecciona un concepto válido.")
+            return redirect("core:recursos_modificacion_concepto")
+
+        seleccionado = GlosarioConcepto.objects.filter(id=int(post_id)).first()
+        if not seleccionado:
+            messages.error(request, "El concepto ya no existe.")
+            return redirect("core:recursos_modificacion_concepto")
+
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "delete":
+            nombre = seleccionado.nombre_concepto
+            cid = seleccionado.id
+            seleccionado.delete()
+
+            log_event(
+                request,
+                "RESOURCE_CONCEPT_DELETED",
+                f"Eliminó concepto: {nombre}",
+                "GlosarioConcepto",
+                cid
+            )
+
+            messages.success(request, f"✅ Concepto eliminado correctamente: {nombre}")
+            return redirect("core:recursos_modificacion_concepto")
+
+        if not edit_mode:
+            messages.error(request, "Para editar, primero presiona ✏️ Editar.")
+            return redirect(f"{reverse('core:recursos_modificacion_concepto')}?id={seleccionado.id}")
+
+        form = GlosarioConceptoUpdateForm(request.POST, instance=seleccionado)
+
+        if form.is_valid():
+            obj = form.save()
+
+            log_event(
+                request,
+                "RESOURCE_CONCEPT_UPDATED",
+                f"Actualizó concepto: {obj.nombre_concepto}",
+                "GlosarioConcepto",
+                obj.id
+            )
+
+            messages.success(request, "Concepto actualizado correctamente.")
+            return redirect(f"{reverse('core:recursos_modificacion_concepto')}?id={obj.id}")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    context = {
+        "q_id": q_id,
+        "q_nombre": q_nombre,
+        "mostrar_lista": mostrar_lista,
+        "mostrar_todos": mostrar_todos,
+        "conceptos": conceptos,
+        "seleccionado": seleccionado,
+        "form": form,
+        "edit_mode": edit_mode,
+    }
+    return render(request, "core/pages/recursos_modificacion_concepto.html", context)
 
 @require_admin
 def recursos_alta_tabla(request):
     return _render_menu_page(request, "core/pages/recursos_alta_tabla.html", "Alta de Tabla")
-
-
-@require_admin
-def recursos_modificacion_concepto(request):
-    return _render_menu_page(request, "core/pages/recursos_modificacion_concepto.html", "Modificar Concepto")
-
 
 @require_admin
 def recursos_modificacion_tabla(request):

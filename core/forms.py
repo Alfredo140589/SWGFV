@@ -1,7 +1,7 @@
 from django import forms
 import re
 
-from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles
+from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles, GlosarioConcepto
 from .models import Inversor, MicroInversor
 
 # ======================================================
@@ -556,3 +556,104 @@ class DimensionamientoDetalleForm(forms.ModelForm):
             "no_cadenas": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "modulos_por_cadena": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
         }
+
+# =========================================================
+# FORMULARIOS: GLOSARIO DE CONCEPTOS
+# =========================================================
+class GlosarioConceptoCreateForm(forms.ModelForm):
+    class Meta:
+        model = GlosarioConcepto
+        fields = ["nombre_concepto", "descripcion", "formula", "categoria"]
+        widgets = {
+            "nombre_concepto": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre del concepto"
+            }),
+            "descripcion": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Descripción del concepto",
+                "rows": 6
+            }),
+            "formula": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Fórmula (opcional)",
+                "rows": 3
+            }),
+            "categoria": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Categoría (ej. Eléctrico, Fotovoltaico, Normativo)"
+            }),
+        }
+
+    def clean_nombre_concepto(self):
+        valor = (self.cleaned_data.get("nombre_concepto") or "").strip()
+        if not valor:
+            raise forms.ValidationError("El nombre del concepto es obligatorio.")
+        if GlosarioConcepto.objects.filter(nombre_concepto__iexact=valor).exists():
+            raise forms.ValidationError("Ya existe un concepto con ese nombre.")
+        return valor
+
+    def clean_descripcion(self):
+        valor = (self.cleaned_data.get("descripcion") or "").strip()
+        if not valor:
+            raise forms.ValidationError("La descripción es obligatoria.")
+        return valor
+
+    def clean_formula(self):
+        return (self.cleaned_data.get("formula") or "").strip()
+
+    def clean_categoria(self):
+        return (self.cleaned_data.get("categoria") or "").strip()
+
+
+class GlosarioConceptoUpdateForm(forms.ModelForm):
+    class Meta:
+        model = GlosarioConcepto
+        fields = ["nombre_concepto", "descripcion", "formula", "categoria"]
+        widgets = {
+            "nombre_concepto": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre del concepto"
+            }),
+            "descripcion": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Descripción del concepto",
+                "rows": 6
+            }),
+            "formula": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Fórmula (opcional)",
+                "rows": 3
+            }),
+            "categoria": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Categoría"
+            }),
+        }
+
+    def clean_nombre_concepto(self):
+        valor = (self.cleaned_data.get("nombre_concepto") or "").strip()
+        if not valor:
+            raise forms.ValidationError("El nombre del concepto es obligatorio.")
+
+        qs = GlosarioConcepto.objects.filter(nombre_concepto__iexact=valor)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise forms.ValidationError("Ya existe otro concepto con ese nombre.")
+        return valor
+
+    def clean_descripcion(self):
+        valor = (self.cleaned_data.get("descripcion") or "").strip()
+        if not valor:
+            raise forms.ValidationError("La descripción es obligatoria.")
+        return valor
+
+    def clean_formula(self):
+        return (self.cleaned_data.get("formula") or "").strip()
+
+    def clean_categoria(self):
+        return (self.cleaned_data.get("categoria") or "").strip()
+
+
