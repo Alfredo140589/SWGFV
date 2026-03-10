@@ -1,356 +1,147 @@
 termino,definicion,formula,categoria
-Voltaje,Diferencia de potencial eléctrico entre dos puntos que impulsa el flujo de electrones en un circuito. Es uno de los parámetros fundamentales para analizar sistemas eléctricos y se mide en voltios (V).,V = I * R,Electrico
-Corriente eléctrica,Flujo ordenado de electrones que circula a través de un conductor cuando existe una diferencia de potencial eléctrico. Se mide en amperios (A).,I = Q / t,Electrico
-Potencia eléctrica,Cantidad de energía eléctrica transferida o consumida por unidad de tiempo dentro de un sistema eléctrico.,P = V * I,Electrico
-Energía eléctrica,Trabajo eléctrico producido o consumido durante un periodo de tiempo determinado dentro de un sistema eléctrico.,E = P * t,Electrico
-Resistencia eléctrica,"Propiedad de un material que se opone al paso de la corriente eléctrica. Depende del material, longitud y sección transversal del conductor.",R = ρL/A,Electrico
-Ley de Ohm,"Relación fundamental entre voltaje, corriente y resistencia en un circuito eléctrico lineal.",V = I * R,Electrico
-Factor de potencia,"Relación entre potencia activa y potencia aparente en sistemas de corriente alterna, indicando la eficiencia con la que se utiliza la energía.",FP = P / S,Electrico
-Panel solar,Dispositivo formado por múltiples celdas fotovoltaicas encapsuladas que convierten la radiación solar en energía eléctrica mediante el efecto fotovoltaico.,,Componente
-Celda fotovoltaica,Elemento semiconductor que transforma la energía luminosa en electricidad mediante la liberación de electrones cuando recibe radiación solar.,,Componente
-Módulo fotovoltaico,Unidad básica de generación eléctrica formada por varias celdas solares conectadas y protegidas por materiales encapsulantes.,,Componente
-Arreglo fotovoltaico,Conjunto de módulos solares conectados eléctrica y estructuralmente para producir energía eléctrica en una instalación fotovoltaica.,,Sistema
-String fotovoltaico,Grupo de paneles solares conectados en serie para aumentar el voltaje del sistema dentro de un arreglo fotovoltaico.,,Configuracion
-Inversor solar,Equipo electrónico que convierte la corriente continua generada por los paneles solares en corriente alterna utilizable por la red eléctrica o los equipos de consumo.,,Equipo
-Controlador de carga,Dispositivo que regula el flujo de energía desde los paneles solares hacia las baterías para evitar sobrecargas o descargas profundas.,,Equipo
-Batería solar,Sistema de almacenamiento electroquímico que permite guardar la energía generada por los paneles solares para utilizarla posteriormente.,,Almacenamiento
-Radiación solar,Energía electromagnética emitida por el sol que llega a la superficie terrestre y puede aprovecharse para generar electricidad mediante sistemas fotovoltaicos.,,Radiacion
-Irradiancia solar,Potencia de radiación solar que incide sobre una superficie por unidad de área.,G = P / A,Radiacion
-Irradiación solar,Cantidad total de energía solar recibida por una superficie durante un periodo determinado.,,Radiacion
-Horas sol pico,Número equivalente de horas al día en las que la irradiancia solar promedio es de 1000 W/m².,,Radiacion
-Energía generada por sistema fotovoltaico,Estimación de la energía eléctrica producida por un sistema solar considerando potencia instalada y horas sol pico.,E = Pinstalada * HSP,Calculo
-Número de paneles requeridos,Cálculo utilizado para determinar cuántos módulos solares se necesitan para alcanzar una potencia objetivo.,N = Psistema / Ppanel,Calculo
-Corriente del arreglo fotovoltaico,Corriente total resultante de la conexión de múltiples strings en paralelo dentro de un sistema fotovoltaico.,Iarray = Ipanel * Nparalelo,Calculo
-Voltaje del arreglo fotovoltaico,Voltaje total generado por la conexión en serie de módulos solares dentro de un string.,Varray = Vpanel * Nserie,Calculo
-Caída de tensión en DC,Pérdida de voltaje que ocurre en los conductores de corriente continua debido a su resistencia eléctrica.,ΔV = 2 * L * I * ρ / S,Calculo
-Caída de tensión AC monofásica,Pérdida de voltaje en conductores de sistemas monofásicos causada por la resistencia del cableado.,ΔV = 2 * L * I * R,Calculo
-Caída de tensión AC trifásica,Pérdida de voltaje en sistemas trifásicos considerando el factor √3 del sistema eléctrico.,ΔV = √3 * L * I * R,Calculo
-Concepto fotovoltaico 1,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 2,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 3,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 4,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 5,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 6,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 7,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 8,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 9,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 10,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 11,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 12,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 13,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 14,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 15,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 16,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 17,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 18,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 19,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 20,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 21,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 22,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 23,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 24,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 25,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 26,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 27,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 28,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 29,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 30,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 31,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 32,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 33,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 34,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 35,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 36,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 37,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 38,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 39,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 40,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 41,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 42,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 43,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 44,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 45,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 46,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 47,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 48,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 49,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 50,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 51,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 52,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 53,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 54,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 55,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 56,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 57,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 58,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 59,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 60,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 61,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 62,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 63,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 64,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 65,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 66,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 67,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 68,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 69,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 70,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 71,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 72,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 73,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 74,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 75,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 76,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 77,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 78,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 79,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 80,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 81,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 82,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 83,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 84,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 85,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 86,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 87,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 88,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 89,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 90,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 91,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 92,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 93,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 94,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 95,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 96,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 97,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 98,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 99,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 100,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 101,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 102,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 103,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 104,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 105,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 106,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 107,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 108,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 109,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 110,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 111,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 112,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 113,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 114,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 115,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 116,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 117,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 118,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 119,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 120,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 121,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 122,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 123,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 124,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 125,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 126,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 127,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 128,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 129,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 130,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 131,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 132,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 133,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 134,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 135,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 136,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 137,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 138,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 139,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 140,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 141,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 142,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 143,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 144,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 145,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 146,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 147,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 148,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 149,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 150,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 151,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 152,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 153,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 154,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 155,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 156,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 157,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 158,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 159,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 160,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 161,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 162,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 163,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 164,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 165,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 166,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 167,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 168,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 169,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 170,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 171,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 172,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 173,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 174,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 175,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 176,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 177,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 178,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 179,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 180,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 181,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 182,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 183,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 184,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 185,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 186,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 187,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 188,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 189,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 190,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 191,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 192,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 193,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 194,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 195,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 196,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 197,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 198,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 199,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 200,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 201,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 202,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 203,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 204,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 205,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 206,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 207,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 208,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 209,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 210,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 211,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 212,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 213,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 214,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 215,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 216,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 217,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 218,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 219,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 220,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 221,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 222,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 223,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 224,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 225,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 226,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 227,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 228,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 229,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 230,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 231,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 232,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 233,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 234,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 235,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 236,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 237,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 238,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 239,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 240,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 241,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 242,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 243,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 244,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 245,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 246,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 247,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 248,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 249,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 250,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 251,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 252,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 253,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 254,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 255,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 256,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 257,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 258,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 259,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 260,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 261,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 262,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 263,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 264,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 265,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 266,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 267,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 268,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 269,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 270,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 271,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 272,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 273,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 274,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 275,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 276,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 277,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 278,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 279,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 280,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 281,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 282,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 283,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 284,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 285,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 286,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 287,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 288,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 289,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 290,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 291,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 292,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 293,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 294,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 295,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 296,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 297,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 298,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 299,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Concepto fotovoltaico 300,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Coeficiente de temperatura,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Performance Ratio,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Sistema On-Grid,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Sistema Off-Grid,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Sistema híbrido,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Cable fotovoltaico,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Protección DC,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Protección AC,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Fusible fotovoltaico,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Interruptor termomagnético,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Aislador DC,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Balance energético,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Capacidad instalada,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Dimensionamiento fotovoltaico,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Orientación del panel,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Ángulo de inclinación,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Latitud solar,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Seguimiento solar,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Estructura de montaje,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Sombras parciales,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Curva I-V,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Curva P-V,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Condiciones STC,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Condiciones NOCT,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Potencia pico,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Voc,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Isc,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Vmp,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
-Imp,"Concepto técnico utilizado en el diseño, análisis o operación de sistemas fotovoltaicos. Este parámetro influye en el rendimiento, seguridad o dimensionamiento de instalaciones solares.",,Fotovoltaico
+Radiación solar,Energía electromagnética emitida por el sol que se propaga a través del espacio y llega a la superficie terrestre. Esta energía es la fuente primaria utilizada por los sistemas fotovoltaicos para generar electricidad mediante el efecto fotovoltaico.,,Recurso solar
+Irradiancia,Potencia de radiación solar que incide sobre una superficie por unidad de área en un instante determinado. Se mide normalmente en W/m² y es un parámetro fundamental para estimar la producción instantánea de energía en un sistema fotovoltaico.,G=P/A,Recurso solar
+Irradiación,Cantidad total de energía solar recibida por una superficie durante un periodo específico como un día o un año. Se expresa normalmente en kWh/m² y permite estimar el potencial solar de una ubicación geográfica.,H=∫Gdt,Recurso solar
+Horas sol pico,Valor equivalente que representa el número de horas al día en las que la irradiancia promedio es igual a 1000 W/m². Este parámetro se utiliza comúnmente para estimar la energía diaria generada por sistemas fotovoltaicos.,,Recurso solar
+Albedo,Fracción de radiación solar que es reflejada por una superficie terrestre como suelo, nieve o agua. En sistemas fotovoltaicos bifaciales puede contribuir a incrementar la generación de energía.,Recurso solar
+Masa de aire,Relación entre la trayectoria real que recorre la radiación solar en la atmósfera y la trayectoria cuando el sol se encuentra directamente en el cenit. Este parámetro se usa para estandarizar condiciones de medición de módulos solares.,,Recurso solar
+Azimut solar,Ángulo horizontal que define la posición del sol respecto a una dirección de referencia como el norte o el sur. Este parámetro es importante para el diseño y orientación de sistemas fotovoltaicos.,,Recurso solar
+Zenit solar,Ángulo formado entre la vertical de un punto en la superficie terrestre y la dirección del sol. Se utiliza en cálculos de geometría solar.,,Recurso solar
+Altura solar,Ángulo formado entre el horizonte y el sol observado desde un punto específico en la tierra. Determina la intensidad de radiación que puede recibir un panel solar.,,Recurso solar
+Declinación solar,Ángulo entre el plano del ecuador terrestre y la línea que une el centro de la tierra con el sol. Cambia a lo largo del año debido a la inclinación del eje terrestre.,,Recurso solar
+Efecto fotovoltaico,Fenómeno físico mediante el cual ciertos materiales semiconductores generan una diferencia de potencial eléctrico cuando son expuestos a la radiación solar.,,Física
+Semiconductor,Material cuya conductividad eléctrica se encuentra entre la de un conductor y un aislante. Los semiconductores como el silicio son la base de las celdas solares.,,Física
+Unión PN,Interfaz formada entre un semiconductor tipo P y uno tipo N que genera un campo eléctrico interno capaz de separar cargas cuando incide la luz.,,Física
+Fotón,Partícula elemental de la radiación electromagnética que transporta energía. En una celda solar los fotones liberan electrones generando corriente eléctrica.,,Física
+Banda prohibida,Nivel de energía mínimo necesario para que un electrón pase de la banda de valencia a la banda de conducción en un material semiconductor.,,Física
+Silicio monocristalino,Tipo de material semiconductor con una estructura cristalina uniforme que permite obtener módulos fotovoltaicos de alta eficiencia.,,Tecnología
+Silicio policristalino,Material semiconductor formado por múltiples cristales de silicio. Se utiliza en paneles solares con eficiencia ligeramente menor pero menor costo.,,Tecnología
+Silicio amorfo,Forma no cristalina del silicio utilizada en tecnologías de película delgada que permiten fabricar paneles más flexibles.,,Tecnología
+Tecnología PERC,Tecnología de celdas solares que incorpora una capa pasivada en la parte posterior para mejorar la eficiencia y reducir pérdidas eléctricas.,,Tecnología
+Tecnología TOPCon,Tecnología avanzada de celdas solares que utiliza un contacto pasivado con óxido túnel para mejorar la eficiencia de conversión.,,Tecnología
+Celda fotovoltaica,Dispositivo semiconductor que convierte directamente la energía de la radiación solar en energía eléctrica mediante el efecto fotovoltaico.,,Componente
+Módulo fotovoltaico,Conjunto de celdas solares interconectadas encapsuladas en materiales protectores como vidrio templado y polímeros para formar un panel funcional.,,Componente
+Panel solar,Término común utilizado para referirse a un módulo fotovoltaico completo instalado en un sistema solar.,,Componente
+Arreglo fotovoltaico,Conjunto de paneles solares conectados entre sí en serie o en paralelo para generar electricidad en una instalación fotovoltaica.,,Componente
+String,Cadena de paneles solares conectados en serie para aumentar el voltaje del sistema.,,Componente
+Caja de conexiones,Compartimiento ubicado en la parte posterior del módulo solar donde se conectan los cables de salida del panel.,,Componente
+Diodo bypass,Dispositivo electrónico utilizado en módulos solares para permitir el paso de corriente cuando una sección del panel está sombreada.,,Componente
+Vidrio templado,Capa frontal protectora de los paneles solares que proporciona resistencia mecánica y protección contra el ambiente.,,Componente
+Encapsulante EVA,Material polimérico utilizado para encapsular y proteger las celdas solares dentro del módulo.,,Componente
+Backsheet,Capa posterior del panel solar que proporciona aislamiento eléctrico y protección ambiental.,,Componente
+Marco de aluminio,Estructura metálica que rodea el panel solar proporcionando rigidez mecánica y facilitando su instalación.,,Componente
+Conector MC4,Conector estándar utilizado para interconectar módulos solares de forma segura en instalaciones fotovoltaicas.,,Componente
+Cable fotovoltaico,Conductor eléctrico diseñado específicamente para soportar condiciones ambientales severas en instalaciones solares.,,Componente
+Estructura de montaje,Sistema mecánico que soporta los módulos solares y determina su orientación e inclinación.,,Componente
+Abrazadera intermedia,Elemento de fijación utilizado entre paneles solares para asegurar su posición sobre la estructura.,,Componente
+Abrazadera final,Elemento de fijación colocado en los extremos de una fila de paneles solares.,,Componente
+Riel solar,Perfil estructural de aluminio utilizado como base para la instalación de paneles solares.,,Componente
+Gabinete eléctrico,Envolvente metálica o plástica que protege equipos eléctricos dentro de un sistema fotovoltaico.,,Componente
+Caja combinadora,Dispositivo donde se concentran varios strings antes de conectarse al inversor.,,Componente
+Inversor,Equipo electrónico que convierte la corriente continua generada por los paneles solares en corriente alterna utilizable por los equipos eléctricos.,,Equipo
+Microinversor,Inversor pequeño que se instala generalmente por cada panel solar para optimizar la generación de energía.,,Equipo
+Inversor string,Inversor que opera con uno o varios strings de paneles solares conectados en serie.,,Equipo
+Inversor central,Inversor de gran potencia utilizado en plantas solares de gran escala.,,Equipo
+Controlador de carga,Dispositivo que regula el flujo de energía entre paneles solares y baterías evitando sobrecargas.,,Equipo
+Controlador MPPT,Controlador que optimiza la operación del sistema buscando el punto de máxima potencia de los paneles.,,Equipo
+Batería,Dispositivo electroquímico capaz de almacenar energía eléctrica para su uso posterior.,,Almacenamiento
+Banco de baterías,Conjunto de baterías conectadas para aumentar capacidad energética o voltaje del sistema.,,Almacenamiento
+BMS,Sistema electrónico que monitorea y protege baterías controlando voltaje corriente y temperatura.,,Almacenamiento
+Voltaje,Diferencia de potencial eléctrico entre dos puntos que impulsa el flujo de corriente en un circuito.,V=I*R,Eléctrico
+Corriente,Movimiento de cargas eléctricas a través de un conductor.,I=Q/t,Eléctrico
+Potencia,Cantidad de energía eléctrica transferida o consumida por unidad de tiempo.,P=V*I,Eléctrico
+Energía eléctrica,Cantidad total de trabajo eléctrico producido o consumido durante un periodo de tiempo. En sistemas fotovoltaicos representa la producción energética generada por los paneles solares.,E=P*t,Eléctrico
+Resistencia,Oposición que presenta un material al paso de la corriente eléctrica. En conductores eléctricos depende del material,R=ρL/A,Eléctrico
+Ley de Ohm,Principio fundamental que establece la relación entre voltaje corriente y resistencia dentro de un circuito eléctrico.,V=I*R,Eléctrico
+Frecuencia,Número de ciclos completos de una señal eléctrica que ocurren en un segundo. En redes eléctricas normalmente es de 50 o 60 Hz.,f=1/T,Eléctrico
+Impedancia,Oposición total al paso de corriente alterna en un circuito considerando tanto resistencia como reactancia.,Z=√(R²+X²),Eléctrico
+Reactancia,Oposición que presentan inductores o capacitores al paso de corriente alterna debido a sus propiedades electromagnéticas.,,Eléctrico
+Capacitancia,Capacidad de un dispositivo para almacenar energía en forma de campo eléctrico entre dos conductores.,C=Q/V,Eléctrico
+Inductancia,Propiedad de un conductor o bobina para generar un campo magnético cuando circula corriente eléctrica.,,Eléctrico
+Potencia activa,Potencia que realmente realiza trabajo útil en un sistema eléctrico como alimentar equipos o cargas.,P=VIcosφ,Eléctrico
+Potencia reactiva,Potencia que oscila entre la fuente y los elementos reactivos del sistema eléctrico sin producir trabajo útil.,Q=VIsenφ,Eléctrico
+Potencia aparente,Potencia total en un circuito de corriente alterna resultante del producto del voltaje por la corriente.,S=VI,Eléctrico
+Factor de potencia,Relación entre la potencia activa y la potencia aparente en un sistema eléctrico.,FP=P/S,Eléctrico
+Voc,Voltaje de circuito abierto que puede generar un módulo solar cuando no está conectado a ninguna carga.,,Parámetro FV
+Isc,Corriente de cortocircuito que produce un módulo cuando sus terminales están conectadas directamente.,,Parámetro FV
+Vmp,Voltaje en el punto de máxima potencia donde el panel entrega su mayor producción energética.,,Parámetro FV
+Imp,Corriente correspondiente al punto de máxima potencia del panel solar.,,Parámetro FV
+Pmax,Potencia máxima que puede producir un módulo fotovoltaico bajo condiciones estándar de prueba.,P=V*I,Parámetro FV
+Curva IV,Representación gráfica de la relación entre corriente y voltaje de un módulo fotovoltaico.,,Parámetro FV
+Curva PV,Representación gráfica de la potencia generada por el módulo en función del voltaje.,,Parámetro FV
+STC,Condiciones estándar de prueba utilizadas para medir el rendimiento de módulos solares: 1000 W/m² 25°C y espectro AM1.5.,,Parámetro FV
+NOCT,Temperatura nominal de operación de la celda bajo condiciones específicas de radiación ambiente y viento.,,Parámetro FV
+MPPT,Tecnología utilizada en inversores y controladores para encontrar el punto de máxima potencia del panel.,,Parámetro FV
+PR,Indicador que mide la eficiencia global de un sistema fotovoltaico comparando energía real generada contra la teórica.,PR=Ereal/Eteorica,Rendimiento
+Derating,Reducción del rendimiento esperado del sistema debido a pérdidas por temperatura cableado suciedad o eficiencia del inversor.,,Rendimiento
+Mismatch,Pérdidas de energía ocasionadas por diferencias eléctricas entre módulos conectados en un mismo string.,,Rendimiento
+Clipping,Pérdida de energía que ocurre cuando el inversor limita la potencia DC producida por los paneles.,,Rendimiento
+Degradación,Pérdida gradual de potencia de los módulos solares a lo largo del tiempo.,,Rendimiento
+Sistema OnGrid,Sistema fotovoltaico conectado directamente a la red eléctrica pública.,,Sistema
+Sistema OffGrid,Sistema solar independiente que opera sin conexión a la red eléctrica.,,Sistema
+Sistema híbrido,Sistema fotovoltaico que combina paneles solares baterías y conexión a red eléctrica.,,Sistema
+Autoconsumo,Uso directo de la energía generada por el sistema fotovoltaico para alimentar cargas locales.,,Sistema
+Generación distribuida,Producción de energía eléctrica cerca del punto de consumo en lugar de grandes centrales.,,Sistema
+Interconexión,Proceso técnico y regulatorio mediante el cual un sistema solar se conecta a la red eléctrica.,,Sistema
+Demanda energética,Cantidad total de energía requerida por las cargas eléctricas de una instalación.,E=P*t,Diseño
+Perfil de carga,Distribución temporal del consumo eléctrico de una instalación durante el día o el año.,,Diseño
+Carga crítica,Carga eléctrica que debe mantenerse funcionando incluso durante fallas del sistema.,,Diseño
+Potencia instalada,Suma de las potencias nominales de todos los módulos solares instalados en el sistema.,,Diseño
+Dimensionamiento,Proceso de cálculo mediante el cual se determina el tamaño adecuado de un sistema fotovoltaico.,,Diseño
+Orientación del panel,Dirección hacia la cual se instalan los paneles solares para maximizar la captación de radiación.,,Diseño
+Ángulo de inclinación,Ángulo entre la superficie del panel solar y el plano horizontal.,,Diseño
+Azimut del panel,Orientación horizontal del panel respecto al norte o sur geográfico.,,Diseño
+Distancia entre filas,Separación entre filas de paneles para evitar sombras entre ellas.,,Diseño
+Pérdidas por temperatura,Reducción de potencia causada por el aumento de temperatura en las celdas solares.,,Diseño
+Pérdidas por suciedad,Pérdida de rendimiento causada por acumulación de polvo o suciedad en los paneles.,,Diseño
+Pérdidas por cableado,Energía disipada en forma de calor debido a la resistencia de los conductores.,,Diseño
+BoS,Conjunto de componentes auxiliares de un sistema fotovoltaico distintos de los módulos.,,Diseño
+Puesta en marcha,Proceso mediante el cual un sistema fotovoltaico recién instalado se pone en operación por primera vez después de realizar pruebas de funcionamiento y seguridad.,,Instalación
+Comisionamiento,Conjunto de procedimientos técnicos que verifican que todos los componentes del sistema funcionan correctamente según el diseño.,,Instalación
+Inspección visual,Revisión física del sistema fotovoltaico para identificar daños defectos o anomalías en módulos cables conectores o estructuras.,,Instalación
+Torque de apriete,Valor de fuerza aplicado a tornillos o pernos para asegurar conexiones mecánicas adecuadas en estructuras solares.,,Instalación
+Sistema de puesta a tierra,Conjunto de conductores y electrodos que conectan equipos eléctricos a tierra para protección contra descargas eléctricas.,,Protección
+Electrodo de tierra,Elemento conductor enterrado en el suelo que permite disipar corrientes eléctricas hacia la tierra.,,Protección
+Varilla de tierra,Electrodo metálico normalmente de cobre o acero recubierto utilizado en sistemas de puesta a tierra.,,Protección
+Conductor de tierra,Cable utilizado para conectar equipos eléctricos al sistema de puesta a tierra.,,Protección
+Protección contra sobretensiones,Dispositivo diseñado para proteger equipos eléctricos contra picos de voltaje causados por rayos o perturbaciones eléctricas.,,Protección
+Supresor de sobretensiones,Equipo que limita el voltaje transitorio y protege los componentes eléctricos sensibles.,,Protección
+Seccionador DC,Interruptor utilizado para desconectar circuitos de corriente continua de manera segura.,,Protección
+Interruptor termomagnético,Dispositivo de protección que interrumpe el circuito cuando se detecta sobrecorriente o cortocircuito.,,Protección
+Fusible,Elemento de protección que se funde cuando la corriente supera un valor seguro interrumpiendo el circuito.,,Protección
+Continuidad de tierra,Verificación eléctrica que confirma que existe una conexión adecuada entre equipos y el sistema de puesta a tierra.,,Mantenimiento
+Resistencia de aislamiento,Medición utilizada para evaluar la calidad del aislamiento eléctrico entre conductores y tierra.,,Mantenimiento
+Megger,Instrumento utilizado para medir la resistencia de aislamiento en sistemas eléctricos.,,Mantenimiento
+Curva trazadora,Equipo utilizado para medir la curva IV de módulos fotovoltaicos y evaluar su rendimiento.,,Mantenimiento
+Termografía,Técnica de diagnóstico que utiliza cámaras infrarrojas para detectar puntos calientes en paneles o conexiones.,,Mantenimiento
+Mantenimiento preventivo,Conjunto de actividades programadas destinadas a mantener el sistema fotovoltaico en condiciones óptimas de operación.,,Mantenimiento
+Mantenimiento correctivo,Acciones realizadas para reparar fallas detectadas en el sistema fotovoltaico.,,Mantenimiento
+Disponibilidad del sistema,Porcentaje de tiempo en que el sistema fotovoltaico está funcionando correctamente y generando energía.,,Mantenimiento
+Confiabilidad,Probabilidad de que un sistema funcione correctamente durante un periodo determinado sin fallas.,,Mantenimiento
+Falla a tierra,Condición en la cual un conductor activo entra en contacto con tierra o una parte metálica conectada a tierra.,,Mantenimiento
+Arco eléctrico,Descarga eléctrica a través del aire causada por una diferencia de potencial elevada entre conductores.,,Mantenimiento
+Estado de carga,Porcentaje de energía disponible en una batería respecto a su capacidad total.,,Batería
+Profundidad de descarga,Porcentaje de la capacidad total de una batería que ha sido utilizado durante la descarga.,DoD=E/C,Batería
+Ciclo de batería,Proceso completo de carga y descarga que experimenta una batería durante su uso.,,Batería
+Capacidad de batería,Cantidad total de energía que una batería puede almacenar y suministrar.,,Batería
+Voltaje nominal de batería,Valor de voltaje para el cual la batería ha sido diseñada para operar.,,Batería
+Eficiencia de batería,Relación entre la energía entregada por la batería y la energía utilizada para cargarla.,,Batería
+Batería AGM,Tipo de batería de plomo ácido sellada que utiliza fibra de vidrio absorbente para retener el electrolito.,,Batería
+Batería gel,Batería de plomo ácido cuyo electrolito se encuentra en forma de gel para evitar fugas.,,Batería
+Batería de litio,Tecnología de almacenamiento de energía caracterizada por alta densidad energética y larga vida útil.,,Batería
+LiFePO4,Tipo de batería de litio hierro fosfato conocida por su estabilidad térmica y seguridad.,,Batería
+C-rate,Relación entre la corriente de carga o descarga de una batería y su capacidad nominal.,,Batería
+Autonomía del sistema,Tiempo durante el cual un sistema fotovoltaico con baterías puede alimentar cargas sin generación solar.,,Batería
+Voltaje de corte,Voltaje mínimo permitido para una batería antes de detener la descarga para evitar daños.,,Batería
+Ecualización,Proceso de carga controlada utilizado para balancear las celdas en baterías de plomo ácido.,,Batería
+Norma,Documento técnico que establece requisitos o directrices para el diseño fabricación o instalación de equipos.,,Normatividad
+Código eléctrico,Conjunto de reglas que regulan la instalación segura de sistemas eléctricos.,,Normatividad
+NOM,Norma Oficial Mexicana que establece requisitos obligatorios en instalaciones eléctricas.,,Normatividad
+IEC,Comisión Electrotécnica Internacional que desarrolla estándares técnicos para equipos eléctricos.,,Normatividad
+UL,Organización que certifica la seguridad de productos eléctricos.,,Normatividad
+Hoja de datos,Documento técnico del fabricante que describe las características eléctricas y mecánicas de un equipo.,,Normatividad
+Ficha técnica,Resumen de especificaciones técnicas de un componente o sistema.,,Normatividad
+Garantía de producto,Compromiso del fabricante para cubrir defectos de fabricación durante un periodo determinado.,,Normatividad
+Garantía de potencia,Compromiso del fabricante sobre el rendimiento mínimo de un módulo solar a lo largo del tiempo.,,Normatividad
+Grado IP,Clasificación que indica el nivel de protección de un equipo contra polvo y agua.,,Normatividad
+Clase de aislamiento,Categoría que describe la capacidad de un material para resistir voltajes eléctricos.,,Normatividad
