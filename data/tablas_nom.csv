@@ -1,0 +1,30 @@
+﻿nombre_tabla,notas,nombre_imagen
+Tabla 8.-Propiedades de los conductores,"(1) Estos valores de resistencia son válidos solamente para los parámetros indicados. Al usar conductores con hilos recubiertos, de distinto tipo de trenzado y especialmente a otras temperaturas, cambia la resistencia.
+
+(2) Fórmula para el cambio de temperatura: R2 = R1 [1 + (T2 - 75)], donde cu = 0.00323, AL = 0.00330 a 75 °C.
+
+(3) Los conductores con cableado compacto o comprimido tienen aproximadamente un 9% y un 3%, respectivamente, menos de diámetro del conductor desnudo de los conductores mostrados. Para las dimensiones reales de los cables compactos, véase la Tabla 5A.
+
+(4) Las conductividades usadas, según la IACS: cobre desnudo = 100%, aluminio = 61%.
+
+(5) El cableado de Clase B está aprobado también como sólido para algunos tamaños. Su área y diámetro total son los de la circunferencia circunscrita.",tab_nom_8.jpg
+"Tabla 9.-Resistencia y reactancia en corriente alterna para los cables para 600 volts, 3 fases a 60 Hz y 75°C.Tres conductores individuales en un tubo Conduit.","1. Estos valores se basan en las siguientes constantes: conductores del tipo RHH con trenzado de Clase B, en configuración acunada. La conductividad de los alambres es del 100 por ciento IACS para cobre y del 61 por ciento IACS para aluminio; la del conduit de aluminio es del 45 por ciento IACS. No se tiene en cuenta la reactancia capacitiva, que es insignificante a estas tensiones. Estos valores de resistencia sólo son válidos a 75 °C y para los parámetros dados, pero son representativos para los tipos de alambres para 600 volts que operan a 60 Hz.
+
+2. La impedancia (Z) eficaz se define como R cos (θ) + X sen (θ), en donde θ es el ángulo del factor de potencia del circuito. Al multiplicar la corriente por la impedancia eficaz se obtiene una buena aproximación de la caída de tensión de línea a neutro. Los valores de impedancia eficaz de esta tabla sólo son válidos con un factor de potencia de 0.85. Para cualquier otro factor de potencia (FP) del circuito, la impedancia eficaz (Ze) se puede calcular a partir de los valores de R y XL dados en esta tabla, como sigue: Ze = R × FP + XL sen [arc cos (FP)].",tab_nom_9.jpg
+Tabla 310-15(b)(3)(c).-Ajustes de la temperatura ambiente para canalizaciones circulares expuestas a la luz solar en o por encima de azoteas.,Sin notas,tab_nom_310_15b3c.jpg
+Tabla 310-15(b)(2)(a).-Factores de corrección basados en una temperatura ambiente de 30°C.,Sin notas,tab_nom_310_15b2a.jpg
+Tabla 310-15(b)(3)(a).-Factores de ajuste para más de tres conductores portadores de corriente en una canalización o cable.,Es el número total de conductores en la canalización o cable ajustado de acuerdo con 310-15(b)(5)y(6).,tab_nom_310_15b3a.jpg
+"Tabla 310-15(b)(16).-Ampacidades ermisibles en conductores aislados para tensiones hasta 2000 volts y 60°C a 90°C.No más de tres conductores portadores de corriente en una canalización cable o directamente enterrados, basados en una temperatura ambiente de 30°C*.","* Véase 310-15(b)(2) para los factores de corrección de la ampacidad cuando la temperatura ambiente es diferente a 30 °C.
+** Véase 240-4(d) para limitaciones de protección contra sobrecorriente del conductor.",tab_nom_310_15b16.jpg
+Tabla 250-66.- Conductor del electrodo de puesta a tierra para sistemas de corriente alterna.,"250-66. Tamaño del conductor del electrodo de puesta a tierra de corriente alterna.
+El tamaño del conductor del electrodo de puesta a tierra en la acometida, en cada edificio o estructura alimentada por un alimentador o circuito derivado o en un sistema derivado separado de un sistema de corriente alterna puesto a tierra o no puesto a tierra, no debe ser menor al dado en la Tabla 250-66, excepto como se permite en (a) hasta (c) siguientes.
+
+NOTA: Ver 250-24(c) para el tamaño de un conductor del sistema de corriente alterna llevado al equipo de acometida.
+
+Cuando no hay conductores de acometida, el tamaño del conductor del electrodo de puesta a tierra se deberá determinar por el tamaño equivalente del conductor más grande de acometida requerido para la carga a alimentar.
+
+ᵃ Esta tabla también aplica para los conductores derivados de sistemas derivados separados de corriente alterna.
+ᵇ Ver 250-64(a) para restricciones de la instalación.",tab_nom_250_66.jpg
+250-122.- Tamaño mínimo de los conductores de puesta a tierra para canalizaciones y equipos.,"*Para cumplir con lo establecido en 250-4(a)(5) o (b)(4), el conductor de puesta a tierra de equipos podría ser de mayor tamaño que lo especificado en esta Tabla.
+Véase 250-120 para restricciones de instalación.",tab_nom_250_122.jpg
+Tabla 240-6.- Capacidades estandarizadas de fusibles e interruptores automáticos.,Sin notas,tab_nom_240_6.jpg

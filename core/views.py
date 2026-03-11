@@ -27,6 +27,7 @@ from core.forms import InversorCreateForm, MicroInversorCreateForm
 from decimal import Decimal, ROUND_UP
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from django.db import transaction
+from django.templatetags.static import static
 
 from core.utils.pdf_utils import (
     build_fortia_doc,
@@ -49,6 +50,8 @@ from .forms import (
     NumeroPanelesForm,
     GlosarioConceptoCreateForm,
     GlosarioConceptoUpdateForm,
+    TablaNOMCreateForm,
+    TablaNOMUpdateForm,
 )
 
 from .auth_local import authenticate_local
@@ -63,6 +66,7 @@ from .models import (
     ResultadoTension, CalculoTension,
     TablaConductoresAWGConReactancia,
     GlosarioConcepto,
+    TablaNOM,
 )
 
 logger = logging.getLogger(__name__)
@@ -3196,11 +3200,6 @@ def calculo_caida_tension_pdf(request, proyecto_id: int):
     return response
 
 @require_session_login
-def recursos_tablas(request):
-    return _render_menu_page(request, "core/pages/recursos_tablas.html", "Tablas")
-
-
-@require_session_login
 @require_http_methods(["GET"])
 def recursos_conceptos(request):
     q = (request.GET.get("q") or "").strip()
@@ -3362,15 +3361,157 @@ def recursos_modificacion_concepto(request):
         "edit_mode": edit_mode,
     }
     return render(request, "core/pages/recursos_modificacion_concepto.html", context)
+@require_session_login
+@require_http_methods(["GET"])
+def recursos_tablas(request):
+    q = (request.GET.get("q") or "").strip()
+    tabla_id = (request.GET.get("tabla") or "").strip()
+
+    tablas = TablaNOM.objects.all().order_by("nombre_tabla")
+
+    if q:
+        tablas = tablas.filter(
+            Q(nombre_tabla__icontains=q) |
+            Q(notas__icontains=q)
+        )
+
+    seleccionada = None
+    if tabla_id.isdigit():
+        seleccionada = TablaNOM.objects.filter(id=int(tabla_id)).first()
+
+    context = {
+        "tablas": tablas,
+        "q": q,
+        "seleccionada": seleccionada,
+    }
+    return render(request, "core/pages/recursos_tablas.html", context)
 
 @require_admin
+@require_http_methods(["GET", "POST"])
 def recursos_alta_tabla(request):
-    return _render_menu_page(request, "core/pages/recursos_alta_tabla.html", "Alta de Tabla")
+    form = TablaNOMCreateForm(request.POST or None, request.FILES or None)
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            messages.info(request, "Operación cancelada.")
+            return redirect("core:recursos_alta_tabla")
+
+        if form.is_valid():
+            obj = form.save()
+
+            log_event(
+                request,
+                "RESOURCE_TABLE_CREATED",
+                f"Creó tabla NOM: {obj.nombre_tabla}",
+                "TablaNOM",
+                obj.id
+            )
+
+            messages.success(request, "✅ Tabla NOM dada de alta correctamente.")
+            return redirect("core:recursos_alta_tabla")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    return render(request, "core/pages/recursos_alta_tabla.html", {"form": form})
 
 @require_admin
+@require_http_methods(["GET", "POST"])
 def recursos_modificacion_tabla(request):
-    return _render_menu_page(request, "core/pages/recursos_modificacion_tabla.html", "Modificar Tabla")
+    q_id = (request.GET.get("id") or "").strip()
+    q_nombre = (request.GET.get("nombre") or "").strip()
+    mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
+    edit_mode = (request.GET.get("edit") or "").strip() == "1"
 
+    mostrar_lista = any([q_id, q_nombre]) or mostrar_todos
+
+    tablas = TablaNOM.objects.none()
+    if mostrar_lista:
+        qs = TablaNOM.objects.all().order_by("nombre_tabla")
+
+        if q_id:
+            if q_id.isdigit():
+                qs = qs.filter(id=int(q_id))
+            else:
+                qs = TablaNOM.objects.none()
+
+        if q_nombre:
+            qs = qs.filter(nombre_tabla__icontains=q_nombre)
+
+        tablas = qs
+
+    seleccionada = None
+    form = None
+
+    if q_id.isdigit():
+        seleccionada = TablaNOM.objects.filter(id=int(q_id)).first()
+        if seleccionada:
+            form = TablaNOMUpdateForm(instance=seleccionada)
+
+    if request.method == "POST":
+        post_id = (request.GET.get("id") or "").strip()
+
+        if not post_id.isdigit():
+            messages.error(request, "Selecciona una tabla válida.")
+            return redirect("core:recursos_modificacion_tabla")
+
+        seleccionada = TablaNOM.objects.filter(id=int(post_id)).first()
+        if not seleccionada:
+            messages.error(request, "La tabla ya no existe.")
+            return redirect("core:recursos_modificacion_tabla")
+
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "delete":
+            nombre = seleccionada.nombre_tabla
+            tid = seleccionada.id
+            seleccionada.delete()
+
+            log_event(
+                request,
+                "RESOURCE_TABLE_DELETED",
+                f"Eliminó tabla NOM: {nombre}",
+                "TablaNOM",
+                tid
+            )
+
+            messages.success(request, f"✅ Tabla eliminada correctamente: {nombre}")
+            return redirect("core:recursos_modificacion_tabla")
+
+        if not edit_mode:
+            messages.error(request, "Para editar, primero presiona ✏️ Editar.")
+            return redirect(f"{reverse('core:recursos_modificacion_tabla')}?id={seleccionada.id}")
+
+        form = TablaNOMUpdateForm(request.POST or None, request.FILES or None, instance=seleccionada)
+
+        if form.is_valid():
+            obj = form.save()
+
+            log_event(
+                request,
+                "RESOURCE_TABLE_UPDATED",
+                f"Actualizó tabla NOM: {obj.nombre_tabla}",
+                "TablaNOM",
+                obj.id
+            )
+
+            messages.success(request, "Tabla actualizada correctamente.")
+            return redirect(f"{reverse('core:recursos_modificacion_tabla')}?id={obj.id}")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+
+    context = {
+        "q_id": q_id,
+        "q_nombre": q_nombre,
+        "mostrar_lista": mostrar_lista,
+        "mostrar_todos": mostrar_todos,
+        "tablas": tablas,
+        "seleccionada": seleccionada,
+        "form": form,
+        "edit_mode": edit_mode,
+    }
+    return render(request, "core/pages/recursos_modificacion_tabla.html", context)
 
 # ==========================
 # PDF PROYECTO

@@ -783,3 +783,22 @@ class GlosarioConcepto(models.Model):
 
     def __str__(self):
         return self.nombre_concepto
+
+# =========================================================
+# [MODULO] TABLAS NOM
+# Tabla: tablas_nom
+# =========================================================
+class TablaNOM(models.Model):
+    nombre_tabla = models.CharField(max_length=200, unique=True)
+    notas = models.TextField(blank=True, default="")
+    imagen = models.ImageField(upload_to="tablas_nom/", blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "tablas_nom"
+        ordering = ["nombre_tabla"]
+        verbose_name = "Tabla NOM"
+        verbose_name_plural = "Tablas NOM"
+
+    def __str__(self):
+        return self.nombre_tabla

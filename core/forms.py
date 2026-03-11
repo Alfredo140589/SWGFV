@@ -1,7 +1,7 @@
 from django import forms
 import re
 
-from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles, GlosarioConcepto
+from .models import Usuario, Proyecto, Irradiancia, PanelSolar, NumeroPaneles, GlosarioConcepto, TablaNOM
 from .models import Inversor, MicroInversor
 
 # ======================================================
@@ -655,5 +655,85 @@ class GlosarioConceptoUpdateForm(forms.ModelForm):
 
     def clean_categoria(self):
         return (self.cleaned_data.get("categoria") or "").strip()
+# =========================================================
+# FORMULARIOS: TABLAS NOM
+# =========================================================
+class TablaNOMCreateForm(forms.ModelForm):
+    class Meta:
+        model = TablaNOM
+        fields = ["nombre_tabla", "notas", "imagen"]
+        widgets = {
+            "nombre_tabla": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre de la tabla"
+            }),
+            "notas": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Notas o descripción de la tabla",
+                "rows": 5
+            }),
+            "imagen": forms.ClearableFileInput(attrs={
+                "class": "form-control"
+            }),
+        }
+
+    def clean_nombre_tabla(self):
+        valor = (self.cleaned_data.get("nombre_tabla") or "").strip()
+        if not valor:
+            raise forms.ValidationError("El nombre de la tabla es obligatorio.")
+        if TablaNOM.objects.filter(nombre_tabla__iexact=valor).exists():
+            raise forms.ValidationError("Ya existe una tabla con ese nombre.")
+        return valor
+
+    def clean_notas(self):
+        return (self.cleaned_data.get("notas") or "").strip()
+
+    def clean_imagen(self):
+        imagen = self.cleaned_data.get("imagen")
+        if not imagen:
+            raise forms.ValidationError("La imagen es obligatoria.")
+        return imagen
 
 
+class TablaNOMUpdateForm(forms.ModelForm):
+    class Meta:
+        model = TablaNOM
+        fields = ["nombre_tabla", "notas", "imagen"]
+        widgets = {
+            "nombre_tabla": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre de la tabla"
+            }),
+            "notas": forms.Textarea(attrs={
+                "class": "form-control",
+                "placeholder": "Notas o descripción de la tabla",
+                "rows": 5
+            }),
+            "imagen": forms.ClearableFileInput(attrs={
+                "class": "form-control"
+            }),
+        }
+
+    def clean_nombre_tabla(self):
+        valor = (self.cleaned_data.get("nombre_tabla") or "").strip()
+        if not valor:
+            raise forms.ValidationError("El nombre de la tabla es obligatorio.")
+
+        qs = TablaNOM.objects.filter(nombre_tabla__iexact=valor)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise forms.ValidationError("Ya existe otra tabla con ese nombre.")
+        return valor
+
+    def clean_notas(self):
+        return (self.cleaned_data.get("notas") or "").strip()
+
+    def clean_imagen(self):
+        imagen = self.cleaned_data.get("imagen")
+        if imagen:
+            return imagen
+        if self.instance and self.instance.pk and self.instance.imagen:
+            return self.instance.imagen
+        raise forms.ValidationError("La imagen es obligatoria.")

@@ -125,6 +125,9 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # En desarrollo: servir archivos estáticos directamente desde las apps (core/static/...)
 # En producción: WhiteNoise con archivos colectados (collectstatic) y manifest (cache-busting)
 if DEBUG:
