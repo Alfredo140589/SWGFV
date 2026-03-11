@@ -188,6 +188,82 @@ class UsuarioUpdateForm(forms.ModelForm):
 
 
 # ======================================================
+# CUENTA DE USUARIO
+# ======================================================
+class CuentaUpdateForm(forms.ModelForm):
+    new_password = forms.CharField(
+        label="Nueva contraseña",
+        required=False,
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Nueva contraseña"
+        }),
+    )
+    new_password_confirm = forms.CharField(
+        label="Confirmar nueva contraseña",
+        required=False,
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Confirmar nueva contraseña"
+        }),
+    )
+
+    class Meta:
+        model = Usuario
+        fields = [
+            "Nombre",
+            "Apellido_Paterno",
+            "Apellido_Materno",
+            "Telefono",
+            "Correo_electronico",
+            "Tipo",
+        ]
+        widgets = {
+            "Nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "Apellido_Paterno": forms.TextInput(attrs={"class": "form-control"}),
+            "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
+            "Telefono": forms.TextInput(attrs={"class": "form-control"}),
+            "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
+            "Tipo": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def clean_Correo_electronico(self):
+        email = (self.cleaned_data.get("Correo_electronico") or "").strip().lower()
+        if not email:
+            raise forms.ValidationError("El correo es obligatorio.")
+
+        qs = Usuario.objects.filter(Correo_electronico__iexact=email)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise forms.ValidationError("Ya existe otro usuario con ese correo.")
+        return email
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = (cleaned.get("new_password") or "").strip()
+        p2 = (cleaned.get("new_password_confirm") or "").strip()
+
+        if p1 or p2:
+            if not p1 or not p2:
+                raise forms.ValidationError("Para cambiar la contraseña, llena ambos campos.")
+            if p1 != p2:
+                self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
+        return cleaned
+
+    def save(self, commit=True):
+        user: Usuario = super().save(commit=False)
+
+        new_password = (self.cleaned_data.get("new_password") or "").strip()
+        if new_password:
+            user.set_password(new_password)
+
+        if commit:
+            user.save()
+        return user
+
+# ======================================================
 # PROYECTOS
 # ======================================================
 class ProyectoCreateForm(forms.ModelForm):

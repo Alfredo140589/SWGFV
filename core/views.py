@@ -44,6 +44,7 @@ from .forms import (
     LoginForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
+    CuentaUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
     PasswordRecoveryRequestForm,
@@ -893,8 +894,60 @@ def gestion_usuarios_modificacion(request):
     return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
 
 @require_session_login
+@require_http_methods(["GET", "POST"])
 def cuenta_view(request):
-    return render(request, "core/pages/cuenta.html")
+    session_id_usuario = request.session.get("id_usuario")
+
+    if not session_id_usuario:
+        messages.error(request, "Sesión inválida. Inicia sesión nuevamente.")
+        return redirect("core:logout")
+
+    usuario = Usuario.objects.filter(ID_Usuario=session_id_usuario).first()
+    if not usuario:
+        messages.error(request, "No se encontró la cuenta del usuario.")
+        return redirect("core:logout")
+
+    edit_mode = (request.GET.get("edit") or "").strip() == "1"
+    form = CuentaUpdateForm(instance=usuario)
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "cancel":
+            messages.info(request, "Operación cancelada.")
+            return redirect("core:cuenta")
+
+        form = CuentaUpdateForm(request.POST, instance=usuario)
+
+        if form.is_valid():
+            obj = form.save()
+
+            # Actualizar datos de sesión por si cambió correo o tipo
+            request.session["usuario"] = obj.Correo_electronico
+            request.session["tipo"] = obj.Tipo
+            request.session["id_usuario"] = obj.ID_Usuario
+            request.session.modified = True
+
+            log_event(
+                request,
+                "ACCOUNT_UPDATED",
+                f"Actualizó su cuenta: {obj.Correo_electronico}",
+                "Usuario",
+                obj.ID_Usuario
+            )
+
+            messages.success(request, "✅ Información de cuenta actualizada correctamente.")
+            return redirect("core:cuenta")
+
+        messages.error(request, "Revisa el formulario. Hay errores.")
+        edit_mode = True
+
+    context = {
+        "usuario_obj": usuario,
+        "form": form,
+        "edit_mode": edit_mode,
+    }
+    return render(request, "core/pages/cuenta.html", context)
 
 
 # ==========================
