@@ -27,6 +27,7 @@ from core.forms import InversorCreateForm, MicroInversorCreateForm
 from decimal import Decimal, ROUND_UP
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from django.db import transaction
+import os
 from django.templatetags.static import static
 
 from core.utils.pdf_utils import (
@@ -3361,6 +3362,7 @@ def recursos_modificacion_concepto(request):
         "edit_mode": edit_mode,
     }
     return render(request, "core/pages/recursos_modificacion_concepto.html", context)
+
 @require_session_login
 @require_http_methods(["GET"])
 def recursos_tablas(request):
@@ -3376,13 +3378,23 @@ def recursos_tablas(request):
         )
 
     seleccionada = None
+    imagen_url = ""
+
     if tabla_id.isdigit():
         seleccionada = TablaNOM.objects.filter(id=int(tabla_id)).first()
+
+        if seleccionada and seleccionada.imagen:
+            nombre_archivo = os.path.basename(seleccionada.imagen.name or "").strip()
+
+            if nombre_archivo:
+                # ✅ usar static para las tablas NOM base
+                imagen_url = static(f"core/img/tablas_nom/{nombre_archivo}")
 
     context = {
         "tablas": tablas,
         "q": q,
         "seleccionada": seleccionada,
+        "imagen_url": imagen_url,
     }
     return render(request, "core/pages/recursos_tablas.html", context)
 

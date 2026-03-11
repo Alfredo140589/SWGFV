@@ -74,20 +74,15 @@
       <div class="row g-4">
         <div class="col-12 col-lg-5">
           <div class="border rounded p-3 bg-white text-center">
-            {% if seleccionada.imagen %}
-              <img
-                id="tablaPreview"
-                src="{{ seleccionada.imagen.url }}"
-                alt="{{ seleccionada.nombre_tabla }}"
-                class="img-fluid rounded shadow-sm"
-                style="max-height: 650px; cursor: zoom-in;"
-                title="Haz clic para ampliar"
-              >
-              <div class="mt-2 text-muted small">
-                Haz clic para ampliar. Dentro del visor puedes mover, acercar, alejar y cerrar.
-              </div>
+           {% if imagen_url %}
+          <img
+          src="{{ imagen_url }}"
+          alt="{{ seleccionada.nombre_tabla }}"
+          class="img-fluid rounded tabla-nom-img"
+           style="max-height: 650px; cursor: zoom-in;"
+            >
             {% else %}
-              <div class="text-muted">No se encontró imagen para esta tabla.</div>
+            <div class="text-muted">No se encontró imagen para esta tabla.</div>
             {% endif %}
           </div>
         </div>
