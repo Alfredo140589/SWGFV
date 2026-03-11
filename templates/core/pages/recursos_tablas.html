@@ -74,15 +74,19 @@
       <div class="row g-4">
         <div class="col-12 col-lg-5">
           <div class="border rounded p-3 bg-white text-center">
-           {% if imagen_url %}
-          <img
-          src="{{ imagen_url }}"
-          alt="{{ seleccionada.nombre_tabla }}"
-          class="img-fluid rounded tabla-nom-img"
-           style="max-height: 650px; cursor: zoom-in;"
-            >
+            {% if imagen_url %}
+              <img
+                id="tablaPreview"
+                src="{{ imagen_url }}"
+                alt="{{ seleccionada.nombre_tabla }}"
+                class="img-fluid rounded tabla-nom-img"
+                style="max-height: 650px; cursor: zoom-in;"
+              >
+              <div class="small text-muted mt-2">
+                Haz clic para ampliar. Dentro del visor puedes mover, acercar, alejar y cerrar.
+              </div>
             {% else %}
-            <div class="text-muted">No se encontró imagen para esta tabla.</div>
+              <div class="text-muted">No se encontró imagen para esta tabla.</div>
             {% endif %}
           </div>
         </div>
@@ -102,7 +106,7 @@
   </div>
 </div>
 
-{% if seleccionada and seleccionada.imagen %}
+{% if seleccionada and imagen_url %}
 <div id="imageViewerOverlay" style="
   display:none;
   position:fixed;
@@ -142,7 +146,7 @@
   ">
     <img
       id="imageViewerImg"
-      src="{{ seleccionada.imagen.url }}"
+      src="{{ imagen_url }}"
       alt="{{ seleccionada.nombre_tabla }}"
       draggable="false"
       style="
@@ -151,7 +155,7 @@
         left:50%;
         max-width:none;
         max-height:none;
-        transform:translate(-50%, -50%) scale(1);
+        transform:translate(calc(-50% + 0px), calc(-50% + 0px)) scale(1);
         transform-origin:center center;
         user-select:none;
         -webkit-user-drag:none;
@@ -166,7 +170,7 @@
 {% block scripts %}
 {{ block.super }}
 
-{% if seleccionada and seleccionada.imagen %}
+{% if seleccionada and imagen_url %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const preview = document.getElementById("tablaPreview");
@@ -208,6 +212,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function closeViewer() {
     overlay.style.display = "none";
     document.body.style.overflow = "";
+    isDragging = false;
   }
 
   function zoomIn() {
@@ -242,6 +247,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   stage.addEventListener("mousedown", function (e) {
+    if (e.target !== viewerImg) return;
     isDragging = true;
     startX = e.clientX - posX;
     startY = e.clientY - posY;
