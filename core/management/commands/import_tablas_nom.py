@@ -50,7 +50,7 @@ class Command(BaseCommand):
                 notas = (row.get("notas") or "").strip()
                 nombre_imagen = (row.get("nombre_imagen") or "").strip()
 
-                if not nombre_tabla or not nombre_imagen:
+                if not nombre_tabla:
                     continue
 
                 nombres_csv.add(nombre_tabla)
@@ -60,16 +60,18 @@ class Command(BaseCommand):
                     "nombre_imagen": nombre_imagen,
                 })
 
+        # 1) Eliminar registros que ya no estén en el CSV
         qs_eliminar = TablaNOM.objects.exclude(nombre_tabla__in=nombres_csv)
         eliminados = qs_eliminar.count()
         qs_eliminar.delete()
 
+        # 2) Crear o actualizar SOLO texto
+        # La imagen NO se asigna aquí porque ahora el modelo usa ImageField.
         for fila in filas_validas:
             obj, creado = TablaNOM.objects.update_or_create(
                 nombre_tabla=fila["nombre_tabla"],
                 defaults={
                     "notas": fila["notas"],
-                    "nombre_imagen": fila["nombre_imagen"],
                 }
             )
 
@@ -79,5 +81,14 @@ class Command(BaseCommand):
                 actualizados += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f"Sincronización completada. Creados: {creados} | Actualizados: {actualizados} | Eliminados: {eliminados}"
+            f"Sincronización completada. Creados: {creados} | "
+            f"Actualizados: {actualizados} | Eliminados: {eliminados}"
         ))
+
+        self.stdout.write(
+            self.style.WARNING(
+                "Nota: este comando ya no carga imágenes al ImageField. "
+                "Para relacionar imágenes físicas usa el comando "
+                "'sincronizar_imagenes_tablas_nom'."
+            )
+        )
