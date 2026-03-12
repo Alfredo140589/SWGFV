@@ -10,7 +10,6 @@
       Consulta de Proyectos
     </h2>
 
-    <!-- FILTROS -->
     <form method="GET" class="mb-4">
       <div class="row g-3">
 
@@ -57,7 +56,6 @@
       </div>
     </form>
 
-    <!-- LISTA -->
     {% if mostrar_lista %}
       <div class="table-responsive">
         <table class="table table-bordered table-striped align-middle">
@@ -70,7 +68,8 @@
               <th>Coordenadas</th>
               <th>Voltaje</th>
               <th>Fases</th>
-              <th style="width:110px;">PDF</th>
+              <th style="width:130px;">Estado PDF</th>
+              <th style="width:120px;">PDF</th>
               {% if es_admin %}<th>Usuario</th>{% endif %}
             </tr>
           </thead>
@@ -84,18 +83,39 @@
               <td>{{ p.Coordenadas }}</td>
               <td>{{ p.Voltaje_Nominal }}</td>
               <td>{{ p.Numero_Fases }}</td>
-              <td class="text-center">
-                <a class="btn btn-sm btn-danger" href="{% url 'core:proyecto_pdf' p.id %}">
-                  PDF
-                </a>
+
+              <td>
+                {% if p.pdf_completo %}
+                  <span class="badge bg-success">Completo</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">Incompleto</span>
+                  <div class="small mt-1 text-muted">
+                    {% for item in p.pdf_faltantes %}
+                      • {{ item }}{% if not forloop.last %}<br>{% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
               </td>
+
+              <td class="text-center">
+                {% if p.pdf_completo %}
+                  <a class="btn btn-sm btn-danger" href="{% url 'core:proyecto_pdf' p.id %}">
+                    PDF
+                  </a>
+                {% else %}
+                  <button class="btn btn-sm btn-secondary" disabled title="Completa todos los cálculos para habilitar la descarga">
+                    Bloqueado
+                  </button>
+                {% endif %}
+              </td>
+
               {% if es_admin %}
                 <td style="word-break: break-word;">{{ p.ID_Usuario.Correo_electronico }}</td>
               {% endif %}
             </tr>
             {% empty %}
             <tr>
-              <td colspan="{% if es_admin %}9{% else %}8{% endif %}" class="text-center">
+              <td colspan="{% if es_admin %}10{% else %}9{% endif %}" class="text-center">
                 No hay resultados.
               </td>
             </tr>
