@@ -13,7 +13,7 @@ def build_fortia_doc(response, title: str, author: str = "SWGFV"):
         pagesize=letter,
         leftMargin=1.8 * cm,
         rightMargin=1.8 * cm,
-        topMargin=2.0 * cm,
+        topMargin=3.6 * cm,
         bottomMargin=2.0 * cm,
         title=title,
         author=author,
@@ -75,6 +75,7 @@ def get_fortia_styles():
         fontSize=8.5,
         textColor=colors.HexColor("#222222"),
         leading=10,
+        wordWrap="CJK",
     )
 
     small_style = ParagraphStyle(
@@ -98,6 +99,16 @@ def get_fortia_styles():
         alignment=TA_JUSTIFY,
     )
 
+    wrap_style = ParagraphStyle(
+        "FortiaWrap",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.2,
+        leading=9.5,
+        textColor=colors.HexColor("#222222"),
+        wordWrap="CJK",
+    )
+
     return {
         "title": title_style,
         "subtitle": subtitle_style,
@@ -106,6 +117,7 @@ def get_fortia_styles():
         "value": value_style,
         "small": small_style,
         "block_title": block_title_style,
+        "wrap": wrap_style,
     }
 
 
@@ -129,7 +141,7 @@ def draw_fortia_letterhead(canvas, doc):
 
 
 def add_fortia_header(elements, title: str, subtitle: str, styles_dict: dict):
-    elements.append(Spacer(1, 1.4 * cm))
+    elements.append(Spacer(1, 0.4 * cm))
     elements.append(Paragraph(title, styles_dict["title"]))
     if subtitle:
         elements.append(Paragraph(subtitle, styles_dict["subtitle"]))
@@ -137,11 +149,11 @@ def add_fortia_header(elements, title: str, subtitle: str, styles_dict: dict):
 
 
 def make_info_table(data, col_widths):
-    table = Table(data, colWidths=col_widths)
+    table = Table(data, colWidths=col_widths, repeatRows=0)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.Color(1, 1, 1, alpha=0.90)),
         ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#C9D3E0")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -156,10 +168,10 @@ def make_data_table(data, col_widths, header_bg="#0B2E59"):
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(header_bg)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8.5),
+        ("FONTSIZE", (0, 0), (-1, 0), 8.2),
         ("BACKGROUND", (0, 1), (-1, -1), colors.Color(1, 1, 1, alpha=0.92)),
         ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#C9D3E0")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         ("TOPPADDING", (0, 0), (-1, -1), 4),

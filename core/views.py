@@ -18,7 +18,7 @@ from django.db.models import Q
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import cm
 from django.contrib.staticfiles import finders
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, KeepTogether, PageBreak
 from reportlab.platypus import Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -73,6 +73,87 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+# =========================================================
+# HELPER: VALIDAR PROYECTO COMPLETO PARA PDF MAESTRO
+# =========================================================
+def _project_completion_status(proyecto: Proyecto):
+    """
+    Determina si un proyecto está completo para permitir la descarga
+    del PDF maestro.
+
+    Reglas:
+    - Debe existir NumeroPaneles y ResultadoPaneles
+    - Debe existir Dimensionamiento y al menos un detalle
+    - Debe existir al menos un CalculoDC con resultado_dc
+    - Debe existir al menos un CalculoAC con resultado_ac
+    - Debe existir al menos un CalculoTension con resultado_tension
+    """
+    faltantes = []
+
+    np_obj = NumeroPaneles.objects.select_related("panel", "irradiancia").filter(proyecto=proyecto).first()
+    resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first() if np_obj else None
+
+    dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+    detalles = list(
+        DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+        .select_related("inversor", "micro_inversor")
+        .order_by("indice")
+    ) if dim else []
+
+    calculos_dc = list(
+        CalculoDC.objects.filter(proyecto=proyecto)
+        .select_related("resultado_dc", "dimensionamiento_detalle", "condulet", "conductor")
+        .order_by("indice")
+    )
+
+    calculos_ac = list(
+        CalculoAC.objects.filter(proyecto=proyecto)
+        .select_related("resultado_ac", "dimensionamiento_detalle", "condulet", "conductor")
+        .order_by("indice")
+    )
+
+    calculos_tension = list(
+        CalculoTension.objects.filter(proyecto=proyecto)
+        .select_related("resultado_tension", "tension_ac", "tension_dc")
+        .order_by("indice", "tipo_calculo", "serie")
+    )
+
+    if not np_obj:
+        faltantes.append("Cálculo de módulos")
+    if np_obj and not resultado_paneles:
+        faltantes.append("Resultado de cálculo de módulos")
+
+    if not dim:
+        faltantes.append("Dimensionamiento")
+    if dim and not detalles:
+        faltantes.append("Detalle de dimensionamiento")
+
+    if not calculos_dc:
+        faltantes.append("Cálculo DC")
+    elif not any(x.resultado_dc_id for x in calculos_dc):
+        faltantes.append("Resultado de cálculo DC")
+
+    if not calculos_ac:
+        faltantes.append("Cálculo AC")
+    elif not any(x.resultado_ac_id for x in calculos_ac):
+        faltantes.append("Resultado de cálculo AC")
+
+    if not calculos_tension:
+        faltantes.append("Cálculo de caída de tensión")
+    elif not any(x.resultado_tension_id for x in calculos_tension):
+        faltantes.append("Resultado de caída de tensión")
+
+    return {
+        "completo": len(faltantes) == 0,
+        "faltantes": faltantes,
+        "numero_paneles": np_obj,
+        "resultado_paneles": resultado_paneles,
+        "dimensionamiento": dim,
+        "detalles": detalles,
+        "calculos_dc": calculos_dc,
+        "calculos_ac": calculos_ac,
+        "calculos_tension": calculos_tension,
+    }
 
 # =========================================================
 # HELPER: IP + BITÁCORA (NO DEBE CAUSAR 500)
@@ -541,8 +622,18 @@ def proyecto_consulta(request):
     if q_usuario and session_tipo == "Administrador":
         qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
 
+    proyectos = list(qs)
+
+    # =====================================================
+    # Evaluar si el proyecto está completo para PDF maestro
+    # =====================================================
+    for p in proyectos:
+        estado = _project_completion_status(p)
+        p.pdf_completo = estado["completo"]
+        p.pdf_faltantes = estado["faltantes"]
+
     context = {
-        "proyectos": qs,
+        "proyectos": proyectos,
         "mostrar_lista": mostrar_lista,
         "q_id": q_id,
         "q_nombre": q_nombre,
@@ -3581,6 +3672,7 @@ def recursos_modificacion_tabla(request):
 # ==========================
 # PDF PROYECTO
 # ==========================
+
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_pdf(request, proyecto_id: int):
@@ -3597,11 +3689,67 @@ def proyecto_pdf(request, proyecto_id: int):
             messages.error(request, "No tienes permisos para descargar este proyecto.")
             return redirect("core:proyecto_consulta")
 
-    filename = f"SWGFV_Proyecto_{proyecto.id}.pdf"
+    numero_paneles = NumeroPaneles.objects.select_related("irradiancia", "panel").filter(proyecto=proyecto).first()
+    resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=numero_paneles).first() if numero_paneles else None
+
+    dimensionamiento = Dimensionamiento.objects.filter(proyecto=proyecto).first()
+    detalles_dimensionamiento = list(
+        DimensionamientoDetalle.objects.filter(dimensionamiento=dimensionamiento)
+        .select_related("inversor", "micro_inversor")
+        .order_by("indice")
+    ) if dimensionamiento else []
+
+    calculos_dc = list(
+        CalculoDC.objects.filter(proyecto=proyecto)
+        .select_related(
+            "resultado_dc",
+            "condulet",
+            "dimensionamiento_detalle",
+            "dimensionamiento_detalle__inversor",
+            "dimensionamiento_detalle__micro_inversor",
+            "conductor",
+        )
+        .order_by("indice")
+    )
+
+    calculos_ac = list(
+        CalculoAC.objects.filter(proyecto=proyecto)
+        .select_related(
+            "resultado_ac",
+            "condulet",
+            "dimensionamiento_detalle",
+            "dimensionamiento_detalle__inversor",
+            "dimensionamiento_detalle__micro_inversor",
+            "conductor",
+        )
+        .order_by("indice")
+    )
+
+    calculos_tension = list(
+        CalculoTension.objects.filter(proyecto=proyecto)
+        .select_related("resultado_tension", "tension_ac", "tension_dc")
+        .order_by("indice", "tipo_calculo", "serie")
+    )
+
+    completo = all([
+        numero_paneles is not None,
+        resultado_paneles is not None,
+        dimensionamiento is not None,
+        len(detalles_dimensionamiento) > 0,
+        len(calculos_dc) > 0,
+        len(calculos_ac) > 0,
+        len(calculos_tension) > 0,
+    ])
+
+    if not completo:
+        messages.error(request, "El proyecto aún no está completo en todos los cálculos para generar el PDF integral.")
+        return redirect("core:proyecto_consulta")
+
+    filename = f"SWGFV_Proyecto_Completo_{proyecto.id}.pdf"
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    doc = build_fortia_doc(response, f"Proyecto {proyecto.id}")
+    doc = build_fortia_doc(response, f"Proyecto completo {proyecto.id}")
     pdfs = get_fortia_styles()
     elements = []
 
@@ -3611,11 +3759,14 @@ def proyecto_pdf(request, proyecto_id: int):
 
     add_fortia_header(
         elements,
-        "Ficha técnica del proyecto",
+        "Memoria técnica integral del proyecto",
         "Sistema Web de Gestión de Proyectos Fotovoltaicos",
         pdfs
     )
 
+    # =========================================================
+    # DATOS GENERALES
+    # =========================================================
     elements.append(Paragraph("Datos generales del proyecto", pdfs["section"]))
 
     data = [
@@ -3650,14 +3801,520 @@ def proyecto_pdf(request, proyecto_id: int):
             Paragraph(str(proyecto.Numero_Fases), pdfs["value"]),
         ],
     ]
+    elements.append(make_info_table(data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
 
-    info_table = make_info_table(data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm])
-    elements.append(info_table)
+    # =========================================================
+    # NÚMERO DE MÓDULOS
+    # =========================================================
+    elements.append(Paragraph("Cálculo de número de módulos", pdfs["section"]))
+
+    resumen_modulos = [
+        [
+            Paragraph("<b>Tipo de facturación</b>", pdfs["label"]),
+            Paragraph(numero_paneles.tipo_facturacion or "—", pdfs["value"]),
+            Paragraph("<b>Eficiencia</b>", pdfs["label"]),
+            Paragraph(str(numero_paneles.eficiencia or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Módulo seleccionado</b>", pdfs["label"]),
+            Paragraph(
+                f"{numero_paneles.panel.marca} - {numero_paneles.panel.modelo} ({numero_paneles.panel.potencia} W)"
+                if numero_paneles and numero_paneles.panel else "—",
+                pdfs["value"]
+            ),
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(str(resultado_paneles.no_modulos or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Potencia total (kW)</b>", pdfs["label"]),
+            Paragraph(str(resultado_paneles.potencia_total or "—"), pdfs["value"]),
+            Paragraph("<b>Generación anual (kWh)</b>", pdfs["label"]),
+            Paragraph(str(resultado_paneles.generacion_anual or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Irradiancia</b>", pdfs["label"]),
+            Paragraph(
+                f"{numero_paneles.irradiancia.ciudad}, {numero_paneles.irradiancia.estado}"
+                if numero_paneles and numero_paneles.irradiancia else "—",
+                pdfs["value"]
+            ),
+            Paragraph("<b>Panel</b>", pdfs["label"]),
+            Paragraph(
+                f"Voc: {numero_paneles.panel.voc} / Isc: {numero_paneles.panel.isc}"
+                if numero_paneles and numero_paneles.panel else "—",
+                pdfs["value"]
+            ),
+        ],
+    ]
+    elements.append(make_info_table(resumen_modulos, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.2 * cm))
+
+    cons = numero_paneles.consumos or {}
+    genp = resultado_paneles.generacion_por_periodo or {}
+
+    if numero_paneles.tipo_facturacion == "MENSUAL":
+        orden = [
+            ("ene", "Ene"), ("feb", "Feb"), ("mar", "Mar"), ("abr", "Abr"),
+            ("may", "May"), ("jun", "Jun"), ("jul", "Jul"), ("ago", "Ago"),
+            ("sep", "Sep"), ("oct", "Oct"), ("nov", "Nov"), ("dic", "Dic"),
+        ]
+    else:
+        orden = [
+            ("bim1", "Bim 1"), ("bim2", "Bim 2"), ("bim3", "Bim 3"),
+            ("bim4", "Bim 4"), ("bim5", "Bim 5"), ("bim6", "Bim 6"),
+        ]
+
+    labels = [lbl for _, lbl in orden]
+    consumo_vals = [float(cons.get(k, 0) or 0) for k, _ in orden]
+    gen_vals = [float(genp.get(k, 0) or 0) for k, _ in orden]
+
+    tabla_periodos = [["Periodo", "Consumo (kWh)", "Generación (kWh)"]]
+    for i in range(len(labels)):
+        tabla_periodos.append([
+            labels[i],
+            f"{consumo_vals[i]:.3f}",
+            f"{gen_vals[i]:.3f}",
+        ])
+
+    elements.append(make_data_table(tabla_periodos, [4.0 * cm, 6.0 * cm, 6.0 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.legends import Legend
+    from reportlab.lib.colors import HexColor
+
+    # Gráfica 1
+    d1 = Drawing(500, 220)
+    chart1 = VerticalBarChart()
+    chart1.x = 30
+    chart1.y = 30
+    chart1.height = 150
+    chart1.width = 440
+    chart1.data = [gen_vals]
+    chart1.categoryAxis.categoryNames = labels
+    chart1.valueAxis.valueMin = 0
+    chart1.bars[0].fillColor = HexColor("#2E86DE")
+    d1.add(chart1)
+
+    elements.append(Paragraph("Gráfica 1: Generación por periodo (kWh)", pdfs["block_title"]))
+    elements.append(d1)
+    elements.append(Spacer(1, 0.2 * cm))
+
+    # Gráfica 2
+    d2 = Drawing(500, 240)
+    chart2 = VerticalBarChart()
+    chart2.x = 30
+    chart2.y = 30
+    chart2.height = 160
+    chart2.width = 440
+    chart2.data = [consumo_vals, gen_vals]
+    chart2.categoryAxis.categoryNames = labels
+    chart2.valueAxis.valueMin = 0
+    chart2.bars[0].fillColor = HexColor("#E67E22")
+    chart2.bars[1].fillColor = HexColor("#2ECC71")
+
+    legend = Legend()
+    legend.x = 360
+    legend.y = 200
+    legend.alignment = "right"
+    legend.colorNamePairs = [
+        (HexColor("#E67E22"), "Consumo (kWh)"),
+        (HexColor("#2ECC71"), "Generación (kWh)"),
+    ]
+
+    d2.add(chart2)
+    d2.add(legend)
+
+    elements.append(Paragraph("Gráfica 2: Generación vs consumo", pdfs["block_title"]))
+    elements.append(d2)
+    elements.append(PageBreak())
+
+    # =========================================================
+    # DIMENSIONAMIENTO
+    # =========================================================
+    elements.append(Paragraph("Dimensionamiento", pdfs["section"]))
+
+    modelo_modulo = "—"
+    if numero_paneles and numero_paneles.panel:
+        modelo_modulo = f"{numero_paneles.panel.marca} - {numero_paneles.panel.modelo} ({numero_paneles.panel.potencia} W)"
+
+    resumen_dim = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(proyecto.Nombre_Proyecto or "—", pdfs["value"]),
+            Paragraph("<b>Tipo de instalación</b>", pdfs["label"]),
+            Paragraph(dimensionamiento.tipo_inversor if dimensionamiento else "—", pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de inversores</b>", pdfs["label"]),
+            Paragraph(str(dimensionamiento.no_inversores if dimensionamiento else "—"), pdfs["value"]),
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(str(resultado_paneles.no_modulos or "—"), pdfs["value"]),
+            Paragraph("<b>Potencia total (kW)</b>", pdfs["label"]),
+            Paragraph(str(resultado_paneles.potencia_total or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Módulo seleccionado</b>", pdfs["label"]),
+            Paragraph(modelo_modulo, pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+        ],
+    ]
+    elements.append(make_info_table(resumen_dim, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    for d in detalles_dimensionamiento:
+        modelo = d.inversor or d.micro_inversor
+        mods = d.modulos_por_cadena_lista or []
+
+        if mods:
+            mods_txt = "<br/>".join([f"Cad {idx + 1}: {val}" for idx, val in enumerate(mods)])
+            total_modulos_inversor = sum(int(v or 0) for v in mods)
+        else:
+            mods_txt = str(d.modulos_por_cadena or "—")
+            total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+
+        elements.append(Paragraph(f"Inversor {d.indice} — {modelo}", pdfs["block_title"]))
+
+        bloque_dim = [
+            [
+                Paragraph("<b>Cadenas</b>", pdfs["label"]),
+                Paragraph(str(d.no_cadenas), pdfs["value"]),
+                Paragraph("<b>Módulos por inversor</b>", pdfs["label"]),
+                Paragraph(str(total_modulos_inversor), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
+                Paragraph(mods_txt, pdfs["wrap"]),
+                Paragraph("<b>Tipo de equipo</b>", pdfs["label"]),
+                Paragraph("Micro inversor" if d.micro_inversor_id else "Inversor", pdfs["value"]),
+            ],
+        ]
+        elements.append(make_info_table(bloque_dim, [3.2 * cm, 5.8 * cm, 3.3 * cm, 4.2 * cm]))
+        elements.append(Spacer(1, 0.18 * cm))
+
+    # =========================================================
+    # CÁLCULO DC
+    # =========================================================
+    elements.append(PageBreak())
+    elements.append(Paragraph("Cálculo DC", pdfs["section"]))
+
+    np_obj = numero_paneles
+    resultado_paneles_local = resultado_paneles
+    dim_local = dimensionamiento
+
+    modelo_modulo_dc = "—"
+    voc_modulo = "—"
+    isc_modulo = "—"
+    no_modulos = "—"
+    no_inversores = "—"
+
+    if np_obj and np_obj.panel:
+        modelo_modulo_dc = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+        voc_modulo = str(np_obj.panel.voc or "—")
+        isc_modulo = str(np_obj.panel.isc or "—")
+
+    if resultado_paneles_local:
+        no_modulos = str(resultado_paneles_local.no_modulos or "—")
+
+    if dim_local:
+        no_inversores = str(dim_local.no_inversores or "—")
+
+    general_dc = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), pdfs["value"]),
+            Paragraph("<b>Empresa</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Empresa or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(no_modulos, pdfs["value"]),
+            Paragraph("<b>Número de inversores</b>", pdfs["label"]),
+            Paragraph(no_inversores, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voc del módulo</b>", pdfs["label"]),
+            Paragraph(voc_modulo, pdfs["value"]),
+            Paragraph("<b>Isc del módulo</b>", pdfs["label"]),
+            Paragraph(isc_modulo, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Modelo del módulo</b>", pdfs["label"]),
+            Paragraph(modelo_modulo_dc, pdfs["value"]),
+            Paragraph("<b>Fecha</b>", pdfs["label"]),
+            Paragraph(fecha, pdfs["value"]),
+        ],
+    ]
+    elements.append(make_info_table(general_dc, [3.0 * cm, 5.5 * cm, 3.0 * cm, 5.2 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    for r in calculos_dc:
+        det = r.dimensionamiento_detalle
+        modelo = str((det.inversor if det else None) or (det.micro_inversor if det else None) or "—")
+        tipo_equipo = "Micro inversor" if det and det.micro_inversor_id else "Inversor"
+
+        lista_modulos = det.modulos_por_cadena_lista if det else []
+        if lista_modulos:
+            modulos_por_inversor = sum(int(v or 0) for v in lista_modulos)
+            modulos_cadena_txt = "<br/>".join([f"Cad {i + 1}: {v}" for i, v in enumerate(lista_modulos)])
+        else:
+            modulos_por_inversor = int((det.no_cadenas or 0) * (det.modulos_por_cadena or 0)) if det else 0
+            modulos_cadena_txt = str(det.modulos_por_cadena or "—") if det else "—"
+
+        res = r.resultado_dc
+        con = r.condulet
+
+        elements.append(Paragraph(f"{tipo_equipo} {r.indice} — {modelo}", pdfs["block_title"]))
+
+        data_dc = [
+            [
+                Paragraph("<b>Número de series</b>", pdfs["label"]),
+                Paragraph(str(det.no_cadenas if det else "—"), pdfs["value"]),
+                Paragraph("<b>Número de módulos por inversor</b>", pdfs["label"]),
+                Paragraph(str(modulos_por_inversor), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
+                Paragraph(modulos_cadena_txt, pdfs["wrap"]),
+                Paragraph("<b>Metros lineales</b>", pdfs["label"]),
+                Paragraph(str(r.metros_lineales or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre cable solar</b>", pdfs["label"]),
+                Paragraph(str(r.calibre_cable_solar or "—"), pdfs["value"]),
+                Paragraph("<b>Hilos por tubería</b>", pdfs["label"]),
+                Paragraph(str(r.hilos_tuberia or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Amperaje protección</b>", pdfs["label"]),
+                Paragraph(f"{getattr(res, 'amperaje_fusible', '—')} A" if res else "—", pdfs["value"]),
+                Paragraph("<b>Total de cadenas</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_de_cadenas", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Total fusibles</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_fusibles", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Metros totales cable</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "metros_totales_cable", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre tubería</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calibre_tuberia", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Total tubos</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_tubos", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Condulets LL / LR / LB / T / C</b>", pdfs["label"]),
+                Paragraph(
+                    f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
+                    pdfs["value"]
+                ),
+                Paragraph("<b>Total condulets</b>", pdfs["label"]),
+                Paragraph(str(con.total() if con else 0), pdfs["value"]),
+            ],
+        ]
+        elements.append(make_info_table(data_dc, [3.6 * cm, 4.6 * cm, 3.8 * cm, 4.8 * cm]))
+        elements.append(Spacer(1, 0.18 * cm))
+
+    # =========================================================
+    # CÁLCULO AC
+    # =========================================================
+    elements.append(PageBreak())
+    elements.append(Paragraph("Cálculo AC", pdfs["section"]))
+
+    general_ac = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), pdfs["value"]),
+            Paragraph("<b>Empresa</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Empresa or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voltaje nominal</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de módulos</b>", pdfs["label"]),
+            Paragraph(no_modulos, pdfs["value"]),
+            Paragraph("<b>Número de inversores</b>", pdfs["label"]),
+            Paragraph(no_inversores, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Voc del módulo</b>", pdfs["label"]),
+            Paragraph(voc_modulo, pdfs["value"]),
+            Paragraph("<b>Isc del módulo</b>", pdfs["label"]),
+            Paragraph(isc_modulo, pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Modelo del módulo</b>", pdfs["label"]),
+            Paragraph(modelo_modulo_dc, pdfs["value"]),
+            Paragraph("<b>Fecha</b>", pdfs["label"]),
+            Paragraph(fecha, pdfs["value"]),
+        ],
+    ]
+    elements.append(make_info_table(general_ac, [3.0 * cm, 5.5 * cm, 3.0 * cm, 5.2 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    for r in calculos_ac:
+        det = r.dimensionamiento_detalle
+        modelo = str((det.inversor if det else None) or (det.micro_inversor if det else None) or "—")
+        tipo_equipo = "Micro inversor" if det and det.micro_inversor_id else "Inversor"
+
+        lista_modulos = det.modulos_por_cadena_lista if det else []
+        if lista_modulos:
+            modulos_por_inversor = sum(int(v or 0) for v in lista_modulos)
+            modulos_cadena_txt = "<br/>".join([f"Cad {i + 1}: {v}" for i, v in enumerate(lista_modulos)])
+        else:
+            modulos_por_inversor = int((det.no_cadenas or 0) * (det.modulos_por_cadena or 0)) if det else 0
+            modulos_cadena_txt = str(det.modulos_por_cadena or "—") if det else "—"
+
+        res = r.resultado_ac
+        con = r.condulet
+
+        elements.append(Paragraph(f"{tipo_equipo} {r.indice} — {modelo}", pdfs["block_title"]))
+
+        data_ac = [
+            [
+                Paragraph("<b>Número de series</b>", pdfs["label"]),
+                Paragraph(str(det.no_cadenas if det else "—"), pdfs["value"]),
+                Paragraph("<b>Número de módulos por inversor</b>", pdfs["label"]),
+                Paragraph(str(modulos_por_inversor), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
+                Paragraph(modulos_cadena_txt, pdfs["wrap"]),
+                Paragraph("<b>Metros lineales</b>", pdfs["label"]),
+                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre cable THHW</b>", pdfs["label"]),
+                Paragraph(str(r.calibre_cable_thhw or "—"), pdfs["value"]),
+                Paragraph("<b>Hilos por tubería</b>", pdfs["label"]),
+                Paragraph(str(r.hilos_tuberia_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Amperaje protección</b>", pdfs["label"]),
+                Paragraph(f"{getattr(res, 'amperaje_proteccion', '—')} A" if res else "—", pdfs["value"]),
+                Paragraph("<b>Total de cadenas</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_de_cadenas_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Total protecciones</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_protecciones", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Metros totales cable</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "metros_totales_cable_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Calibre tubería</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calibre_tuberia_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>Total tubos</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Condulets LL / LR / LB / T / C</b>", pdfs["label"]),
+                Paragraph(
+                    f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
+                    pdfs["value"]
+                ),
+                Paragraph("<b>Total condulets</b>", pdfs["label"]),
+                Paragraph(str(con.total() if con else 0), pdfs["value"]),
+            ],
+        ]
+        elements.append(make_info_table(data_ac, [3.6 * cm, 4.6 * cm, 3.8 * cm, 4.8 * cm]))
+        elements.append(Spacer(1, 0.18 * cm))
+
+    # =========================================================
+    # CAÍDA DE TENSIÓN
+    # =========================================================
+    elements.append(PageBreak())
+    elements.append(Paragraph("Caída de tensión", pdfs["section"]))
+
+    general_tension = [
+        [
+            Paragraph("<b>Proyecto</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Nombre_Proyecto or "—"), pdfs["value"]),
+            Paragraph("<b>Voltaje del sitio</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Voltaje_Nominal or "—"), pdfs["value"]),
+        ],
+        [
+            Paragraph("<b>Número de fases</b>", pdfs["label"]),
+            Paragraph(str(proyecto.Numero_Fases or "—"), pdfs["value"]),
+            Paragraph("<b>Fecha</b>", pdfs["label"]),
+            Paragraph(fecha, pdfs["value"]),
+        ],
+    ]
+    elements.append(make_info_table(general_tension, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
+    elements.append(Spacer(1, 0.25 * cm))
+
+    for r in calculos_tension:
+        res = r.resultado_tension
+        titulo = f"{r.tipo_calculo} - Inversor {r.indice}"
+        if r.tipo_calculo == "DC" and r.serie:
+            titulo += f" - Serie {r.serie}"
+
+        elements.append(Paragraph(titulo, pdfs["block_title"]))
+
+        data_tension = [
+            [
+                Paragraph("<b>Temperatura AC</b>", pdfs["label"]),
+                Paragraph(str(r.temperatura_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Temperatura DC</b>", pdfs["label"]),
+                Paragraph(str(r.temperatura_dc or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Factor potencia AC</b>", pdfs["label"]),
+                Paragraph(str(r.factor_potencia_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Longitud AC</b>", pdfs["label"]),
+                Paragraph(str(r.longitud_ac or "—"), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Longitud DC</b>", pdfs["label"]),
+                Paragraph(str(r.longitud_dc or "—"), pdfs["value"]),
+                Paragraph("<b>Corriente corregida</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "corriente_corregida", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Voltaje caída AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "voltaje_tension_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>% caída AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "porcentaje_voltaje_tension_ac", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Voltaje caída DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "voltaje_tension_dc", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>% caída DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "porcentaje_voltaje_tension_dc", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>RT AC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calculo_rt_ac", "—")) if res else "—", pdfs["value"]),
+                Paragraph("<b>RT DC</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "calculo_rt_dc", "—")) if res else "—", pdfs["value"]),
+            ],
+        ]
+
+        elements.append(make_info_table(data_tension, [3.2 * cm, 5.0 * cm, 3.2 * cm, 5.1 * cm]))
+        elements.append(Spacer(1, 0.18 * cm))
 
     add_fortia_footer(elements, pdfs)
-
     doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
     return response
+
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.legends import Legend
@@ -4002,39 +4659,40 @@ def dimensionamiento_pdf(request, proyecto_id):
 
     elements.append(make_info_table(resumen_data, [3.2 * cm, 5.2 * cm, 3.3 * cm, 4.8 * cm]))
     elements.append(Spacer(1, 0.25 * cm))
-
     elements.append(Paragraph("Configuración por inversor / micro inversor", pdfs["section"]))
-
-    data = [[
-        "#",
-        "Modelo",
-        "Cadenas",
-        "Módulos por cadena",
-        "Módulos por inversor"
-    ]]
 
     for d in detalles:
         modelo = d.inversor or d.micro_inversor
         mods = d.modulos_por_cadena_lista or []
 
         if mods:
-            mods_txt = ", ".join([f"Cad {idx + 1}: {val}" for idx, val in enumerate(mods)])
+            mods_txt = "<br/>".join([f"Cad {idx + 1}: {val}" for idx, val in enumerate(mods)])
             total_modulos_inversor = sum(int(v or 0) for v in mods)
         else:
-            mods_txt = str(d.modulos_por_cadena)
+            mods_txt = str(d.modulos_por_cadena or "—")
             total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
 
-        data.append([
-            str(d.indice),
-            str(modelo),
-            str(d.no_cadenas),
-            mods_txt,
-            str(total_modulos_inversor),
-        ])
+        elements.append(Paragraph(f"Inversor {d.indice} — {modelo}", pdfs["block_title"]))
 
-    elements.append(make_data_table(data, [1.0 * cm, 5.5 * cm, 2.0 * cm, 6.0 * cm, 2.5 * cm]))
+        bloque = [
+            [
+                Paragraph("<b>Cadenas</b>", pdfs["label"]),
+                Paragraph(str(d.no_cadenas), pdfs["value"]),
+                Paragraph("<b>Módulos por inversor</b>", pdfs["label"]),
+                Paragraph(str(total_modulos_inversor), pdfs["value"]),
+            ],
+            [
+                Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
+                Paragraph(mods_txt, pdfs["wrap"]),
+                Paragraph("<b>Tipo de equipo</b>", pdfs["label"]),
+                Paragraph("Micro inversor" if d.micro_inversor_id else "Inversor", pdfs["value"]),
+            ],
+        ]
+
+        elements.append(make_info_table(bloque, [3.2 * cm, 5.8 * cm, 3.3 * cm, 4.2 * cm]))
+        elements.append(Spacer(1, 0.2 * cm))
+
     add_fortia_footer(elements, pdfs)
-
     doc.build(elements, onFirstPage=draw_fortia_letterhead, onLaterPages=draw_fortia_letterhead)
     return response
 
@@ -4334,3 +4992,4 @@ def numero_modulos_data(request):
             "consumos": np.consumos or {},
         }
     })
+
