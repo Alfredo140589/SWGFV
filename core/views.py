@@ -84,9 +84,14 @@ def _project_completion_status(proyecto: Proyecto):
     Reglas:
     - Debe existir NumeroPaneles y ResultadoPaneles
     - Debe existir Dimensionamiento y al menos un detalle
-    - Debe existir al menos un CalculoDC con resultado_dc
-    - Debe existir al menos un CalculoAC con resultado_ac
-    - Debe existir al menos un CalculoTension con resultado_tension
+    - Si el proyecto usa INVERSOR:
+        * Debe existir al menos un CalculoDC con resultado_dc
+        * Debe existir al menos un CalculoAC con resultado_ac
+        * Debe existir al menos un CalculoTension con resultado_tension
+    - Si el proyecto usa MICRO:
+        * NO se exige CalculoDC
+        * Sí se exige CalculoAC con resultado_ac
+        * Sí se exige CalculoTension con resultado_tension
     """
     faltantes = []
 
@@ -128,20 +133,34 @@ def _project_completion_status(proyecto: Proyecto):
     if dim and not detalles:
         faltantes.append("Detalle de dimensionamiento")
 
-    if not calculos_dc:
-        faltantes.append("Cálculo DC")
-    elif not any(x.resultado_dc_id for x in calculos_dc):
-        faltantes.append("Resultado de cálculo DC")
+    usa_micro = bool(dim and dim.tipo_inversor == "MICRO")
 
+    # ✅ DC solo se exige si NO es micro inversor
+    if not usa_micro:
+        if not calculos_dc:
+            faltantes.append("Cálculo DC")
+        elif not any(x.resultado_dc_id for x in calculos_dc):
+            faltantes.append("Resultado de cálculo DC")
+
+    # ✅ AC siempre se exige
     if not calculos_ac:
         faltantes.append("Cálculo AC")
     elif not any(x.resultado_ac_id for x in calculos_ac):
         faltantes.append("Resultado de cálculo AC")
 
+    # ✅ Tensión siempre se exige, pero para micro basta con resultados AC
     if not calculos_tension:
         faltantes.append("Cálculo de caída de tensión")
-    elif not any(x.resultado_tension_id for x in calculos_tension):
-        faltantes.append("Resultado de caída de tensión")
+    else:
+        if usa_micro:
+            tensiones_ac = [x for x in calculos_tension if x.tipo_calculo == "AC"]
+            if not tensiones_ac:
+                faltantes.append("Cálculo de caída de tensión")
+            elif not any(x.resultado_tension_id for x in tensiones_ac):
+                faltantes.append("Resultado de caída de tensión")
+        else:
+            if not any(x.resultado_tension_id for x in calculos_tension):
+                faltantes.append("Resultado de caída de tensión")
 
     return {
         "completo": len(faltantes) == 0,
@@ -1681,6 +1700,7 @@ def calculo_dc(request):
     resultado_paneles = None
 
     bloques = []
+    dc_bloqueado_micro = False
 
     # resumen general
     resumen = {
@@ -1691,6 +1711,7 @@ def calculo_dc(request):
         "no_inversores": None,
         "numero_fases": None,
     }
+
     # =========================
     # Cargar proyecto + número de módulos + dimensionamiento
     # =========================
@@ -1708,7 +1729,12 @@ def calculo_dc(request):
                 resultado_paneles = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
 
             dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
-            if dim:
+
+            # ✅ Si el proyecto usa micro inversores, bloquear módulo DC
+            if dim and dim.tipo_inversor == "MICRO":
+                dc_bloqueado_micro = True
+
+            if dim and not dc_bloqueado_micro:
                 detalles = list(
                     DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
                     .select_related("inversor", "micro_inversor")
@@ -1727,54 +1753,57 @@ def calculo_dc(request):
             if dim:
                 resumen["no_inversores"] = dim.no_inversores
             resumen["numero_fases"] = proyecto.Numero_Fases
-            existentes = {
-                int(x.indice): x
-                for x in CalculoDC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_dc", "conductor")
-            }
 
-            for d in detalles:
-                calc = existentes.get(int(d.indice))
-                modelo_txt = str(d.inversor or d.micro_inversor or "—")
+            if not dc_bloqueado_micro:
+                existentes = {
+                    int(x.indice): x
+                    for x in CalculoDC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_dc", "conductor")
+                }
 
-                # número de módulos por inversor = suma de la lista por cadena
-                lista_modulos = d.modulos_por_cadena_lista or []
-                if lista_modulos:
-                    total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
-                else:
-                    total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+                for d in detalles:
+                    calc = existentes.get(int(d.indice))
+                    modelo_txt = str(d.inversor or d.micro_inversor or "—")
 
-                bloques.append({
-                    "indice": d.indice,
-                    "modelo": modelo_txt,
-                    "tipo": dim.tipo_inversor if dim else "INVERSOR",
-                    "detalle_id": d.id,
-                    "no_cadenas": d.no_cadenas,
-                    "modulos_por_inversor": total_modulos_inversor,
-                    "potencia_equipo": (
-                        d.inversor.potencia if d.inversor_id else
-                        d.micro_inversor.potencia if d.micro_inversor_id else None
-                    ),
-                    "val": calc,
-                    "res": (calc.resultado_dc if calc and calc.resultado_dc_id else None),
-                    "condulet": (calc.condulet if calc and calc.condulet_id else None),
-                    "metros_por_serie": (
-                        calc.metros_lineales_por_serie if calc and calc.metros_lineales_por_serie else []),
-                    "series": [
-                        {
-                            "serie": i + 1,
-                            "modulos": v,
-                            "metros": (
-                                calc.metros_lineales_por_serie[i]
-                                if calc and calc.metros_lineales_por_serie and i < len(calc.metros_lineales_por_serie)
-                                else ""
-                            ),
-                        }
-                        for i, v in enumerate(
-                            lista_modulos if lista_modulos else [int(d.modulos_por_cadena or 0)] * int(
-                                d.no_cadenas or 0)
-                        )
-                    ],
-                })
+                    # número de módulos por inversor = suma de la lista por cadena
+                    lista_modulos = d.modulos_por_cadena_lista or []
+                    if lista_modulos:
+                        total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
+                    else:
+                        total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+
+                    bloques.append({
+                        "indice": d.indice,
+                        "modelo": modelo_txt,
+                        "tipo": dim.tipo_inversor if dim else "INVERSOR",
+                        "detalle_id": d.id,
+                        "no_cadenas": d.no_cadenas,
+                        "modulos_por_inversor": total_modulos_inversor,
+                        "potencia_equipo": (
+                            d.inversor.potencia if d.inversor_id else
+                            d.micro_inversor.potencia if d.micro_inversor_id else None
+                        ),
+                        "val": calc,
+                        "res": (calc.resultado_dc if calc and calc.resultado_dc_id else None),
+                        "condulet": (calc.condulet if calc and calc.condulet_id else None),
+                        "metros_por_serie": (
+                            calc.metros_lineales_por_serie if calc and calc.metros_lineales_por_serie else []
+                        ),
+                        "series": [
+                            {
+                                "serie": i + 1,
+                                "modulos": v,
+                                "metros": (
+                                    calc.metros_lineales_por_serie[i]
+                                    if calc and calc.metros_lineales_por_serie and i < len(calc.metros_lineales_por_serie)
+                                    else ""
+                                ),
+                            }
+                            for i, v in enumerate(
+                                lista_modulos if lista_modulos else [int(d.modulos_por_cadena or 0)] * int(d.no_cadenas or 0)
+                            )
+                        ],
+                    })
+
     # =========================
     # POST: calcular / cancelar
     # =========================
@@ -1802,6 +1831,14 @@ def calculo_dc(request):
             dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
             if not dim:
                 messages.error(request, "Primero guarda el Dimensionamiento del proyecto.")
+                return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
+
+            # ✅ Bloquear cálculo DC si el proyecto es de micro inversores
+            if dim.tipo_inversor == "MICRO":
+                messages.error(
+                    request,
+                    "El cálculo DC no está permitido para este proyecto porque fue configurado con micro inversores. En los micro inversores solo se calcula AC."
+                )
                 return redirect(f"{reverse('core:calculo_dc')}?proyecto_id={proyecto.id}")
 
             detalles = list(
@@ -1994,6 +2031,7 @@ def calculo_dc(request):
         "calibres": calibres,
         "panel_voc": resumen["voc_modulo"],
         "resumen": resumen,
+        "dc_bloqueado_micro": dc_bloqueado_micro,
     }
     return render(request, "core/pages/calculo_dc.html", context)
 
@@ -3761,18 +3799,40 @@ def proyecto_pdf(request, proyecto_id: int):
         .order_by("indice", "tipo_calculo", "serie")
     )
 
-    completo = all([
-        numero_paneles is not None,
-        resultado_paneles is not None,
-        dimensionamiento is not None,
-        len(detalles_dimensionamiento) > 0,
-        len(calculos_dc) > 0,
-        len(calculos_ac) > 0,
-        len(calculos_tension) > 0,
-    ])
+    usa_micro = bool(dimensionamiento and dimensionamiento.tipo_inversor == "MICRO")
+
+    if usa_micro:
+        tensiones_ac = [x for x in calculos_tension if x.tipo_calculo == "AC"]
+        completo = all([
+            numero_paneles is not None,
+            resultado_paneles is not None,
+            dimensionamiento is not None,
+            len(detalles_dimensionamiento) > 0,
+            len(calculos_ac) > 0,
+            len(tensiones_ac) > 0,
+        ])
+    else:
+        completo = all([
+            numero_paneles is not None,
+            resultado_paneles is not None,
+            dimensionamiento is not None,
+            len(detalles_dimensionamiento) > 0,
+            len(calculos_dc) > 0,
+            len(calculos_ac) > 0,
+            len(calculos_tension) > 0,
+        ])
 
     if not completo:
-        messages.error(request, "El proyecto aún no está completo en todos los cálculos para generar el PDF integral.")
+        if usa_micro:
+            messages.error(
+                request,
+                "El proyecto aún no está completo para generar el PDF integral. En proyectos con micro inversores no se requiere cálculo DC, pero sí deben estar completos módulos, dimensionamiento, AC y caída de tensión AC."
+            )
+        else:
+            messages.error(
+                request,
+                "El proyecto aún no está completo en todos los cálculos para generar el PDF integral."
+            )
         return redirect("core:proyecto_consulta")
 
     filename = f"SWGFV_Proyecto_Completo_{proyecto.id}.pdf"

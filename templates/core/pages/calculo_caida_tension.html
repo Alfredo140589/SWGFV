@@ -106,6 +106,19 @@
               </div>
             </div>
 
+            {% if b.series_dc %}
+              <div class="mb-3">
+                <div class="small text-muted mb-1">Módulos por serie</div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for s in b.series_dc %}
+                    <span class="badge text-bg-light border">
+                      Serie {{ s.serie }} · {{ s.modulos }} módulo{% if s.modulos != 1 %}s{% endif %}
+                    </span>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
             <div class="border rounded p-3 mb-3">
               <h4 class="h6 fw-bold mb-3">Cálculo caída de tensión en AC</h4>
               <div class="row g-3">
@@ -169,28 +182,31 @@
                   </div>
                 </div>
 
-                {% for s in b.series_dc %}
-                  <div class="border rounded p-3 mb-2">
-                    <div class="fw-semibold mb-2">Serie {{ s.serie }}</div>
-                    <div class="row g-3">
-                      <div class="col-12 col-md-4">
-                        <div class="small text-muted">Módulos en serie</div>
-                        <div class="fw-semibold">{{ s.modulos }}</div>
-                      </div>
+                <div class="row g-3">
+                  {% for s in b.series_dc %}
+                    <div class="col-12 col-lg-6">
+                      <div class="border rounded p-3 h-100 bg-light-subtle">
+                        <div class="fw-semibold mb-2">Serie {{ s.serie }}</div>
+                        <div class="small text-muted mb-2">{{ s.modulos }} módulo{% if s.modulos != 1 %}s{% endif %}</div>
 
-                      {% if s.tension_dc and s.tension_dc.resultado_tension %}
-                        <div class="col-12 col-md-4">
-                          <div class="small text-muted">Voltaje caída de tensión DC</div>
-                          <div class="fw-semibold">{{ s.tension_dc.resultado_tension.voltaje_tension_dc }}</div>
-                        </div>
-                        <div class="col-12 col-md-4">
-                          <div class="small text-muted">Porcentaje de caída de tensión DC</div>
-                          <div class="fw-semibold">{{ s.tension_dc.resultado_tension.porcentaje_voltaje_tension_dc }}</div>
-                        </div>
-                      {% endif %}
+                        {% if s.tension_dc and s.tension_dc.resultado_tension %}
+                          <div class="row g-2">
+                            <div class="col-12">
+                              <div class="small text-muted">Voltaje caída de tensión DC</div>
+                              <div class="fw-semibold">{{ s.tension_dc.resultado_tension.voltaje_tension_dc }}</div>
+                            </div>
+                            <div class="col-12">
+                              <div class="small text-muted">Porcentaje de caída de tensión DC</div>
+                              <div class="fw-semibold">{{ s.tension_dc.resultado_tension.porcentaje_voltaje_tension_dc }}</div>
+                            </div>
+                          </div>
+                        {% else %}
+                          <div class="small text-muted">Aún no hay resultado guardado para esta serie.</div>
+                        {% endif %}
+                      </div>
                     </div>
-                  </div>
-                {% endfor %}
+                  {% endfor %}
+                </div>
               </div>
             {% endif %}
           </div>

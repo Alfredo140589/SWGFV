@@ -64,7 +64,17 @@
         </div>
       {% endif %}
 
-      {% if proyecto and bloques|length > 0 %}
+      {% if proyecto and dc_bloqueado_micro %}
+        <div class="alert alert-warning">
+          Este proyecto fue configurado con <b>micro inversores</b>. El cálculo DC no está permitido porque en los micro inversores solo se calcula <b>AC</b>.
+        </div>
+
+        <div class="d-flex gap-2">
+          <a class="btn btn-secondary" href="{% url 'core:menu_principal' %}">Regresar</a>
+          <button class="btn btn-outline-secondary" type="submit" name="action" value="cancel">Cancelar</button>
+        </div>
+
+      {% elif proyecto and bloques|length > 0 %}
         {% for b in bloques %}
           <div class="border rounded p-3 mb-3">
             <div class="fw-bold mb-3">
@@ -89,23 +99,38 @@
               </div>
             </div>
 
+            <!-- resumen compacto de módulos por serie -->
+            <div class="mb-3">
+              <div class="small text-muted mb-1">Módulos por serie</div>
+              <div class="d-flex flex-wrap gap-2">
+                {% for s in b.series %}
+                  <span class="badge text-bg-light border">
+                    Serie {{ s.serie }} · {{ s.modulos }} módulo{% if s.modulos != 1 %}s{% endif %}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+
             <!-- formulario -->
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label fw-semibold">Número de metros lineales por cada serie</label>
                 <div class="row g-2">
                   {% for s in b.series %}
-                    <div class="col-12 col-md-4">
-                      <label class="form-label small mb-1">Serie {{ s.serie }}</label>
-                      <input
-                        class="form-control"
-                        type="number"
-                        step="0.001"
-                        min="0.001"
-                        name="metros_lineales_{{ b.indice }}_{{ s.serie }}"
-                        value="{{ s.metros|default:'' }}"
-                        required
-                      >
+                    <div class="col-12 col-md-6 col-xl-4">
+                      <div class="border rounded p-2 h-100 bg-light-subtle">
+                        <div class="small fw-semibold mb-1">Serie {{ s.serie }}</div>
+                        <div class="small text-muted mb-2">{{ s.modulos }} módulo{% if s.modulos != 1 %}s{% endif %}</div>
+                        <input
+                          class="form-control"
+                          type="number"
+                          step="0.001"
+                          min="0.001"
+                          name="metros_lineales_{{ b.indice }}_{{ s.serie }}"
+                          value="{{ s.metros|default:'' }}"
+                          required
+                        >
+                      </div>
                     </div>
                   {% endfor %}
                 </div>
