@@ -2435,6 +2435,13 @@ def calculo_ac_pdf(request, proyecto_id: int):
             modulos_por_inversor = int((det.no_cadenas or 0) * (det.modulos_por_cadena or 0)) if det else 0
             modulos_cadena_txt = str(det.modulos_por_cadena or "—") if det else "—"
 
+        corriente_salida = "—"
+        if det:
+            if det.inversor_id and det.inversor and det.inversor.corriente_salida is not None:
+                corriente_salida = f"{det.inversor.corriente_salida} A"
+            elif det.micro_inversor_id and det.micro_inversor and det.micro_inversor.corriente_salida is not None:
+                corriente_salida = f"{det.micro_inversor.corriente_salida} A"
+
         res = r.resultado_ac
         con = r.condulet
 
@@ -2450,41 +2457,41 @@ def calculo_ac_pdf(request, proyecto_id: int):
             [
                 Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
                 Paragraph(modulos_cadena_txt, pdfs["value"]),
-                Paragraph("<b>Metros lineales</b>", pdfs["label"]),
-                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Corriente de salida</b>", pdfs["label"]),
+                Paragraph(corriente_salida, pdfs["value"]),
             ],
             [
+                Paragraph("<b>Metros lineales por fase</b>", pdfs["label"]),
+                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
                 Paragraph("<b>Calibre cable THHW</b>", pdfs["label"]),
                 Paragraph(str(r.calibre_cable_thhw or "—"), pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Hilos por tubería</b>", pdfs["label"]),
                 Paragraph(str(r.hilos_tuberia_ac or "—"), pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Amperaje protección</b>", pdfs["label"]),
                 Paragraph(f"{getattr(res, 'amperaje_proteccion', '—')} A" if res else "—", pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Total de cadenas</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "total_de_cadenas_ac", "—")) if res else "—", pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Total protecciones</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "total_protecciones", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Metros totales cable</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "metros_totales_cable_ac", "—")) if res else "—", pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Calibre tubería</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "calibre_tuberia_ac", "—")) if res else "—", pdfs["value"]),
-                Paragraph("<b>Total tubos</b>", pdfs["label"]),
-                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
             ],
             [
+                Paragraph("<b>Total tubos</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
                 Paragraph("<b>Condulets LL / LR / LB / T / C</b>", pdfs["label"]),
                 Paragraph(
                     f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
                     pdfs["value"]
                 ),
-                Paragraph("<b>Total condulets</b>", pdfs["label"]),
-                Paragraph(str(con.total() if con else 0), pdfs["value"]),
             ],
         ]
 
@@ -2524,6 +2531,7 @@ def calculo_ac(request):
         "isc_modulo": None,
         "no_inversores": None,
         "numero_fases": None,
+        "corrientes_salida": [],
     }
 
     if selected_proyecto_id:
@@ -2557,11 +2565,15 @@ def calculo_ac(request):
 
             if dim:
                 resumen["no_inversores"] = dim.no_inversores
+
             resumen["numero_fases"] = proyecto.Numero_Fases
+
             existentes = {
                 int(x.indice): x
                 for x in CalculoAC.objects.filter(proyecto=proyecto).select_related("condulet", "resultado_ac", "conductor")
             }
+
+            corrientes_salida_resumen = []
 
             for d in detalles:
                 calc = existentes.get(int(d.indice))
@@ -2572,6 +2584,20 @@ def calculo_ac(request):
                     total_modulos_inversor = sum(int(v or 0) for v in lista_modulos)
                 else:
                     total_modulos_inversor = int(d.no_cadenas or 0) * int(d.modulos_por_cadena or 0)
+
+                corriente_salida = None
+                if d.inversor_id and d.inversor and d.inversor.corriente_salida is not None:
+                    corriente_salida = d.inversor.corriente_salida
+                elif d.micro_inversor_id and d.micro_inversor and d.micro_inversor.corriente_salida is not None:
+                    corriente_salida = d.micro_inversor.corriente_salida
+
+                if corriente_salida is not None:
+                    tipo_equipo = "Micro inversor" if d.micro_inversor_id else "Inversor"
+                    corrientes_salida_resumen.append({
+                        "indice": d.indice,
+                        "tipo": tipo_equipo,
+                        "valor": corriente_salida,
+                    })
 
                 bloques.append({
                     "indice": d.indice,
@@ -2584,10 +2610,13 @@ def calculo_ac(request):
                         d.inversor.potencia if d.inversor_id else
                         d.micro_inversor.potencia if d.micro_inversor_id else None
                     ),
+                    "corriente_salida": corriente_salida,
                     "val": calc,
                     "res": (calc.resultado_ac if calc and calc.resultado_ac_id else None),
                     "condulet": (calc.condulet if calc and calc.condulet_id else None),
                 })
+
+            resumen["corrientes_salida"] = corrientes_salida_resumen
 
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip().lower()
@@ -2624,11 +2653,9 @@ def calculo_ac(request):
                 messages.error(request, "No hay detalles de dimensionamiento para este proyecto.")
                 return redirect(f"{reverse('core:calculo_ac')}?proyecto_id={proyecto.id}")
 
-            # extraer voltaje numérico del proyecto
             voltaje_txt = str(proyecto.Voltaje_Nominal or "").strip()
             voltaje_num = None
             try:
-                # toma el primer número, ej. "127/220" -> 127
                 parte = voltaje_txt.split("/")[0].strip()
                 voltaje_num = Decimal(parte)
             except Exception:
@@ -2663,6 +2690,7 @@ def calculo_ac(request):
                 return cols[-1][1]
 
             hubo_error = False
+            numero_fases = int(proyecto.Numero_Fases or 0)
 
             for d in detalles:
                 idx = int(d.indice)
@@ -2682,7 +2710,7 @@ def calculo_ac(request):
                     if metros_lineales_ac <= 0:
                         raise ValueError()
                 except Exception:
-                    messages.error(request, f"Metros lineales inválidos en inversor {idx}.")
+                    messages.error(request, f"Metros lineales por fase inválidos en inversor {idx}.")
                     hubo_error = True
                     continue
 
@@ -2727,9 +2755,7 @@ def calculo_ac(request):
                     hubo_error = True
                     continue
 
-                # 1 o 2 fases -> fórmula 2 fases
-                # 3 fases -> fórmula 3 fases
-                if int(proyecto.Numero_Fases or 0) in (1, 2):
+                if numero_fases in (1, 2):
                     amperaje_calculado = (potencia_equipo / voltaje_num) * Decimal("1.25")
                 else:
                     amperaje_calculado = (potencia_equipo / (voltaje_num * Decimal("1.732050"))) * Decimal("1.25")
@@ -2738,7 +2764,11 @@ def calculo_ac(request):
 
                 total_de_cadenas_ac = int(d.no_cadenas or 0)
                 total_protecciones = 1
-                metros_totales_cable_ac = Decimal(str(total_de_cadenas_ac)) * Decimal("2") * metros_lineales_ac
+
+                # NUEVA FÓRMULA:
+                # Metros totales de cable = metros por fase * número de fases
+                metros_totales_cable_ac = metros_lineales_ac * Decimal(str(numero_fases))
+
                 calibre_tuberia_ac = resolver_calibre_tuberia(conductor, hilos)
                 total_tubos_ac = int((metros_lineales_ac / Decimal("3")).quantize(Decimal("1"), rounding=ROUND_UP))
 
@@ -4188,6 +4218,13 @@ def proyecto_pdf(request, proyecto_id: int):
 
         elements.append(Paragraph(f"{tipo_equipo} {r.indice} — {modelo}", pdfs["block_title"]))
 
+        corriente_salida = "—"
+        if det:
+            if det.inversor_id and det.inversor and det.inversor.corriente_salida is not None:
+                corriente_salida = f"{det.inversor.corriente_salida} A"
+            elif det.micro_inversor_id and det.micro_inversor and det.micro_inversor.corriente_salida is not None:
+                corriente_salida = f"{det.micro_inversor.corriente_salida} A"
+
         data_ac = [
             [
                 Paragraph("<b>Número de series</b>", pdfs["label"]),
@@ -4198,41 +4235,41 @@ def proyecto_pdf(request, proyecto_id: int):
             [
                 Paragraph("<b>Módulos por cadena</b>", pdfs["label"]),
                 Paragraph(modulos_cadena_txt, pdfs["wrap"]),
-                Paragraph("<b>Metros lineales</b>", pdfs["label"]),
-                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
+                Paragraph("<b>Corriente de salida</b>", pdfs["label"]),
+                Paragraph(corriente_salida, pdfs["value"]),
             ],
             [
+                Paragraph("<b>Metros lineales por fase</b>", pdfs["label"]),
+                Paragraph(str(r.metros_lineales_ac or "—"), pdfs["value"]),
                 Paragraph("<b>Calibre cable THHW</b>", pdfs["label"]),
                 Paragraph(str(r.calibre_cable_thhw or "—"), pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Hilos por tubería</b>", pdfs["label"]),
                 Paragraph(str(r.hilos_tuberia_ac or "—"), pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Amperaje protección</b>", pdfs["label"]),
                 Paragraph(f"{getattr(res, 'amperaje_proteccion', '—')} A" if res else "—", pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Total de cadenas</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "total_de_cadenas_ac", "—")) if res else "—", pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Total protecciones</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "total_protecciones", "—")) if res else "—", pdfs["value"]),
+            ],
+            [
                 Paragraph("<b>Metros totales cable</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "metros_totales_cable_ac", "—")) if res else "—", pdfs["value"]),
-            ],
-            [
                 Paragraph("<b>Calibre tubería</b>", pdfs["label"]),
                 Paragraph(str(getattr(res, "calibre_tuberia_ac", "—")) if res else "—", pdfs["value"]),
-                Paragraph("<b>Total tubos</b>", pdfs["label"]),
-                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
             ],
             [
+                Paragraph("<b>Total tubos</b>", pdfs["label"]),
+                Paragraph(str(getattr(res, "total_tubos_ac", "—")) if res else "—", pdfs["value"]),
                 Paragraph("<b>Condulets LL / LR / LB / T / C</b>", pdfs["label"]),
                 Paragraph(
                     f"{con.tipo_ll if con else 0} / {con.tipo_lr if con else 0} / {con.tipo_lb if con else 0} / {con.tipo_t if con else 0} / {con.tipo_c if con else 0}",
                     pdfs["value"]
                 ),
-                Paragraph("<b>Total condulets</b>", pdfs["label"]),
-                Paragraph(str(con.total() if con else 0), pdfs["value"]),
             ],
         ]
         elements.append(make_info_table(data_ac, [3.6 * cm, 4.6 * cm, 3.8 * cm, 4.8 * cm]))

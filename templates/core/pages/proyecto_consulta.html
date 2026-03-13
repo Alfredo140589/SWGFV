@@ -18,7 +18,7 @@
           <select name="proyecto" class="form-select">
             <option value="">-- Selecciona --</option>
             {% for p in proyectos_dropdown %}
-              <option value="{{ p.id }}" {% if proyecto_select == p.id|stringformat:"s" %}selected{% endif %}>
+              <option value="{{ p.id }}" {% if proyecto_select_int == p.id %}selected{% endif %}>
                 ID {{ p.id }} — {{ p.Nombre_Proyecto }}
               </option>
             {% endfor %}
