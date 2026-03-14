@@ -1416,8 +1416,8 @@ def dimensionamiento_dimensionamiento(request):
         except Exception:
             return None
 
-    def evaluar_voc_string(voc_string, voltaje_maximo_entrada):
-        if voc_string is None:
+    def evaluar_voc(valor_comparacion, voltaje_maximo_entrada, es_micro=False):
+        if valor_comparacion is None:
             return {
                 "estado": "error",
                 "titulo": "Error",
@@ -1431,26 +1431,28 @@ def dimensionamiento_dimensionamiento(request):
                 "mensaje": "No fue posible validar porque el inversor no tiene voltaje máximo de entrada registrado."
             }
 
-        vs = Decimal(str(voc_string))
+        vc = Decimal(str(valor_comparacion))
         vm = Decimal(str(voltaje_maximo_entrada))
 
-        if vs < vm:
+        etiqueta = "Voc del panel" if es_micro else "Voc string"
+
+        if vc < vm:
             return {
                 "estado": "ok",
                 "titulo": "Correcto",
-                "mensaje": f"Voc string ({vs} V) es menor que el voltaje máximo de entrada ({vm} V)."
+                "mensaje": f"{etiqueta} ({vc} V) es menor que el voltaje máximo de entrada ({vm} V)."
             }
-        elif vs == vm:
+        elif vc == vm:
             return {
                 "estado": "advertencia",
                 "titulo": "Advertencia",
-                "mensaje": f"Voc string ({vs} V) es igual al voltaje máximo de entrada ({vm} V)."
+                "mensaje": f"{etiqueta} ({vc} V) es igual al voltaje máximo de entrada ({vm} V)."
             }
         else:
             return {
                 "estado": "error",
                 "titulo": "Error",
-                "mensaje": f"Voc string ({vs} V) supera el voltaje máximo de entrada ({vm} V)."
+                "mensaje": f"{etiqueta} ({vc} V) supera el voltaje máximo de entrada ({vm} V)."
             }
 
     if selected_proyecto_id:
@@ -1647,22 +1649,48 @@ def dimensionamiento_dimensionamiento(request):
 
             validaciones_voc = []
 
-            for idx_cad, modulos_cad in enumerate(lista_modulos, start=1):
-                modulos_dec = to_decimal_or_none(modulos_cad)
-                voc_string = None
-
-                if panel_voc is not None and modulos_dec is not None:
-                    voc_string = panel_voc * modulos_dec
-
-                resultado_validacion = evaluar_voc_string(voc_string, voltaje_maximo_entrada)
+            # MICROINVERSOR:
+            # solo validar Voc del panel < voltaje máximo de entrada
+            if d.micro_inversor_id:
+                resultado_validacion = evaluar_voc(
+                    panel_voc,
+                    voltaje_maximo_entrada,
+                    es_micro=True,
+                )
 
                 validaciones_voc.append({
-                    "cadena": idx_cad,
-                    "modulos": modulos_cad,
-                    "voc_string": voc_string,
+                    "cadena": 1,
+                    "modulos": lista_modulos[0] if lista_modulos else None,
+                    "voc_string": panel_voc,  # aquí se mostrará como valor comparado
                     "voltaje_maximo_entrada": voltaje_maximo_entrada,
                     "resultado": resultado_validacion,
+                    "es_micro": True,
                 })
+
+            # INVERSOR:
+            # validar Voc string por cada cadena
+            else:
+                for idx_cad, modulos_cad in enumerate(lista_modulos, start=1):
+                    modulos_dec = to_decimal_or_none(modulos_cad)
+                    voc_string = None
+
+                    if panel_voc is not None and modulos_dec is not None:
+                        voc_string = panel_voc * modulos_dec
+
+                    resultado_validacion = evaluar_voc(
+                        voc_string,
+                        voltaje_maximo_entrada,
+                        es_micro=False,
+                    )
+
+                    validaciones_voc.append({
+                        "cadena": idx_cad,
+                        "modulos": modulos_cad,
+                        "voc_string": voc_string,
+                        "voltaje_maximo_entrada": voltaje_maximo_entrada,
+                        "resultado": resultado_validacion,
+                        "es_micro": False,
+                    })
 
             d.validaciones_voc = validaciones_voc
 

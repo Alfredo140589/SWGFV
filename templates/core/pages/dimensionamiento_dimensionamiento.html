@@ -222,7 +222,11 @@
                 <tr>
                   <td colspan="4">
                     <div class="small text-muted mb-2">
-                      Validación Voc string vs voltaje máximo de entrada
+                      {% if d.micro_inversor %}
+                        Validación Voc del panel vs voltaje máximo de entrada
+                      {% else %}
+                        Validación Voc string vs voltaje máximo de entrada
+                      {% endif %}
                     </div>
 
                     <div class="d-flex flex-column gap-2">
