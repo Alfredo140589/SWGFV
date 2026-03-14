@@ -1379,19 +1379,18 @@ def panel_solar_alta(request):
 # DIMENSIONAMIENTO (por inversor)
 # Archivo: core/views.py
 # =========================================================
+
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def dimensionamiento_dimensionamiento(request):
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
 
-    # ✅ Proyectos por permisos
     if session_tipo == "Administrador":
         proyectos = Proyecto.objects.all().order_by("-id")
     else:
         proyectos = Proyecto.objects.filter(ID_Usuario_id=session_id_usuario).order_by("-id")
 
-    # ✅ Proyecto seleccionado (GET o POST)
     selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
     selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
 
@@ -1403,39 +1402,80 @@ def dimensionamiento_dimensionamiento(request):
     dim = None
     detalles = []
 
-    # ✅ Catálogos
     inversores = Inversor.objects.all().order_by("marca", "modelo")
     micro_inversores = MicroInversor.objects.all().order_by("marca", "modelo")
 
-    # =========================================================
-    # ✅ GET: cargar datos del proyecto + datos guardados
-    # =========================================================
+    def to_decimal_or_none(value):
+        try:
+            if value is None:
+                return None
+            txt = str(value).strip()
+            if txt == "":
+                return None
+            return Decimal(txt)
+        except Exception:
+            return None
+
+    def evaluar_voc_string(voc_string, voltaje_maximo_entrada):
+        if voc_string is None:
+            return {
+                "estado": "error",
+                "titulo": "Error",
+                "mensaje": "No fue posible validar porque el panel no tiene Voc disponible."
+            }
+
+        if voltaje_maximo_entrada is None:
+            return {
+                "estado": "error",
+                "titulo": "Error",
+                "mensaje": "No fue posible validar porque el inversor no tiene voltaje máximo de entrada registrado."
+            }
+
+        vs = Decimal(str(voc_string))
+        vm = Decimal(str(voltaje_maximo_entrada))
+
+        if vs < vm:
+            return {
+                "estado": "ok",
+                "titulo": "Correcto",
+                "mensaje": f"Voc string ({vs} V) es menor que el voltaje máximo de entrada ({vm} V)."
+            }
+        elif vs == vm:
+            return {
+                "estado": "advertencia",
+                "titulo": "Advertencia",
+                "mensaje": f"Voc string ({vs} V) es igual al voltaje máximo de entrada ({vm} V)."
+            }
+        else:
+            return {
+                "estado": "error",
+                "titulo": "Error",
+                "mensaje": f"Voc string ({vs} V) supera el voltaje máximo de entrada ({vm} V)."
+            }
+
     if selected_proyecto_id:
         proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
 
-        # permisos
         if proyecto and session_tipo != "Administrador":
             if int(proyecto.ID_Usuario_id) != int(session_id_usuario):
                 messages.error(request, "No tienes permisos para acceder a ese proyecto.")
                 return redirect(reverse("core:dimensionamiento_dimensionamiento"))
 
         if proyecto:
-            # traer numero paneles y resultado
             np_obj = NumeroPaneles.objects.select_related("panel").filter(proyecto=proyecto).first()
             if np_obj:
                 resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
 
-            # ✅ Potencia total (kW) desde ResultadoPaneles
             potencia_total = getattr(resultado, "potencia_total", None)
 
-            # dimensionamiento existente
             dim = Dimensionamiento.objects.filter(proyecto=proyecto).first()
             if dim:
-                detalles = list(dim.detalles.all().order_by("indice"))
+                detalles = list(
+                    DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                    .select_related("inversor", "micro_inversor")
+                    .order_by("indice")
+                )
 
-    # =========================================================
-    # ✅ POST: guardar
-    # =========================================================
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip().lower()
 
@@ -1450,12 +1490,11 @@ def dimensionamiento_dimensionamiento(request):
                 messages.error(request, "Proyecto inválido.")
                 return redirect(reverse("core:dimensionamiento_dimensionamiento"))
 
-            # permisos
             if session_tipo != "Administrador" and int(proyecto.ID_Usuario_id) != int(session_id_usuario):
                 messages.error(request, "No tienes permisos para guardar en ese proyecto.")
                 return redirect(reverse("core:dimensionamiento_dimensionamiento"))
 
-            tipo = (request.POST.get("tipo_inversor") or "").strip().upper()  # INVERSOR / MICRO
+            tipo = (request.POST.get("tipo_inversor") or "").strip().upper()
             no_inv_raw = (request.POST.get("no_inversores") or "").strip()
 
             if tipo not in ("INVERSOR", "MICRO"):
@@ -1468,7 +1507,6 @@ def dimensionamiento_dimensionamiento(request):
 
             no_inversores = int(no_inv_raw)
 
-            # Guardar/actualizar cabecera
             dim, _ = Dimensionamiento.objects.update_or_create(
                 proyecto=proyecto,
                 defaults={
@@ -1477,7 +1515,6 @@ def dimensionamiento_dimensionamiento(request):
                 }
             )
 
-            # Guardar detalles
             errores = False
             saved_indices = set()
 
@@ -1497,7 +1534,6 @@ def dimensionamiento_dimensionamiento(request):
 
                 cadenas = int(cadenas_raw)
 
-                # ✅ NUEVO: leer módulos por cada cadena (modulos_{i}_1, modulos_{i}_2, ...)
                 lista_modulos = []
                 for c in range(1, cadenas + 1):
                     mv = (request.POST.get(f"modulos_{i}_{c}") or "").strip()
@@ -1511,7 +1547,6 @@ def dimensionamiento_dimensionamiento(request):
                 if errores:
                     continue
 
-                # ✅ Campo resumen legacy (para compatibilidad): guardamos el máximo
                 modulos = max(lista_modulos) if lista_modulos else 1
 
                 inversor_fk = None
@@ -1537,14 +1572,13 @@ def dimensionamiento_dimensionamiento(request):
                         "inversor": inversor_fk,
                         "micro_inversor": micro_fk,
                         "no_cadenas": cadenas,
-                        "modulos_por_cadena": modulos,  # (legacy)
-                        "modulos_por_cadena_lista": lista_modulos,  # ✅ NUEVO
+                        "modulos_por_cadena": modulos,
+                        "modulos_por_cadena_lista": lista_modulos,
                     }
                 )
 
                 saved_indices.add(i)
 
-            # ✅ borrar sobrantes si redujo cantidad
             DimensionamientoDetalle.objects.filter(dimensionamiento=dim).exclude(indice__in=saved_indices).delete()
 
             if errores:
@@ -1553,22 +1587,19 @@ def dimensionamiento_dimensionamiento(request):
             messages.success(request, "✅ Dimensionamiento guardado correctamente.")
             return redirect(f"{reverse('core:dimensionamiento_dimensionamiento')}?proyecto_id={proyecto.id}")
 
-    # =========================================================
-    # ✅ Context
-    # =========================================================
     info_modulos = {
         "no_modulos": getattr(resultado, "no_modulos", None),
         "modelo_modulo": None,
     }
 
+    panel_voc = None
     if np_obj and getattr(np_obj, "panel", None):
         info_modulos["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
+        panel_voc = to_decimal_or_none(np_obj.panel.voc)
 
-    # valores actuales guardados
     current_tipo = getattr(dim, "tipo_inversor", "INVERSOR") if dim else "INVERSOR"
     current_no_inv = getattr(dim, "no_inversores", 1) if dim else 1
 
-    # precarga para JS
     precarga = []
     for i in range(1, current_no_inv + 1):
         d = next((x for x in detalles if x.indice == i), None)
@@ -1576,12 +1607,10 @@ def dimensionamiento_dimensionamiento(request):
             "indice": i,
             "modelo_id": (d.inversor_id if d and d.inversor_id else (d.micro_inversor_id if d else None)),
             "no_cadenas": (d.no_cadenas if d else 1),
-            "modulos_por_cadena": (d.modulos_por_cadena if d else 1),  # legacy
+            "modulos_por_cadena": (d.modulos_por_cadena if d else 1),
             "modulos_por_cadena_lista": (d.modulos_por_cadena_lista if d and d.modulos_por_cadena_lista else []),
-            # ✅ NUEVO
         })
 
-    # ✅ Detalles guardados (para mostrar tabla debajo)
     detalles_guardados = []
     if dim:
         detalles_guardados = list(
@@ -1590,22 +1619,49 @@ def dimensionamiento_dimensionamiento(request):
             .order_by("indice")
         )
 
+        for d in detalles_guardados:
+            equipo = d.inversor if d.inversor_id else d.micro_inversor
+            voltaje_maximo_entrada = to_decimal_or_none(
+                getattr(equipo, "voltaje_maximo_entrada", None)
+            )
+
+            lista_modulos = d.modulos_por_cadena_lista or []
+            if not lista_modulos:
+                lista_modulos = [int(d.modulos_por_cadena or 0)] * int(d.no_cadenas or 0)
+
+            validaciones_voc = []
+
+            for idx_cad, modulos_cad in enumerate(lista_modulos, start=1):
+                modulos_dec = to_decimal_or_none(modulos_cad)
+                voc_string = None
+
+                if panel_voc is not None and modulos_dec is not None:
+                    voc_string = panel_voc * modulos_dec
+
+                resultado_validacion = evaluar_voc_string(voc_string, voltaje_maximo_entrada)
+
+                validaciones_voc.append({
+                    "cadena": idx_cad,
+                    "modulos": modulos_cad,
+                    "voc_string": voc_string,
+                    "voltaje_maximo_entrada": voltaje_maximo_entrada,
+                    "resultado": resultado_validacion,
+                })
+
+            d.validaciones_voc = validaciones_voc
+
     context = {
         "proyectos": proyectos,
         "selected_proyecto_id": selected_proyecto_id,
         "proyecto": proyecto,
-
         "np_obj": np_obj,
         "resultado": resultado,
         "info_modulos": info_modulos,
-
         "inversores": inversores,
         "micro_inversores": micro_inversores,
-
         "current_tipo": current_tipo,
         "current_no_inv": current_no_inv,
         "precarga": precarga,
-
         "potencia_total": potencia_total,
         "detalles_guardados": detalles_guardados,
     }
@@ -2572,6 +2628,32 @@ def calculo_ac(request):
         "corrientes_salida": [],
     }
 
+    def evaluar_proteccion(corriente_salida, amperaje_proteccion):
+        if corriente_salida is None or amperaje_proteccion is None:
+            return None
+
+        cs = Decimal(str(corriente_salida))
+        ap = Decimal(str(amperaje_proteccion))
+
+        if ap < cs:
+            return {
+                "estado": "error",
+                "titulo": "Error",
+                "mensaje": f"La protección ({ap} A) es menor que la corriente de salida del inversor ({cs} A)."
+            }
+        elif ap == cs:
+            return {
+                "estado": "advertencia",
+                "titulo": "Advertencia",
+                "mensaje": f"La protección ({ap} A) es igual a la corriente de salida del inversor ({cs} A)."
+            }
+        else:
+            return {
+                "estado": "ok",
+                "titulo": "Correcto",
+                "mensaje": f"La protección ({ap} A) es mayor que la corriente de salida del inversor ({cs} A)."
+            }
+
     if selected_proyecto_id:
         proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
 
@@ -2637,6 +2719,12 @@ def calculo_ac(request):
                         "valor": corriente_salida,
                     })
 
+                res_obj = calc.resultado_ac if calc and calc.resultado_ac_id else None
+                validacion_proteccion = evaluar_proteccion(
+                    corriente_salida,
+                    getattr(res_obj, "amperaje_proteccion", None)
+                )
+
                 bloques.append({
                     "indice": d.indice,
                     "modelo": modelo_txt,
@@ -2650,8 +2738,9 @@ def calculo_ac(request):
                     ),
                     "corriente_salida": corriente_salida,
                     "val": calc,
-                    "res": (calc.resultado_ac if calc and calc.resultado_ac_id else None),
+                    "res": res_obj,
                     "condulet": (calc.condulet if calc and calc.condulet_id else None),
+                    "validacion_proteccion": validacion_proteccion,
                 })
 
             resumen["corrientes_salida"] = corrientes_salida_resumen
@@ -2802,11 +2891,7 @@ def calculo_ac(request):
 
                 total_de_cadenas_ac = int(d.no_cadenas or 0)
                 total_protecciones = 1
-
-                # NUEVA FÓRMULA:
-                # Metros totales de cable = metros por fase * número de fases
                 metros_totales_cable_ac = metros_lineales_ac * Decimal(str(numero_fases))
-
                 calibre_tuberia_ac = resolver_calibre_tuberia(conductor, hilos)
                 total_tubos_ac = int((metros_lineales_ac / Decimal("3")).quantize(Decimal("1"), rounding=ROUND_UP))
 
@@ -2923,6 +3008,51 @@ def calculo_caida_tension(request):
             return None
         return int(base) if base.isdigit() else None
 
+    def evaluar_caida_ac(porcentaje):
+        if porcentaje is None:
+            return None
+
+        p = Decimal(str(porcentaje))
+        if p > Decimal("5"):
+            return {
+                "estado": "error",
+                "titulo": "Error",
+                "mensaje": f"La caída de tensión AC es {p}% y supera el 5%."
+            }
+        elif p > Decimal("3"):
+            return {
+                "estado": "advertencia",
+                "titulo": "Advertencia",
+                "mensaje": f"La caída de tensión AC es {p}% y supera el 3%."
+            }
+        else:
+            return {
+                "estado": "ok",
+                "titulo": "Correcto",
+                "mensaje": f"La caída de tensión AC es {p}% y está dentro del límite recomendado."
+            }
+
+    def resolver_conductor_desde_calculo(calc_obj, campo_calibre):
+        """
+        Si el cálculo existe pero viene sin FK conductor, intenta resolverlo por calibre.
+        Esto corrige registros viejos que sí tenían datos guardados pero no relación.
+        """
+        if not calc_obj:
+            return None
+
+        if getattr(calc_obj, "conductor", None):
+            return calc_obj.conductor
+
+        calibre_txt = getattr(calc_obj, campo_calibre, None)
+        if not calibre_txt:
+            return None
+
+        conductor = Conductor.objects.filter(calibre_cable__iexact=str(calibre_txt).strip()).first()
+        if conductor:
+            calc_obj.conductor = conductor
+            calc_obj.save(update_fields=["conductor"])
+        return conductor
+
     if selected_proyecto_id:
         proyecto = Proyecto.objects.filter(id=selected_proyecto_id).first()
 
@@ -3003,6 +3133,13 @@ def calculo_caida_tension(request):
                 elif d.micro_inversor_id and d.micro_inversor:
                     corriente_salida = d.micro_inversor.corriente_salida
 
+                tension_ac_obj = tensiones_ac.get(idx)
+                validacion_caida_ac = None
+                if tension_ac_obj and tension_ac_obj.resultado_tension:
+                    validacion_caida_ac = evaluar_caida_ac(
+                        getattr(tension_ac_obj.resultado_tension, "porcentaje_voltaje_tension_ac", None)
+                    )
+
                 bloques.append({
                     "indice": idx,
                     "tipo": dim.tipo_inversor if dim else "INVERSOR",
@@ -3013,7 +3150,8 @@ def calculo_caida_tension(request):
                     "longitud_total_ac": getattr(calc_ac, "metros_lineales_ac", None),
                     "longitud_total_dc": getattr(calc_dc, "metros_lineales", None),
                     "calc_ac": calc_ac,
-                    "tension_ac": tensiones_ac.get(idx),
+                    "tension_ac": tension_ac_obj,
+                    "validacion_caida_ac": validacion_caida_ac,
                     "series_dc": [
                         {
                             "serie": s["serie"],
@@ -3070,13 +3208,13 @@ def calculo_caida_tension(request):
 
             hubo_error = False
 
-            # ===== AC por cada inversor / micro inversor =====
             for d in detalles:
                 idx = int(d.indice)
                 calc_ac = CalculoAC.objects.filter(proyecto=proyecto, indice=idx).select_related("conductor").first()
+                conductor_ac = resolver_conductor_desde_calculo(calc_ac, "calibre_cable_thhw")
 
-                if not calc_ac or not calc_ac.conductor:
-                    messages.error(request, f"Primero realiza el cálculo AC del inversor {idx}.")
+                if not calc_ac or not conductor_ac:
+                    messages.error(request, f"Primero realiza y guarda correctamente el cálculo AC del inversor {idx}.")
                     hubo_error = True
                     continue
 
@@ -3126,7 +3264,6 @@ def calculo_caida_tension(request):
 
                 coef = Decimal("0.00393") if tipo_cable_ac == "cobre" else Decimal("0.00403")
                 calculo_rt_ac = resistencia_ca * (Decimal("1") + coef * (temperatura_ac - Decimal("20")))
-
                 raiz_fp = Decimal(str(math.sqrt(max(0.0, 1.0 - float(factor_potencia_ac) ** 2))))
 
                 if int(proyecto.Numero_Fases or 0) in (1, 2):
@@ -3179,16 +3316,16 @@ def calculo_caida_tension(request):
                         resultado_tension=resultado_obj,
                     )
 
-            # ===== DC por cada serie de inversor (NO micro) =====
             for d in detalles:
                 if d.micro_inversor_id:
                     continue
 
                 idx = int(d.indice)
                 calc_dc = CalculoDC.objects.filter(proyecto=proyecto, indice=idx).select_related("conductor").first()
+                conductor_dc = resolver_conductor_desde_calculo(calc_dc, "calibre_cable_solar")
 
-                if not calc_dc or not calc_dc.conductor:
-                    messages.error(request, f"Primero realiza el cálculo DC del inversor {idx}.")
+                if not calc_dc or not conductor_dc:
+                    messages.error(request, f"Primero realiza y guarda correctamente el cálculo DC del inversor {idx}.")
                     hubo_error = True
                     continue
 

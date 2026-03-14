@@ -179,7 +179,23 @@
                   <div class="small text-muted">Amperaje de la protección</div>
                   <div class="fw-semibold">{{ b.res.amperaje_proteccion }} A</div>
                 </div>
-
+              {% if b.validacion_proteccion %}
+                <div class="col-12">
+                    {% if b.validacion_proteccion.estado == "ok" %}
+                <div class="alert alert-success py-2 mb-0">
+                <strong>{{ b.validacion_proteccion.titulo }}:</strong> {{ b.validacion_proteccion.mensaje }}
+                </div>
+                {% elif b.validacion_proteccion.estado == "advertencia" %}
+            <div class="alert alert-warning py-2 mb-0">
+              <strong>{{ b.validacion_proteccion.titulo }}:</strong> {{ b.validacion_proteccion.mensaje }}
+            </div>
+              {% elif b.validacion_proteccion.estado == "error" %}
+                <div class="alert alert-danger py-2 mb-0">
+                <strong>{{ b.validacion_proteccion.titulo }}:</strong> {{ b.validacion_proteccion.mensaje }}
+                </div>
+                {% endif %}
+              </div>
+            {% endif %}
                   <div class="col-12 col-md-4">
                       <div class="small text-muted">Protección por inversor</div>
                       <div class="fw-semibold">1</div>

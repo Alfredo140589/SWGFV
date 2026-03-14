@@ -39,6 +39,16 @@ class Command(BaseCommand):
             val = (val or "").strip()
             return int(val) if val.isdigit() else None
 
+        def get_value(row, *possible_keys):
+            """
+            Busca un valor usando varias posibles llaves del CSV.
+            Sirve para tolerar encabezados con acentos mal codificados.
+            """
+            for key in possible_keys:
+                if key in row and row.get(key) not in (None, ""):
+                    return row.get(key)
+            return ""
+
         # =====================
         # IMPORTAR INVERSORES
         # =====================
@@ -50,20 +60,26 @@ class Command(BaseCommand):
             self.stdout.write(f"HEADERS INVERSOR: {reader.fieldnames}")
 
             for row in reader:
-                marca = clean_text(row.get("Marca"))
-                modelo = clean_text(row.get("Modelo"))
+                marca = clean_text(get_value(row, "Marca"))
+                modelo = clean_text(get_value(row, "Modelo"))
 
                 if not marca or not modelo:
                     continue
 
-                potencia = to_decimal(row.get("Potencia"))
-                corriente_entrada = to_decimal(row.get("Corriente de entrada"))
-                corriente_salida = to_decimal(row.get("Corriente de salida"))
-                voltaje_arranque = to_decimal(row.get("Voltaje de arranque"))
-                voltaje_maximo_entrada = to_decimal(row.get("Voltaje máximo de entrada"))
-                no_mppt = to_int(row.get("No mppt"))
-                no_fases = to_int(row.get("No fases"))
-                voltaje_nominal = clean_text(row.get("Voltaje nominal"))
+                potencia = to_decimal(get_value(row, "Potencia"))
+                corriente_entrada = to_decimal(get_value(row, "Corriente de entrada"))
+                corriente_salida = to_decimal(get_value(row, "Corriente de salida"))
+                voltaje_arranque = to_decimal(get_value(row, "Voltaje de arranque"))
+                voltaje_maximo_entrada = to_decimal(
+                    get_value(
+                        row,
+                        "Voltaje máximo de entrada",
+                        "Voltaje mÃ¡ximo de entrada",
+                    )
+                )
+                no_mppt = to_int(get_value(row, "No mppt"))
+                no_fases = to_int(get_value(row, "No fases"))
+                voltaje_nominal = clean_text(get_value(row, "Voltaje nominal"))
 
                 _, created = Inversor.objects.update_or_create(
                     marca=marca,
@@ -102,20 +118,26 @@ class Command(BaseCommand):
             self.stdout.write(f"HEADERS MICRO: {reader.fieldnames}")
 
             for row in reader:
-                marca = clean_text(row.get("Marca"))
-                modelo = clean_text(row.get("Modelo"))
+                marca = clean_text(get_value(row, "Marca"))
+                modelo = clean_text(get_value(row, "Modelo"))
 
                 if not marca or not modelo:
                     continue
 
-                potencia = to_decimal(row.get("Potencia"))
-                corriente_entrada = to_decimal(row.get("Corriente de entrada"))
-                corriente_salida = to_decimal(row.get("Corriente de salida"))
-                voltaje_arranque = to_decimal(row.get("Voltaje de arranque"))
-                voltaje_maximo_entrada = to_decimal(row.get("Voltaje máximo de entrada"))
-                no_mppt = to_int(row.get("No mppt"))
-                no_fases = to_int(row.get("No fases"))
-                voltaje_nominal = clean_text(row.get("Voltaje nominal"))
+                potencia = to_decimal(get_value(row, "Potencia"))
+                corriente_entrada = to_decimal(get_value(row, "Corriente de entrada"))
+                corriente_salida = to_decimal(get_value(row, "Corriente de salida"))
+                voltaje_arranque = to_decimal(get_value(row, "Voltaje de arranque"))
+                voltaje_maximo_entrada = to_decimal(
+                    get_value(
+                        row,
+                        "Voltaje máximo de entrada",
+                        "Voltaje mÃ¡ximo de entrada",
+                    )
+                )
+                no_mppt = to_int(get_value(row, "No mppt"))
+                no_fases = to_int(get_value(row, "No fases"))
+                voltaje_nominal = clean_text(get_value(row, "Voltaje nominal"))
 
                 _, created = MicroInversor.objects.update_or_create(
                     marca=marca,

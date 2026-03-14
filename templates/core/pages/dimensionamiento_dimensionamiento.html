@@ -56,7 +56,6 @@
             </div>
           </div>
 
-          <!-- ✅ NUEVO: potencia_total -->
           <div class="col-12 col-md-3">
             <div class="small text-muted">Potencia total (kW)</div>
             <div class="fw-semibold">
@@ -68,7 +67,29 @@
             </div>
           </div>
 
-          <div class="col-12 mt-2">
+          <div class="col-12 col-md-3 mt-2">
+            <div class="small text-muted">Voc del módulo</div>
+            <div class="fw-semibold">
+              {% if info_modulos.voc_modulo %}
+                {{ info_modulos.voc_modulo }} V
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 col-md-3 mt-2">
+            <div class="small text-muted">Voltaje máximo de entrada</div>
+            <div class="fw-semibold">
+              {% if info_modulos.voltaje_maximo_entrada %}
+                {{ info_modulos.voltaje_maximo_entrada }} V
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 mt-2">
             <div class="small text-muted">Modelo del módulo</div>
             <div class="fw-semibold">
               {% if info_modulos.modelo_modulo %}
@@ -85,7 +106,6 @@
       <!-- Tipo instalación + cantidad -->
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-6">
-          <!-- ✅ MODIFICADO (Paso 5): botones + Agregar según tipo -->
           <div class="d-flex align-items-center justify-content-between gap-2">
             <label class="form-label fw-semibold mb-0" for="tipoInstalacion">Tipo de instalación</label>
 
@@ -129,7 +149,7 @@
         </div>
       </div>
 
-      <!-- ✅ Catálogos ocultos (se leen desde JS) -->
+      <!-- Catálogos ocultos -->
       <div class="d-none">
         <select id="tplInversores">
           <option value="">-- Selecciona --</option>
@@ -159,7 +179,6 @@
       </div>
     </form>
 
-    <!-- ✅ TABLA ABAJO (config guardada) -->
     {% if detalles_guardados %}
       <hr class="my-4">
       <h3 class="h6 fw-bold mb-3">Configuración guardada</h3>
@@ -198,14 +217,56 @@
                   {% endif %}
                 </td>
               </tr>
+
+              {% if d.validaciones_voc %}
+                <tr>
+                  <td colspan="4">
+                    <div class="small text-muted mb-2">
+                      Validación Voc string vs voltaje máximo de entrada
+                    </div>
+
+                    <div class="d-flex flex-column gap-2">
+                      {% for val in d.validaciones_voc %}
+                        {% if val.resultado.estado == "ok" %}
+                          <div class="alert alert-success py-2 mb-0">
+                            <strong>Cadena {{ val.cadena }}:</strong>
+                            {{ val.resultado.mensaje }}
+                            <div class="small mt-1">
+                              Voc string usado: {{ val.voc_string|default:"—" }} V |
+                              Voltaje máximo de entrada usado: {{ val.voltaje_maximo_entrada|default:"—" }} V
+                            </div>
+                          </div>
+                        {% elif val.resultado.estado == "advertencia" %}
+                          <div class="alert alert-warning py-2 mb-0">
+                            <strong>Cadena {{ val.cadena }}:</strong>
+                            {{ val.resultado.mensaje }}
+                            <div class="small mt-1">
+                              Voc string usado: {{ val.voc_string|default:"—" }} V |
+                              Voltaje máximo de entrada usado: {{ val.voltaje_maximo_entrada|default:"—" }} V
+                            </div>
+                          </div>
+                        {% else %}
+                          <div class="alert alert-danger py-2 mb-0">
+                            <strong>Cadena {{ val.cadena }}:</strong>
+                            {{ val.resultado.mensaje }}
+                            <div class="small mt-1">
+                              Voc string usado: {{ val.voc_string|default:"—" }} V |
+                              Voltaje máximo de entrada usado: {{ val.voltaje_maximo_entrada|default:"—" }} V
+                            </div>
+                          </div>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </td>
+                </tr>
+              {% endif %}
             {% endfor %}
           </tbody>
         </table>
       </div>
 
       {% if proyecto %}
-        <a class="btn btn-outline-danger"
-           href="{% url 'core:dimensionamiento_pdf' proyecto.id %}">
+        <a class="btn btn-outline-danger" href="{% url 'core:dimensionamiento_pdf' proyecto.id %}">
           Descargar PDF
         </a>
       {% endif %}
@@ -233,7 +294,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const tplInv = document.getElementById("tplInversores");
   const tplMic = document.getElementById("tplMicro");
 
-  // ✅ NUEVO (Paso 6): Botones Agregar catálogo según tipo
   const btnAddInv = document.getElementById("btnAddInv");
   const btnAddMicro = document.getElementById("btnAddMicro");
 
@@ -271,7 +331,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const vals = Array.isArray(valores) ? valores : [];
 
     for (let c = 1; c <= cantidad; c++) {
-      const val = (vals[c-1] !== undefined && vals[c-1] !== null) ? vals[c-1] : 1;
+      const val = (vals[c - 1] !== undefined && vals[c - 1] !== null) ? vals[c - 1] : 1;
 
       const div = document.createElement("div");
       div.className = "col-12 col-md-4";
@@ -290,7 +350,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const pre = precarga.find(x => Number(x.indice) === Number(i)) || {};
     const modeloId = pre.modelo_id || "";
     const cadenas = parseInt(pre.no_cadenas || 1, 10);
-    const modulosLista = pre.modulos_por_cadena_lista || []; // ✅ si luego la mandas en precarga
+    const modulosLista = pre.modulos_por_cadena_lista || [];
     const modulos = pre.modulos_por_cadena || 1;
 
     const block = document.createElement("div");
@@ -316,22 +376,18 @@ document.addEventListener("DOMContentLoaded", function () {
       <div class="row g-3 mt-2" id="cadenas_container_${i}"></div>
     `;
 
-    // set modelo seleccionado
     const sel = block.querySelector(`#modelo_${i}`);
     if (sel && modeloId) sel.value = String(modeloId);
 
-    // pintar cadenas
     const inputCadenas = block.querySelector(`#cadenas_${i}`);
-
-    // si no hay lista, usamos el valor viejo repetido
-    let valores = modulosLista.length ? modulosLista : Array.from({length: cadenas}, () => modulos);
+    let valores = modulosLista.length ? modulosLista : Array.from({ length: cadenas }, () => modulos);
     renderCadenas(i, cadenas, valores);
 
     inputCadenas.addEventListener("input", function () {
       let n = parseInt(this.value || "1", 10);
       if (!Number.isFinite(n) || n < 1) n = 1;
       if (n > 20) n = 20;
-      renderCadenas(i, n, []); // al cambiar, reinicia a 1
+      renderCadenas(i, n, []);
     });
 
     return block;
