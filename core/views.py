@@ -1590,12 +1590,15 @@ def dimensionamiento_dimensionamiento(request):
     info_modulos = {
         "no_modulos": getattr(resultado, "no_modulos", None),
         "modelo_modulo": None,
+        "voc_modulo": None,
+        "voltaje_maximo_entrada": None,
     }
 
     panel_voc = None
     if np_obj and getattr(np_obj, "panel", None):
         info_modulos["modelo_modulo"] = f"{np_obj.panel.marca} - {np_obj.panel.modelo} ({np_obj.panel.potencia} W)"
         panel_voc = to_decimal_or_none(np_obj.panel.voc)
+        info_modulos["voc_modulo"] = panel_voc
 
     current_tipo = getattr(dim, "tipo_inversor", "INVERSOR") if dim else "INVERSOR"
     current_no_inv = getattr(dim, "no_inversores", 1) if dim else 1
@@ -1611,19 +1614,32 @@ def dimensionamiento_dimensionamiento(request):
             "modulos_por_cadena_lista": (d.modulos_por_cadena_lista if d and d.modulos_por_cadena_lista else []),
         })
 
-    detalles_guardados = []
-    if dim:
-        detalles_guardados = list(
-            DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
-            .select_related("inversor", "micro_inversor")
-            .order_by("indice")
-        )
-
-        for d in detalles_guardados:
-            equipo = d.inversor if d.inversor_id else d.micro_inversor
-            voltaje_maximo_entrada = to_decimal_or_none(
-                getattr(equipo, "voltaje_maximo_entrada", None)
+        detalles_guardados = []
+        if dim:
+            detalles_guardados = list(
+                DimensionamientoDetalle.objects.filter(dimensionamiento=dim)
+                .select_related("inversor", "micro_inversor")
+                .order_by("indice")
             )
+
+            # Obtener voltaje máximo del primer inversor o micro inversor
+            if detalles_guardados:
+                primer_equipo = (
+                    detalles_guardados[0].inversor
+                    if detalles_guardados[0].inversor_id
+                    else detalles_guardados[0].micro_inversor
+                )
+
+                info_modulos["voltaje_maximo_entrada"] = to_decimal_or_none(
+                    getattr(primer_equipo, "voltaje_maximo_entrada", None)
+                )
+
+            for d in detalles_guardados:
+                equipo = d.inversor if d.inversor_id else d.micro_inversor
+
+                voltaje_maximo_entrada = to_decimal_or_none(
+                    getattr(equipo, "voltaje_maximo_entrada", None)
+                )
 
             lista_modulos = d.modulos_por_cadena_lista or []
             if not lista_modulos:
