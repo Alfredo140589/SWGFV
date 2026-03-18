@@ -3311,15 +3311,30 @@ def calculo_caida_tension(request):
                 raiz_fp = Decimal(str(math.sqrt(max(0.0, 1.0 - float(factor_potencia_ac) ** 2))))
 
                 if int(proyecto.Numero_Fases or 0) in (1, 2):
-                    voltaje_tension_ac = Decimal("2") * corriente_salida * longitud_ac * (
+                    voltaje_tension_ac_calculado = Decimal("2") * corriente_salida * longitud_ac * (
                         (calculo_rt_ac * factor_potencia_ac) + (reactancia * raiz_fp)
                     )
                 else:
-                    voltaje_tension_ac = Decimal(str(math.sqrt(3))) * corriente_salida * longitud_ac * (
+                    voltaje_tension_ac_calculado = Decimal(str(math.sqrt(3))) * corriente_salida * longitud_ac * (
                         (calculo_rt_ac * factor_potencia_ac) + (reactancia * raiz_fp)
                     )
 
-                porcentaje_voltaje_tension_ac = (voltaje_tension_ac / voltaje_num) * Decimal("100") if voltaje_num > 0 else Decimal("0")
+                # =====================================================
+                # AJUSTE SOLICITADO:
+                # - "Voltaje de caída de tensión AC" tomará el valor que
+                #   actualmente estaba usando "Porcentaje de caída..."
+                # - "Porcentaje de caída de tensión AC" se recalcula como:
+                #   (Voltaje de caída de tensión AC / voltaje de sitio) * 100
+                # =====================================================
+                voltaje_tension_ac = (
+                    (voltaje_tension_ac_calculado / voltaje_num) * Decimal("100")
+                    if voltaje_num > 0 else Decimal("0")
+                )
+
+                porcentaje_voltaje_tension_ac = (
+                    (voltaje_tension_ac / voltaje_num) * Decimal("100")
+                    if voltaje_num > 0 else Decimal("0")
+                )
 
                 resultado_obj = ResultadoTension.objects.create(
                     voltaje_tension_ac=D(voltaje_tension_ac),
