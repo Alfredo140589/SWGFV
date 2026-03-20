@@ -297,6 +297,8 @@ def _read_reset_token(token: str):
 def login_view(request):
     """
     Login con Google reCAPTCHA + lock por usuario (LoginLock en BD).
+    El reCAPTCHA NO cuenta como intento fallido.
+    Solo usuario/contraseña incorrectos cuentan para bloqueo.
     """
     try:
         if request.session.get("usuario") and request.session.get("tipo"):
@@ -368,17 +370,16 @@ def login_view(request):
 
             # =====================================================
             # Validación Google reCAPTCHA
+            # IMPORTANTE: no cuenta como intento fallido
             # =====================================================
             if not verificar_recaptcha_google(request):
-                fails = _register_fail(usuario_input)
-
-                if fails >= MAX_FAILS:
-                    messages.error(request, "Cuenta bloqueada por 30 minutos (demasiados intentos).")
-                else:
-                    messages.error(request, f"Verifica que no eres un robot. Intento {fails}/{MAX_FAILS}.")
-
+                messages.error(request, "Verifica que no eres un robot.")
                 return _render_login()
 
+            # =====================================================
+            # Validación de usuario y contraseña
+            # SOLO esto cuenta como intento fallido
+            # =====================================================
             password = form.cleaned_data["password"]
             u = authenticate_local(usuario_input, password)
 
