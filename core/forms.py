@@ -258,7 +258,36 @@ class CuentaUpdateForm(forms.ModelForm):
 # ======================================================
 # PROYECTOS
 # ======================================================
+
+# ======================================================
+# PROYECTOS
+# ======================================================
+VOLTAJE_NOMINAL_CHOICES = [
+    ("127", "127"),
+    ("220", "220"),
+    ("240", "240"),
+    ("440", "440"),
+    ("480", "480"),
+]
+
+NUMERO_FASES_CHOICES = [
+    (1, "1"),
+    (2, "2"),
+    (3, "3"),
+]
+
+
 class ProyectoCreateForm(forms.ModelForm):
+    Voltaje_Nominal = forms.ChoiceField(
+        choices=[("", "Selecciona voltaje")] + VOLTAJE_NOMINAL_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    Numero_Fases = forms.ChoiceField(
+        choices=[("", "Selecciona fases")] + NUMERO_FASES_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
     class Meta:
         model = Proyecto
         fields = [
@@ -274,8 +303,6 @@ class ProyectoCreateForm(forms.ModelForm):
             "Nombre_Empresa": forms.TextInput(attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}),
             "Direccion": forms.TextInput(attrs={"class": "form-control", "placeholder": "Dirección"}),
             "Coordenadas": forms.TextInput(attrs={"class": "form-control", "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"}),
-            "Voltaje_Nominal": forms.TextInput(attrs={"class": "form-control", "placeholder": "Voltaje nominal (ej. 127/220)"}),
-            "Numero_Fases": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 3}),
         }
 
     def clean_Coordenadas(self):
@@ -293,9 +320,21 @@ class ProyectoCreateForm(forms.ModelForm):
 
     def clean_Voltaje_Nominal(self):
         value = (self.cleaned_data.get("Voltaje_Nominal") or "").strip()
-        if not value:
-            raise forms.ValidationError("El voltaje nominal es obligatorio.")
+        valores_validos = {"127", "220", "240", "440", "480"}
+        if value not in valores_validos:
+            raise forms.ValidationError("Selecciona un voltaje nominal válido.")
         return value
+
+    def clean_Numero_Fases(self):
+        value = self.cleaned_data.get("Numero_Fases")
+        try:
+            value_int = int(value)
+        except (TypeError, ValueError):
+            raise forms.ValidationError("Selecciona un número de fases válido.")
+
+        if value_int not in (1, 2, 3):
+            raise forms.ValidationError("Selecciona un número de fases válido.")
+        return value_int
 
 
 class ProyectoUpdateForm(ProyectoCreateForm):
