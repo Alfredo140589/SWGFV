@@ -23,14 +23,6 @@ class LoginForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Ingrese su contraseña"}
         ),
     )
-    captcha = forms.CharField(
-        label="Captcha",
-        required=True,
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Escribe el resultado"}
-        ),
-    )
-
 
 # ======================================================
 # RECUPERACIÓN DE CONTRASEÑA

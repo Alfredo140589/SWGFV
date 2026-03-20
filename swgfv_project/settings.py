@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "core",
+    "django_recaptcha",
 ]
 
 # =========================
@@ -149,7 +150,6 @@ CACHES = {
 # =========================
 # EMAIL (SMTP CORPORATIVO)
 # =========================
-import os
 
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
@@ -179,3 +179,23 @@ CSRF_COOKIE_SECURE = not DEBUG
 # MismaSite recomendado
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
+
+
+# =========================
+# Google reCAPTCHA v2
+# - Local: usa claves de prueba oficiales de Google
+# - Producción: usa variables de entorno reales
+# =========================
+if DEBUG:
+    RECAPTCHA_PUBLIC_KEY = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+    RECAPTCHA_PRIVATE_KEY = "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe"
+else:
+    RECAPTCHA_PUBLIC_KEY = os.getenv("RECAPTCHA_PUBLIC_KEY", "")
+    RECAPTCHA_PRIVATE_KEY = os.getenv("RECAPTCHA_PRIVATE_KEY", "")
+
+# =========================
+# Silenciar validación de claves de prueba SOLO en local
+# =========================
+if DEBUG:
+    SILENCED_SYSTEM_CHECKS = ["django_recaptcha.recaptcha_test_key_error"]
+
