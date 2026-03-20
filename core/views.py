@@ -563,10 +563,14 @@ def proyecto_alta(request):
 
     form = ProyectoCreateForm(request.POST or None)
     proyecto_creado = None
+    missing_required_fields = []
 
     proyecto_id = (request.GET.get("created") or "").strip()
     if proyecto_id.isdigit():
-        proyecto_creado = Proyecto.objects.filter(id=int(proyecto_id), ID_Usuario_id=session_id_usuario).first()
+        proyecto_creado = Proyecto.objects.filter(
+            id=int(proyecto_id),
+            ID_Usuario_id=session_id_usuario
+        ).first()
 
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
@@ -591,7 +595,19 @@ def proyecto_alta(request):
             messages.success(request, "✅ Proyecto registrado correctamente.")
             return redirect(f"{reverse('core:proyecto_alta')}?created={proyecto.id}")
 
-        messages.error(request, "Revisa el formulario e intenta nuevamente.")
+        # Detectar campos obligatorios faltantes para popup
+        required_field_map = {
+            "Nombre_Proyecto": "Nombre del proyecto",
+            "Direccion": "Dirección",
+            "Coordenadas": "Coordenadas",
+            "Voltaje_Nominal": "Voltaje nominal",
+            "Numero_Fases": "Número de fases",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
 
     return render(
         request,
@@ -599,8 +615,10 @@ def proyecto_alta(request):
         {
             "form": form,
             "proyecto_creado": proyecto_creado,
+            "missing_required_fields": missing_required_fields,
         }
     )
+
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_consulta(request):

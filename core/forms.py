@@ -258,10 +258,6 @@ class CuentaUpdateForm(forms.ModelForm):
 # ======================================================
 # PROYECTOS
 # ======================================================
-
-# ======================================================
-# PROYECTOS
-# ======================================================
 VOLTAJE_NOMINAL_CHOICES = [
     ("127", "127"),
     ("220", "220"),
@@ -276,16 +272,30 @@ NUMERO_FASES_CHOICES = [
     (3, "3"),
 ]
 
+SQL_RESERVED_WORDS = {
+    "select", "insert", "update", "delete", "drop", "truncate", "alter",
+    "create", "replace", "rename", "exec", "execute", "union", "from",
+    "where", "join", "table", "database", "into", "values", "grant",
+    "revoke", "or", "and", "not", "null", "like", "having", "group",
+    "order", "by", "limit"
+}
+
 
 class ProyectoCreateForm(forms.ModelForm):
     Voltaje_Nominal = forms.ChoiceField(
         choices=[("", "Selecciona voltaje")] + VOLTAJE_NOMINAL_CHOICES,
         widget=forms.Select(attrs={"class": "form-select"}),
+        error_messages={
+            "required": "El voltaje nominal es obligatorio."
+        },
     )
 
     Numero_Fases = forms.ChoiceField(
         choices=[("", "Selecciona fases")] + NUMERO_FASES_CHOICES,
         widget=forms.Select(attrs={"class": "form-select"}),
+        error_messages={
+            "required": "El número de fases es obligatorio."
+        },
     )
 
     class Meta:
@@ -299,23 +309,147 @@ class ProyectoCreateForm(forms.ModelForm):
             "Numero_Fases",
         ]
         widgets = {
-            "Nombre_Proyecto": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nombre del proyecto"}),
-            "Nombre_Empresa": forms.TextInput(attrs={"class": "form-control", "placeholder": "Empresa (opcional)"}),
-            "Direccion": forms.TextInput(attrs={"class": "form-control", "placeholder": "Dirección"}),
-            "Coordenadas": forms.TextInput(attrs={"class": "form-control", "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"}),
+            "Nombre_Proyecto": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre del proyecto",
+                "maxlength": "25",
+            }),
+            "Nombre_Empresa": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Empresa (opcional)",
+                "maxlength": "20",
+            }),
+            "Direccion": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Dirección",
+                "maxlength": "100",
+            }),
+            "Coordenadas": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"
+            }),
         }
+        error_messages = {
+            "Nombre_Proyecto": {
+                "required": "El nombre del proyecto es obligatorio.",
+            },
+            "Direccion": {
+                "required": "La dirección es obligatoria.",
+            },
+            "Coordenadas": {
+                "required": "Las coordenadas son obligatorias.",
+            },
+        }
+
+    # ==========================
+    # VALIDADORES AUXILIARES
+    # ==========================
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({token for token in tokens if token in SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(
+                f"{label}: contiene palabras no permitidas."
+            )
+
+    def _validate_dangerous_patterns(self, value, label):
+        dangerous_patterns = [
+            r"--",
+            r";",
+            r"/\*",
+            r"\*/",
+            r"@@",
+            r"<",
+            r">",
+            r"`",
+            r"'",
+            r'"',
+        ]
+        for pattern in dangerous_patterns:
+            if re.search(pattern, value):
+                raise forms.ValidationError(
+                    f"{label}: contiene caracteres o secuencias no permitidas."
+                )
+
+    def _validate_text_field(self, value, label, max_len, required=True, allowed_pattern=None):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(
+                f"{label}: máximo {max_len} caracteres."
+            )
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        if allowed_pattern and not re.fullmatch(allowed_pattern, value):
+            raise forms.ValidationError(
+                f"{label}: contiene caracteres no permitidos."
+            )
+
+        return value
+
+    # ==========================
+    # VALIDACIONES POR CAMPO
+    # ==========================
+    def clean_Nombre_Proyecto(self):
+        value = self.cleaned_data.get("Nombre_Proyecto")
+        return self._validate_text_field(
+            value=value,
+            label="Nombre del proyecto",
+            max_len=25,
+            required=True,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+"
+        )
+
+    def clean_Nombre_Empresa(self):
+        value = self.cleaned_data.get("Nombre_Empresa")
+        return self._validate_text_field(
+            value=value,
+            label="Empresa",
+            max_len=20,
+            required=False,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,&\-()]*"
+        )
+
+    def clean_Direccion(self):
+        value = self.cleaned_data.get("Direccion")
+        return self._validate_text_field(
+            value=value,
+            label="Dirección",
+            max_len=100,
+            required=True,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,#/\-°]+"
+        )
 
     def clean_Coordenadas(self):
         value = (self.cleaned_data.get("Coordenadas") or "").strip()
+
+        if not value:
+            raise forms.ValidationError("Las coordenadas son obligatorias.")
+
+        # Conserva tu validación actual
         m = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$", value)
         if not m:
-            raise forms.ValidationError("Coordenadas inválidas. Usa formato: latitud, longitud (ej. 19.4326, -99.1332)")
+            raise forms.ValidationError(
+                "Coordenadas inválidas. Usa formato: latitud, longitud (ej. 19.4326, -99.1332)"
+            )
+
         lat = float(m.group(1))
         lon = float(m.group(2))
+
         if not (-90 <= lat <= 90):
             raise forms.ValidationError("Latitud inválida. Debe estar entre -90 y 90.")
+
         if not (-180 <= lon <= 180):
             raise forms.ValidationError("Longitud inválida. Debe estar entre -180 y 180.")
+
         return f"{lat}, {lon}"
 
     def clean_Voltaje_Nominal(self):
