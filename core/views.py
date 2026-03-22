@@ -48,6 +48,7 @@ from .forms import (
     CuentaUpdateForm,
     ProyectoCreateForm,
     ProyectoUpdateForm,
+    ProyectoConsultaForm,
     PasswordRecoveryRequestForm,
     PasswordResetForm,
     NumeroPanelesForm,
@@ -619,128 +620,210 @@ def proyecto_alta(request):
         }
     )
 
+
+
+# =========================================================
+# CONSULTA DE PROYECTOS (CORREGIDO)
+# =========================================================
 @require_session_login
 @require_http_methods(["GET"])
 def proyecto_consulta(request):
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
+    es_admin = session_tipo == "Administrador"
 
-    q_id = (request.GET.get("id") or "").strip()
-    q_nombre = (request.GET.get("nombre") or "").strip()
-    q_empresa = (request.GET.get("empresa") or "").strip()
-    q_usuario = (request.GET.get("usuario") or "").strip()
-    proyecto_select = (request.GET.get("proyecto") or "").strip()
-
-    if session_tipo == "Administrador":
+    if es_admin:
         proyectos_dropdown = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
-        qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
+        qs_base = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
     else:
         proyectos_dropdown = Proyecto.objects.select_related("ID_Usuario").filter(
             ID_Usuario_id=session_id_usuario
         ).order_by("-id")
-        qs = proyectos_dropdown
+        qs_base = proyectos_dropdown
 
-    mostrar_lista = any([proyecto_select, q_id, q_nombre, q_empresa, q_usuario])
+    form = ProyectoConsultaForm(
+        request.GET or None,
+        proyectos_dropdown=proyectos_dropdown,
+        es_admin=es_admin,
+    )
 
-    if proyecto_select:
-        if proyecto_select.isdigit():
-            qs = qs.filter(id=int(proyecto_select))
+    proyectos = []
+    mostrar_lista = False
+    show_required_popup = False
+    proyecto_select_int = None
+
+    q_id = ""
+    q_nombre = ""
+    q_empresa = ""
+    q_usuario = ""
+
+    if request.GET:
+        if form.is_valid():
+            proyecto_select = (form.cleaned_data.get("proyecto") or "").strip()
+            q_id = (form.cleaned_data.get("id") or "").strip()
+            q_nombre = (form.cleaned_data.get("nombre") or "").strip()
+            q_empresa = (form.cleaned_data.get("empresa") or "").strip()
+            q_usuario = ""
+
+            if es_admin and "usuario" in form.cleaned_data:
+                q_usuario = (form.cleaned_data.get("usuario") or "").strip()
+
+            qs = qs_base
+            mostrar_lista = True
+
+            if proyecto_select:
+                proyecto_select_int = int(proyecto_select)
+                qs = qs.filter(id=proyecto_select_int)
+
+            if q_id:
+                qs = qs.filter(id=int(q_id))
+
+            if q_nombre:
+                qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+
+            if q_empresa:
+                qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
+
+            if q_usuario and es_admin:
+                qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
+
+            proyectos = list(qs)
+
+            # ✅ ESTADO PDF
+            for p in proyectos:
+                estado = _project_completion_status(p)
+                p.pdf_completo = estado["completo"]
+                p.pdf_faltantes = estado["faltantes"]
+
         else:
-            qs = Proyecto.objects.none()
+            non_field_errors = form.non_field_errors()
+            if non_field_errors and any(
+                "Debes ingresar al menos un campo para buscar." in str(err)
+                for err in non_field_errors
+            ):
+                show_required_popup = True
 
-    if q_id:
-        if q_id.isdigit():
-            qs = qs.filter(id=int(q_id))
-        else:
-            qs = Proyecto.objects.none()
+            proyecto_raw = (request.GET.get("proyecto") or "").strip()
+            q_id = (request.GET.get("id") or "").strip()
+            q_nombre = (request.GET.get("nombre") or "").strip()
+            q_empresa = (request.GET.get("empresa") or "").strip()
+            q_usuario = (request.GET.get("usuario") or "").strip()
 
-    if q_nombre:
-        qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+            if proyecto_raw.isdigit():
+                proyecto_select_int = int(proyecto_raw)
 
-    if q_empresa:
-        qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
-
-    if q_usuario and session_tipo == "Administrador":
-        qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
-
-    proyectos = list(qs)
-
-    # =====================================================
-    # Evaluar si el proyecto está completo para PDF maestro
-    # =====================================================
-    for p in proyectos:
-        estado = _project_completion_status(p)
-        p.pdf_completo = estado["completo"]
-        p.pdf_faltantes = estado["faltantes"]
-
-    context = {
-        "proyectos": proyectos,
-        "mostrar_lista": mostrar_lista,
-        "q_id": q_id,
-        "q_nombre": q_nombre,
-        "q_empresa": q_empresa,
-        "q_usuario": q_usuario,
-        "es_admin": (session_tipo == "Administrador"),
-        "proyectos_dropdown": proyectos_dropdown,
-        "proyecto_select": proyecto_select,
-    }
-    return render(request, "core/pages/proyecto_consulta.html", context)
-
+    return render(
+        request,
+        "core/pages/proyecto_consulta.html",
+        {
+            "form": form,
+            "proyectos_dropdown": proyectos_dropdown,
+            "proyectos": proyectos,
+            "mostrar_lista": mostrar_lista,
+            "es_admin": es_admin,
+            "proyecto_select_int": proyecto_select_int,
+            "q_id": q_id,
+            "q_nombre": q_nombre,
+            "q_empresa": q_empresa,
+            "q_usuario": q_usuario,
+            "show_required_popup": show_required_popup,
+        }
+    )
 
 @require_session_login
 @require_http_methods(["GET", "POST"])
 def proyecto_modificacion(request):
     session_tipo = (request.session.get("tipo") or "").strip()
     session_id_usuario = request.session.get("id_usuario")
+    es_admin = session_tipo == "Administrador"
 
     q_id = (request.GET.get("id") or "").strip()
     q_nombre = (request.GET.get("nombre") or "").strip()
     q_empresa = (request.GET.get("empresa") or "").strip()
     q_usuario = (request.GET.get("usuario") or "").strip()
     mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
-
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-    mostrar_lista = any([q_id, q_nombre, q_empresa, q_usuario]) or (mostrar_todos and session_tipo == "Administrador")
+    search_submitted = (request.GET.get("action") or "").strip() == "search"
 
-    if session_tipo == "Administrador":
-        qs = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
+    form_busqueda = ProyectoConsultaForm(
+        request.GET if request.GET else None,
+        proyectos_dropdown=None,
+        es_admin=es_admin,
+    )
+
+    if es_admin:
+        qs_base = Proyecto.objects.select_related("ID_Usuario").all().order_by("-id")
     else:
-        qs = Proyecto.objects.select_related("ID_Usuario").filter(ID_Usuario_id=session_id_usuario).order_by("-id")
+        qs_base = Proyecto.objects.select_related("ID_Usuario").filter(
+            ID_Usuario_id=session_id_usuario
+        ).order_by("-id")
 
-    if mostrar_lista:
-        if q_id:
-            if q_id.isdigit():
+    proyectos = Proyecto.objects.none()
+    mostrar_lista = False
+    show_edit_popup = False
+    missing_required_fields = []
+
+    # ==========================
+    # BÚSQUEDA / LISTADO
+    # ==========================
+    solo_mostrar_todos = mostrar_todos and es_admin and not search_submitted and not any([q_id, q_nombre, q_empresa, q_usuario])
+
+    if solo_mostrar_todos:
+        mostrar_lista = True
+        proyectos = qs_base
+
+    elif search_submitted:
+        if form_busqueda.is_valid():
+            q_id = (form_busqueda.cleaned_data.get("id") or "").strip()
+            q_nombre = (form_busqueda.cleaned_data.get("nombre") or "").strip()
+            q_empresa = (form_busqueda.cleaned_data.get("empresa") or "").strip()
+            q_usuario = ""
+            if es_admin and "usuario" in form_busqueda.cleaned_data:
+                q_usuario = (form_busqueda.cleaned_data.get("usuario") or "").strip()
+
+            mostrar_lista = True
+            qs = qs_base
+
+            if q_id:
                 qs = qs.filter(id=int(q_id))
-            else:
-                qs = Proyecto.objects.none()
 
-        if q_nombre:
-            qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
+            if q_nombre:
+                qs = qs.filter(Nombre_Proyecto__icontains=q_nombre)
 
-        if q_empresa:
-            qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
+            if q_empresa:
+                qs = qs.filter(Nombre_Empresa__icontains=q_empresa)
 
-        if q_usuario and session_tipo == "Administrador":
-            qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
+            if q_usuario and es_admin:
+                qs = qs.filter(ID_Usuario__Correo_electronico__icontains=q_usuario)
 
-        proyectos = qs
-    else:
-        proyectos = Proyecto.objects.none()
+            proyectos = qs
+        else:
+            # Mantener el formulario con errores visibles debajo de cada campo
+            mostrar_lista = False
+            proyectos = Proyecto.objects.none()
 
+    # ==========================
+    # PROYECTO SELECCIONADO
+    # ==========================
     seleccionado = None
     form = None
 
     if q_id.isdigit():
         seleccionado = Proyecto.objects.select_related("ID_Usuario").filter(id=int(q_id)).first()
+
         if seleccionado:
-            if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
+            if not es_admin and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
                 messages.error(request, "No tienes permisos para ver/modificar este proyecto.")
                 return redirect("core:proyecto_modificacion")
 
             form = ProyectoUpdateForm(instance=seleccionado)
 
+    # ==========================
+    # POST: GUARDAR / ELIMINAR
+    # ==========================
     if request.method == "POST":
         post_id = (request.GET.get("id") or "").strip()
+
         if not post_id.isdigit():
             messages.error(request, "Selecciona un proyecto válido.")
             return redirect("core:proyecto_modificacion")
@@ -750,7 +833,7 @@ def proyecto_modificacion(request):
             messages.error(request, "El proyecto ya no existe.")
             return redirect("core:proyecto_modificacion")
 
-        if session_tipo != "Administrador" and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
+        if not es_admin and int(seleccionado.ID_Usuario_id) != int(session_id_usuario):
             messages.error(request, "No tienes permisos para modificar este proyecto.")
             return redirect("core:proyecto_modificacion")
 
@@ -762,66 +845,33 @@ def proyecto_modificacion(request):
                     nombre = seleccionado.Nombre_Proyecto
                     pid = seleccionado.id
 
-                    # =====================================================
-                    # 1) Eliminar objetos auxiliares de Cálculo DC
-                    # =====================================================
                     calculos_dc = list(
                         CalculoDC.objects.filter(proyecto=seleccionado).select_related(
                             "condulet", "resultado_dc"
                         )
                     )
+                    condulet_ids_dc = [c.condulet_id for c in calculos_dc if getattr(c, "condulet_id", None)]
+                    resultado_dc_ids = [c.resultado_dc_id for c in calculos_dc if getattr(c, "resultado_dc_id", None)]
 
-                    condulet_ids_dc = [
-                        c.condulet_id for c in calculos_dc
-                        if getattr(c, "condulet_id", None)
-                    ]
-                    resultado_dc_ids = [
-                        c.resultado_dc_id for c in calculos_dc
-                        if getattr(c, "resultado_dc_id", None)
-                    ]
-
-                    # =====================================================
-                    # 2) Eliminar objetos auxiliares de Cálculo AC
-                    # =====================================================
                     calculos_ac = list(
                         CalculoAC.objects.filter(proyecto=seleccionado).select_related(
                             "condulet", "resultado_ac"
                         )
                     )
+                    condulet_ids_ac = [c.condulet_id for c in calculos_ac if getattr(c, "condulet_id", None)]
+                    resultado_ac_ids = [c.resultado_ac_id for c in calculos_ac if getattr(c, "resultado_ac_id", None)]
 
-                    condulet_ids_ac = [
-                        c.condulet_id for c in calculos_ac
-                        if getattr(c, "condulet_id", None)
-                    ]
-                    resultado_ac_ids = [
-                        c.resultado_ac_id for c in calculos_ac
-                        if getattr(c, "resultado_ac_id", None)
-                    ]
-
-                    # =====================================================
-                    # 3) Eliminar objetos auxiliares de Cálculo de Tensión
-                    # =====================================================
                     calculos_tension = list(
                         CalculoTension.objects.filter(proyecto=seleccionado).select_related(
                             "resultado_tension"
                         )
                     )
+                    resultado_tension_ids = [c.resultado_tension_id for c in calculos_tension if getattr(c, "resultado_tension_id", None)]
 
-                    resultado_tension_ids = [
-                        c.resultado_tension_id for c in calculos_tension
-                        if getattr(c, "resultado_tension_id", None)
-                    ]
-
-                    # =====================================================
-                    # 4) Eliminar primero los cálculos que apuntan a auxiliares
-                    # =====================================================
                     CalculoTension.objects.filter(proyecto=seleccionado).delete()
                     CalculoAC.objects.filter(proyecto=seleccionado).delete()
                     CalculoDC.objects.filter(proyecto=seleccionado).delete()
 
-                    # =====================================================
-                    # 5) Eliminar auxiliares ya desligados
-                    # =====================================================
                     condulet_ids = list(set(condulet_ids_dc + condulet_ids_ac))
                     if condulet_ids:
                         Condulet.objects.filter(id__in=condulet_ids).delete()
@@ -835,11 +885,6 @@ def proyecto_modificacion(request):
                     if resultado_tension_ids:
                         ResultadoTension.objects.filter(id__in=resultado_tension_ids).delete()
 
-                    # =====================================================
-                    # 6) Eliminar el proyecto
-                    #    Esto borra en cascada NumeroPaneles, ResultadoPaneles,
-                    #    Dimensionamiento, DimensionamientoDetalle y demás relaciones
-                    # =====================================================
                     seleccionado.delete()
 
                 log_event(request, "PROJECT_DELETED", f"Eliminó proyecto: {nombre}", "Proyecto", pid)
@@ -858,6 +903,7 @@ def proyecto_modificacion(request):
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
 
         form = ProyectoUpdateForm(request.POST, instance=seleccionado)
+
         if form.is_valid():
             form.save()
             log_event(
@@ -870,23 +916,39 @@ def proyecto_modificacion(request):
             messages.success(request, "Proyecto actualizado correctamente.")
             return redirect(f"{reverse('core:proyecto_modificacion')}?id={seleccionado.id}")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+        required_field_map = {
+            "Nombre_Proyecto": "Nombre del proyecto",
+            "Direccion": "Dirección",
+            "Coordenadas": "Coordenadas",
+            "Voltaje_Nominal": "Voltaje nominal",
+            "Numero_Fases": "Número de fases",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_edit_popup = True
 
     context = {
+        "form_busqueda": form_busqueda,
         "proyectos": proyectos,
         "mostrar_lista": mostrar_lista,
         "q_id": q_id,
         "q_nombre": q_nombre,
         "q_empresa": q_empresa,
         "q_usuario": q_usuario,
-        "es_admin": (session_tipo == "Administrador"),
+        "es_admin": es_admin,
         "seleccionado": seleccionado,
         "form": form,
         "edit_mode": edit_mode,
         "mostrar_todos": mostrar_todos,
+        "show_edit_popup": show_edit_popup,
+        "missing_required_fields": missing_required_fields,
     }
     return render(request, "core/pages/proyecto_modificacion.html", context)
-
 
 # =========================================================
 # USUARIOS

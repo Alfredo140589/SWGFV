@@ -470,11 +470,224 @@ class ProyectoCreateForm(forms.ModelForm):
             raise forms.ValidationError("Selecciona un número de fases válido.")
         return value_int
 
-
 class ProyectoUpdateForm(ProyectoCreateForm):
     class Meta(ProyectoCreateForm.Meta):
-        pass
+        widgets = {
+            "Nombre_Proyecto": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Nombre del proyecto",
+                "maxlength": "25",
+            }),
+            "Nombre_Empresa": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Empresa (opcional)",
+                "maxlength": "20",
+            }),
+            "Direccion": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Dirección",
+                "maxlength": "100",
+            }),
+            "Coordenadas": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Latitud, Longitud (ej. 19.4326, -99.1332)"
+            }),
+        }
 
+    def clean_Nombre_Proyecto(self):
+        value = self.cleaned_data.get("Nombre_Proyecto")
+        return self._validate_text_field(
+            value=value,
+            label="Nombre del proyecto",
+            max_len=25,
+            required=True,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+"
+        )
+
+    def clean_Nombre_Empresa(self):
+        value = self.cleaned_data.get("Nombre_Empresa")
+        return self._validate_text_field(
+            value=value,
+            label="Empresa",
+            max_len=20,
+            required=False,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,&\-()]*"
+        )
+
+    def clean_Direccion(self):
+        value = self.cleaned_data.get("Direccion")
+        return self._validate_text_field(
+            value=value,
+            label="Dirección",
+            max_len=100,
+            required=True,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,#/\-°]+"
+        )
+
+# ======================================================
+# CONSULTA DE PROYECTOS
+# ======================================================
+class ProyectoConsultaForm(forms.Form):
+    proyecto = forms.ChoiceField(
+        required=False,
+        choices=[("", "-- Selecciona --")],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    id = forms.CharField(
+        required=False,
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "ID",
+            "maxlength": "20",
+        }),
+    )
+
+    nombre = forms.CharField(
+        required=False,
+        max_length=35,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Nombre",
+            "maxlength": "35",
+        }),
+    )
+
+    empresa = forms.CharField(
+        required=False,
+        max_length=25,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Empresa",
+            "maxlength": "25",
+        }),
+    )
+
+    usuario = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={
+            "class": "form-control",
+            "placeholder": "correo@...",
+            "maxlength": "150",
+        }),
+        error_messages={
+            "invalid": "Ingresa un correo electrónico válido.",
+        },
+    )
+
+    def __init__(self, *args, **kwargs):
+        proyectos_dropdown = kwargs.pop("proyectos_dropdown", None)
+        es_admin = kwargs.pop("es_admin", False)
+        super().__init__(*args, **kwargs)
+
+        if proyectos_dropdown is not None:
+            self.fields["proyecto"].choices = [("", "-- Selecciona --")] + [
+                (str(p.id), f"ID {p.id} — {p.Nombre_Proyecto}") for p in proyectos_dropdown
+            ]
+
+        if not es_admin:
+            self.fields.pop("usuario", None)
+
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({token for token in tokens if token in SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        dangerous_patterns = [
+            r"--",
+            r";",
+            r"/\*",
+            r"\*/",
+            r"@@",
+            r"<",
+            r">",
+            r"`",
+            r"'",
+            r'"',
+        ]
+        for pattern in dangerous_patterns:
+            if re.search(pattern, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres o secuencias no permitidas.")
+
+    def _validate_text_field(self, value, label, max_len, allowed_pattern=None):
+        value = (value or "").strip()
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        if allowed_pattern and not re.fullmatch(allowed_pattern, value):
+            raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+        return value
+
+    def clean_proyecto(self):
+        value = (self.cleaned_data.get("proyecto") or "").strip()
+        if not value:
+            return ""
+        if not value.isdigit():
+            raise forms.ValidationError("Selecciona un proyecto válido.")
+        return value
+
+    def clean_id(self):
+        value = (self.cleaned_data.get("id") or "").strip()
+        if not value:
+            return ""
+        if not value.isdigit():
+            raise forms.ValidationError("El ID debe contener solo números enteros.")
+        return value
+
+    def clean_nombre(self):
+        value = self.cleaned_data.get("nombre")
+        return self._validate_text_field(
+            value=value,
+            label="Nombre del proyecto",
+            max_len=35,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+"
+        )
+
+    def clean_empresa(self):
+        value = self.cleaned_data.get("empresa")
+        return self._validate_text_field(
+            value=value,
+            label="Empresa",
+            max_len=25,
+            allowed_pattern=r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,&\-()]*"
+        )
+
+    def clean_usuario(self):
+        value = (self.cleaned_data.get("usuario") or "").strip()
+        if not value:
+            return ""
+
+        self._validate_dangerous_patterns(value, "Usuario (correo)")
+        self._validate_reserved_words(value, "Usuario (correo)")
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        proyecto = (cleaned_data.get("proyecto") or "").strip()
+        q_id = (cleaned_data.get("id") or "").strip()
+        nombre = (cleaned_data.get("nombre") or "").strip()
+        empresa = (cleaned_data.get("empresa") or "").strip()
+
+        usuario = ""
+        if "usuario" in self.fields:
+            usuario = (cleaned_data.get("usuario") or "").strip()
+
+        if not any([proyecto, q_id, nombre, empresa, usuario]):
+            raise forms.ValidationError("Debes ingresar al menos un campo para buscar.")
+
+        return cleaned_data
 
 # =========================================================
 # ✅ FORM “VIEJO/UI”: NumeroModulosForm (para que NO truene el import)

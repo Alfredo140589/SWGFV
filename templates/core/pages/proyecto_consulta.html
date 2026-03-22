@@ -10,40 +10,48 @@
       Consulta de Proyectos
     </h2>
 
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" novalidate>
       <div class="row g-3">
 
         <div class="col-12 col-md-6">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Selecciona un proyecto</label>
-          <select name="proyecto" class="form-select">
-            <option value="">-- Selecciona --</option>
-            {% for p in proyectos_dropdown %}
-              <option value="{{ p.id }}" {% if proyecto_select_int == p.id %}selected{% endif %}>
-                ID {{ p.id }} — {{ p.Nombre_Proyecto }}
-              </option>
-            {% endfor %}
-          </select>
+          {{ form.proyecto }}
+          {% if form.proyecto.errors %}
+            <div class="text-danger small mt-1">{{ form.proyecto.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-2">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+          {{ form.id }}
+          {% if form.id.errors %}
+            <div class="text-danger small mt-1">{{ form.id.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del proyecto</label>
-          <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
+          {{ form.nombre }}
+          {% if form.nombre.errors %}
+            <div class="text-danger small mt-1">{{ form.nombre.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Empresa</label>
-          <input type="text" name="empresa" value="{{ q_empresa }}" class="form-control" placeholder="Empresa">
+          {{ form.empresa }}
+          {% if form.empresa.errors %}
+            <div class="text-danger small mt-1">{{ form.empresa.errors }}</div>
+          {% endif %}
         </div>
 
-        {% if es_admin %}
+        {% if es_admin and form.usuario %}
         <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Usuario (correo)</label>
-          <input type="text" name="usuario" value="{{ q_usuario }}" class="form-control" placeholder="correo@...">
+          {{ form.usuario }}
+          {% if form.usuario.errors %}
+            <div class="text-danger small mt-1">{{ form.usuario.errors }}</div>
+          {% endif %}
         </div>
         {% endif %}
 
@@ -131,4 +139,38 @@
 
   </div>
 </div>
+
+{% if show_required_popup %}
+<div class="modal fade" id="requiredSearchModal" tabindex="-1" aria-labelledby="requiredSearchModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="requiredSearchModalLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar por lo menos un campo para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  {% if show_required_popup %}
+    const modalEl = document.getElementById("requiredSearchModal");
+    if (modalEl) {
+      const requiredModal = new bootstrap.Modal(modalEl);
+      requiredModal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}

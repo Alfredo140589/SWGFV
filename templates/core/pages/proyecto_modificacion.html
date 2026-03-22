@@ -10,46 +10,47 @@
       Modificación de Proyectos
     </h2>
 
-    {% if messages %}
-      <div class="mb-3">
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" novalidate id="searchFormModificacion">
       <div class="row g-3">
 
         <div class="col-12 col-md-2">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+          {{ form_busqueda.id }}
+          {% if form_busqueda.id.errors %}
+            <div class="text-danger small mt-1">{{ form_busqueda.id.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-4">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del proyecto</label>
-          <input type="text" name="nombre" value="{{ q_nombre }}" class="form-control" placeholder="Nombre">
+          {{ form_busqueda.nombre }}
+          {% if form_busqueda.nombre.errors %}
+            <div class="text-danger small mt-1">{{ form_busqueda.nombre.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-3">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Empresa</label>
-          <input type="text" name="empresa" value="{{ q_empresa }}" class="form-control" placeholder="Empresa">
+          {{ form_busqueda.empresa }}
+          {% if form_busqueda.empresa.errors %}
+            <div class="text-danger small mt-1">{{ form_busqueda.empresa.errors }}</div>
+          {% endif %}
         </div>
 
-        {% if es_admin %}
+        {% if es_admin and form_busqueda.usuario %}
         <div class="col-12 col-md-3">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Usuario (correo)</label>
-          <input type="text" name="usuario" value="{{ q_usuario }}" class="form-control" placeholder="correo@...">
+          {{ form_busqueda.usuario }}
+          {% if form_busqueda.usuario.errors %}
+            <div class="text-danger small mt-1">{{ form_busqueda.usuario.errors }}</div>
+          {% endif %}
         </div>
         {% endif %}
 
       </div>
 
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <button type="submit" name="action" value="search" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:proyecto_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
 
         {% if es_admin %}
@@ -126,47 +127,43 @@
       <form method="POST" novalidate>
         {% csrf_token %}
 
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-        {% endif %}
-
         <fieldset {% if not edit_mode %}disabled{% endif %}>
           <div class="row g-3">
 
             <div class="col-12 col-md-6">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del proyecto</label>
               {{ form.Nombre_Proyecto }}
-              {% if form.Nombre_Proyecto.errors %}<div class="text-danger">{{ form.Nombre_Proyecto.errors }}</div>{% endif %}
+              {% if form.Nombre_Proyecto.errors %}<div class="text-danger small mt-1">{{ form.Nombre_Proyecto.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-6">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Empresa (opcional)</label>
               {{ form.Nombre_Empresa }}
-              {% if form.Nombre_Empresa.errors %}<div class="text-danger">{{ form.Nombre_Empresa.errors }}</div>{% endif %}
+              {% if form.Nombre_Empresa.errors %}<div class="text-danger small mt-1">{{ form.Nombre_Empresa.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Dirección</label>
               {{ form.Direccion }}
-              {% if form.Direccion.errors %}<div class="text-danger">{{ form.Direccion.errors }}</div>{% endif %}
+              {% if form.Direccion.errors %}<div class="text-danger small mt-1">{{ form.Direccion.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-6">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Coordenadas</label>
               {{ form.Coordenadas }}
-              {% if form.Coordenadas.errors %}<div class="text-danger">{{ form.Coordenadas.errors }}</div>{% endif %}
+              {% if form.Coordenadas.errors %}<div class="text-danger small mt-1">{{ form.Coordenadas.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-3">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Voltaje nominal</label>
               {{ form.Voltaje_Nominal }}
-              {% if form.Voltaje_Nominal.errors %}<div class="text-danger">{{ form.Voltaje_Nominal.errors }}</div>{% endif %}
+              {% if form.Voltaje_Nominal.errors %}<div class="text-danger small mt-1">{{ form.Voltaje_Nominal.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-3">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Número de fases</label>
               {{ form.Numero_Fases }}
-              {% if form.Numero_Fases.errors %}<div class="text-danger">{{ form.Numero_Fases.errors }}</div>{% endif %}
+              {% if form.Numero_Fases.errors %}<div class="text-danger small mt-1">{{ form.Numero_Fases.errors }}</div>{% endif %}
             </div>
 
           </div>
@@ -184,13 +181,13 @@
           {% endif %}
 
           <button
-        type="submit"
-        name="action"
-        value="delete_project"
-        class="btn btn-danger px-4"
-        onclick="return confirm('¿Seguro que deseas ELIMINAR este proyecto? También se eliminarán número de módulos, dimensionamiento, cálculos DC, cálculos AC, caída de tensión y registros relacionados. Esta acción no se puede deshacer.')"
-        >
-          🗑 Eliminar
+            type="submit"
+            name="action"
+            value="delete_project"
+            class="btn btn-danger px-4"
+            onclick="return confirm('¿Seguro que deseas ELIMINAR este proyecto? También se eliminarán número de módulos, dimensionamiento, cálculos DC, cálculos AC, caída de tensión y registros relacionados. Esta acción no se puede deshacer.')"
+          >
+            🗑 Eliminar
           </button>
         </div>
       </form>
@@ -198,4 +195,85 @@
 
   </div>
 </div>
+
+<div class="modal fade" id="searchRequiredModal" tabindex="-1" aria-labelledby="searchRequiredModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar por lo menos un campo para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if show_edit_popup and missing_required_fields %}
+<div class="modal fade" id="editRequiredModal" tabindex="-1" aria-labelledby="editRequiredModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRequiredModalLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormModificacion");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const idField = searchForm.querySelector('input[name="id"]');
+      const nombreField = searchForm.querySelector('input[name="nombre"]');
+      const empresaField = searchForm.querySelector('input[name="empresa"]');
+      const usuarioField = searchForm.querySelector('input[name="usuario"]');
+
+      const idValue = idField ? idField.value.trim() : "";
+      const nombreValue = nombreField ? nombreField.value.trim() : "";
+      const empresaValue = empresaField ? empresaField.value.trim() : "";
+      const usuarioValue = usuarioField ? usuarioField.value.trim() : "";
+
+      if (!idValue && !nombreValue && !empresaValue && !usuarioValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModal");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+
+  {% if show_edit_popup and missing_required_fields %}
+    const editModalEl = document.getElementById("editRequiredModal");
+    if (editModalEl) {
+      const editModal = new bootstrap.Modal(editModalEl);
+      editModal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}
