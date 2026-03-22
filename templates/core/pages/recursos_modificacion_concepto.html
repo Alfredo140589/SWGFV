@@ -15,7 +15,11 @@
 
         <div class="col-12 col-md-3">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID"
+       inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            {% if error_id %}
+              <div class="text-danger small mt-1">{{ error_id }}</div>
+            {% endif %}
         </div>
 
         <div class="col-12 col-md-9">

@@ -3787,6 +3787,7 @@ def recursos_modificacion_concepto(request):
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
     search_submitted = (request.GET.get("action") or "").strip() == "search"
 
+    error_id = None
     conceptos = GlosarioConcepto.objects.none()
     mostrar_lista = False
     show_edit_popup = False
@@ -3804,10 +3805,11 @@ def recursos_modificacion_concepto(request):
         qs = GlosarioConcepto.objects.all().order_by("nombre_concepto")
 
         if q_id:
-            if q_id.isdigit():
-                qs = qs.filter(id=int(q_id))
-            else:
+            if not q_id.isdigit():
                 qs = GlosarioConcepto.objects.none()
+                error_id = "El ID debe contener solo números enteros."
+            else:
+                qs = qs.filter(id=int(q_id))
 
         if q_nombre:
             qs = qs.filter(nombre_concepto__icontains=q_nombre)
@@ -3896,6 +3898,7 @@ def recursos_modificacion_concepto(request):
         "edit_mode": edit_mode,
         "show_edit_popup": show_edit_popup,
         "missing_required_fields": missing_required_fields,
+        "error_id": error_id,
     }
     return render(request, "core/pages/recursos_modificacion_concepto.html", context)
 
