@@ -3731,6 +3731,8 @@ def recursos_conceptos(request):
 @require_http_methods(["GET", "POST"])
 def recursos_alta_concepto(request):
     form = GlosarioConceptoCreateForm(request.POST or None)
+    show_required_popup = False
+    missing_required_fields = []
 
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip().lower()
@@ -3753,10 +3755,28 @@ def recursos_alta_concepto(request):
             messages.success(request, "✅ Concepto dado de alta correctamente.")
             return redirect("core:recursos_alta_concepto")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+        required_field_map = {
+            "nombre_concepto": "Nombre del concepto",
+            "descripcion": "Descripción",
+        }
 
-    return render(request, "core/pages/recursos_alta_concepto.html", {"form": form})
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
 
+        if missing_required_fields:
+            show_required_popup = True
+
+    return render(
+        request,
+        "core/pages/recursos_alta_concepto.html",
+        {
+            "form": form,
+            "show_required_popup": show_required_popup,
+            "missing_required_fields": missing_required_fields,
+        }
+    )
 
 @require_admin
 @require_http_methods(["GET", "POST"])
@@ -3765,11 +3785,22 @@ def recursos_modificacion_concepto(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-
-    mostrar_lista = any([q_id, q_nombre]) or mostrar_todos
+    search_submitted = (request.GET.get("action") or "").strip() == "search"
 
     conceptos = GlosarioConcepto.objects.none()
-    if mostrar_lista:
+    mostrar_lista = False
+    show_edit_popup = False
+    missing_required_fields = []
+
+    # ==========================
+    # BÚSQUEDA / LISTADO
+    # ==========================
+    if mostrar_todos and not search_submitted and not any([q_id, q_nombre]):
+        mostrar_lista = True
+        conceptos = GlosarioConcepto.objects.all().order_by("nombre_concepto")
+
+    elif search_submitted:
+        mostrar_lista = True
         qs = GlosarioConcepto.objects.all().order_by("nombre_concepto")
 
         if q_id:
@@ -3841,7 +3872,18 @@ def recursos_modificacion_concepto(request):
             messages.success(request, "Concepto actualizado correctamente.")
             return redirect(f"{reverse('core:recursos_modificacion_concepto')}?id={obj.id}")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+        required_field_map = {
+            "nombre_concepto": "Nombre del concepto",
+            "descripcion": "Descripción",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_edit_popup = True
 
     context = {
         "q_id": q_id,
@@ -3852,6 +3894,8 @@ def recursos_modificacion_concepto(request):
         "seleccionado": seleccionado,
         "form": form,
         "edit_mode": edit_mode,
+        "show_edit_popup": show_edit_popup,
+        "missing_required_fields": missing_required_fields,
     }
     return render(request, "core/pages/recursos_modificacion_concepto.html", context)
 

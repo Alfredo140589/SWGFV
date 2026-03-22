@@ -1015,100 +1015,191 @@ class DimensionamientoDetalleForm(forms.ModelForm):
 # FORMULARIOS: GLOSARIO DE CONCEPTOS
 # =========================================================
 class GlosarioConceptoCreateForm(forms.ModelForm):
+
+    # ==========================
+    # VALIDADORES GLOBALES
+    # ==========================
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
+
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
     class Meta:
         model = GlosarioConcepto
         fields = ["nombre_concepto", "descripcion", "formula", "categoria"]
         widgets = {
             "nombre_concepto": forms.TextInput(attrs={
                 "class": "form-control",
+                "maxlength": "20",
                 "placeholder": "Nombre del concepto"
             }),
             "descripcion": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Descripción del concepto",
-                "rows": 6
+                "rows": 6,
+                "maxlength": "800",
+                "placeholder": "Descripción del concepto"
             }),
             "formula": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Fórmula (opcional)",
-                "rows": 3
+                "rows": 3,
+                "maxlength": "50",
+                "placeholder": "Fórmula (opcional)"
             }),
             "categoria": forms.TextInput(attrs={
                 "class": "form-control",
-                "placeholder": "Categoría (ej. Eléctrico, Fotovoltaico, Normativo)"
+                "maxlength": "20",
+                "placeholder": "Categoría"
             }),
         }
 
+    # ==========================
+    # VALIDACIONES
+    # ==========================
     def clean_nombre_concepto(self):
-        valor = (self.cleaned_data.get("nombre_concepto") or "").strip()
-        if not valor:
-            raise forms.ValidationError("El nombre del concepto es obligatorio.")
-        if GlosarioConcepto.objects.filter(nombre_concepto__iexact=valor).exists():
+        value = self.cleaned_data.get("nombre_concepto")
+        value = self._validate_text(value, "Nombre del concepto", 20, True)
+
+        if GlosarioConcepto.objects.filter(nombre_concepto__iexact=value).exists():
             raise forms.ValidationError("Ya existe un concepto con ese nombre.")
-        return valor
+
+        return value
 
     def clean_descripcion(self):
-        valor = (self.cleaned_data.get("descripcion") or "").strip()
-        if not valor:
-            raise forms.ValidationError("La descripción es obligatoria.")
-        return valor
+        value = self.cleaned_data.get("descripcion")
+        return self._validate_text(value, "Descripción", 800, True)
 
     def clean_formula(self):
-        return (self.cleaned_data.get("formula") or "").strip()
+        value = self.cleaned_data.get("formula")
+        return self._validate_text(value, "Fórmula", 50, False)
 
     def clean_categoria(self):
-        return (self.cleaned_data.get("categoria") or "").strip()
-
+        value = self.cleaned_data.get("categoria")
+        return self._validate_text(value, "Categoría", 20, False)
 
 class GlosarioConceptoUpdateForm(forms.ModelForm):
+
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
+
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
     class Meta:
         model = GlosarioConcepto
         fields = ["nombre_concepto", "descripcion", "formula", "categoria"]
         widgets = {
             "nombre_concepto": forms.TextInput(attrs={
                 "class": "form-control",
+                "maxlength": "20",
                 "placeholder": "Nombre del concepto"
             }),
             "descripcion": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Descripción del concepto",
-                "rows": 6
+                "rows": 6,
+                "maxlength": "800",
+                "placeholder": "Descripción del concepto"
             }),
             "formula": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Fórmula (opcional)",
-                "rows": 3
+                "rows": 3,
+                "maxlength": "50",
+                "placeholder": "Fórmula (opcional)"
             }),
             "categoria": forms.TextInput(attrs={
                 "class": "form-control",
+                "maxlength": "20",
                 "placeholder": "Categoría"
             }),
         }
 
     def clean_nombre_concepto(self):
-        valor = (self.cleaned_data.get("nombre_concepto") or "").strip()
-        if not valor:
-            raise forms.ValidationError("El nombre del concepto es obligatorio.")
+        value = self.cleaned_data.get("nombre_concepto")
+        value = self._validate_text(value, "Nombre del concepto", 20, True)
 
-        qs = GlosarioConcepto.objects.filter(nombre_concepto__iexact=valor)
+        qs = GlosarioConcepto.objects.filter(nombre_concepto__iexact=value)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
 
         if qs.exists():
             raise forms.ValidationError("Ya existe otro concepto con ese nombre.")
-        return valor
+
+        return value
 
     def clean_descripcion(self):
-        valor = (self.cleaned_data.get("descripcion") or "").strip()
-        if not valor:
-            raise forms.ValidationError("La descripción es obligatoria.")
-        return valor
+        value = self.cleaned_data.get("descripcion")
+        return self._validate_text(value, "Descripción", 800, True)
 
     def clean_formula(self):
-        return (self.cleaned_data.get("formula") or "").strip()
+        value = self.cleaned_data.get("formula")
+        return self._validate_text(value, "Fórmula", 50, False)
 
     def clean_categoria(self):
-        return (self.cleaned_data.get("categoria") or "").strip()
+        value = self.cleaned_data.get("categoria")
+        return self._validate_text(value, "Categoría", 20, False)
+
 # =========================================================
 # FORMULARIOS: TABLAS NOM
 # =========================================================

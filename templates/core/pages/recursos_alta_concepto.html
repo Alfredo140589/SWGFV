@@ -1,4 +1,4 @@
-<{% extends "core/layout.html" %}
+{% extends "core/layout.html" %}
 
 {% block title %}SWGFV - Alta de Concepto{% endblock %}
 
@@ -10,12 +10,8 @@
       Alta de Concepto
     </h2>
 
-    <form method="POST" novalidate>
+    <form method="POST" novalidate id="altaConceptoForm">
       {% csrf_token %}
-
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-      {% endif %}
 
       <div class="row g-3">
 
@@ -27,25 +23,25 @@
         <div class="col-12">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del concepto</label>
           {{ form.nombre_concepto }}
-          {% if form.nombre_concepto.errors %}<div class="text-danger">{{ form.nombre_concepto.errors }}</div>{% endif %}
+          {% if form.nombre_concepto.errors %}<div class="text-danger small mt-1">{{ form.nombre_concepto.errors }}</div>{% endif %}
         </div>
 
         <div class="col-12">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Descripción</label>
           {{ form.descripcion }}
-          {% if form.descripcion.errors %}<div class="text-danger">{{ form.descripcion.errors }}</div>{% endif %}
+          {% if form.descripcion.errors %}<div class="text-danger small mt-1">{{ form.descripcion.errors }}</div>{% endif %}
         </div>
 
         <div class="col-12 col-md-6">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Fórmula (opcional)</label>
           {{ form.formula }}
-          {% if form.formula.errors %}<div class="text-danger">{{ form.formula.errors }}</div>{% endif %}
+          {% if form.formula.errors %}<div class="text-danger small mt-1">{{ form.formula.errors }}</div>{% endif %}
         </div>
 
         <div class="col-12 col-md-6">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Categoría</label>
           {{ form.categoria }}
-          {% if form.categoria.errors %}<div class="text-danger">{{ form.categoria.errors }}</div>{% endif %}
+          {% if form.categoria.errors %}<div class="text-danger small mt-1">{{ form.categoria.errors }}</div>{% endif %}
         </div>
 
       </div>
@@ -58,4 +54,43 @@
 
   </div>
 </div>
+
+{% if show_required_popup and missing_required_fields %}
+<div class="modal fade" id="requiredAltaConceptoModal" tabindex="-1" aria-labelledby="requiredAltaConceptoModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="requiredAltaConceptoModalLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  {% if show_required_popup and missing_required_fields %}
+    const modalEl = document.getElementById("requiredAltaConceptoModal");
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}

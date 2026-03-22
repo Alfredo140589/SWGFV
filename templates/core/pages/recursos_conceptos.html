@@ -10,7 +10,7 @@
       Glosario de Conceptos
     </h2>
 
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" id="searchFormConceptos" novalidate>
       <div class="row g-3">
         <div class="col-12 col-md-8">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Buscar por nombre o palabra clave</label>
@@ -66,4 +66,49 @@
 
   </div>
 </div>
+
+<div class="modal fade" id="searchRequiredModalConceptos" tabindex="-1" aria-labelledby="searchRequiredModalConceptosLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalConceptosLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar al menos un dato para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormConceptos");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const qField = searchForm.querySelector('input[name="q"]');
+      const categoriaField = searchForm.querySelector('select[name="categoria"]');
+
+      const qValue = qField ? qField.value.trim() : "";
+      const categoriaValue = categoriaField ? categoriaField.value.trim() : "";
+
+      if (!qValue && !categoriaValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModalConceptos");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

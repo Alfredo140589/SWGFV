@@ -10,7 +10,7 @@
       Modificación de Conceptos
     </h2>
 
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" id="searchFormModConceptos" novalidate>
       <div class="row g-3">
 
         <div class="col-12 col-md-3">
@@ -26,7 +26,7 @@
       </div>
 
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <button type="submit" name="action" value="search" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:recursos_modificacion_concepto' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
         <a href="{% url 'core:recursos_modificacion_concepto' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">Mostrar todos</a>
       </div>
@@ -93,35 +93,31 @@
       <form method="POST" novalidate>
         {% csrf_token %}
 
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-        {% endif %}
-
         <fieldset {% if not edit_mode %}disabled{% endif %}>
           <div class="row g-3">
 
             <div class="col-12">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre del concepto</label>
               {{ form.nombre_concepto }}
-              {% if form.nombre_concepto.errors %}<div class="text-danger">{{ form.nombre_concepto.errors }}</div>{% endif %}
+              {% if form.nombre_concepto.errors %}<div class="text-danger small mt-1">{{ form.nombre_concepto.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Descripción</label>
               {{ form.descripcion }}
-              {% if form.descripcion.errors %}<div class="text-danger">{{ form.descripcion.errors }}</div>{% endif %}
+              {% if form.descripcion.errors %}<div class="text-danger small mt-1">{{ form.descripcion.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-6">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Fórmula</label>
               {{ form.formula }}
-              {% if form.formula.errors %}<div class="text-danger">{{ form.formula.errors }}</div>{% endif %}
+              {% if form.formula.errors %}<div class="text-danger small mt-1">{{ form.formula.errors }}</div>{% endif %}
             </div>
 
             <div class="col-12 col-md-6">
               <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Categoría</label>
               {{ form.categoria }}
-              {% if form.categoria.errors %}<div class="text-danger">{{ form.categoria.errors }}</div>{% endif %}
+              {% if form.categoria.errors %}<div class="text-danger small mt-1">{{ form.categoria.errors }}</div>{% endif %}
             </div>
 
           </div>
@@ -153,4 +149,81 @@
 
   </div>
 </div>
+
+<div class="modal fade" id="searchRequiredModalModConceptos" tabindex="-1" aria-labelledby="searchRequiredModalModConceptosLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalModConceptosLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar al menos un dato para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if show_edit_popup and missing_required_fields %}
+<div class="modal fade" id="editRequiredModalConcepto" tabindex="-1" aria-labelledby="editRequiredModalConceptoLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRequiredModalConceptoLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormModConceptos");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const idField = searchForm.querySelector('input[name="id"]');
+      const nombreField = searchForm.querySelector('input[name="nombre"]');
+
+      const idValue = idField ? idField.value.trim() : "";
+      const nombreValue = nombreField ? nombreField.value.trim() : "";
+
+      if (!idValue && !nombreValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModalModConceptos");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+
+  {% if show_edit_popup and missing_required_fields %}
+    const editModalEl = document.getElementById("editRequiredModalConcepto");
+    if (editModalEl) {
+      const editModal = new bootstrap.Modal(editModalEl);
+      editModal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}
