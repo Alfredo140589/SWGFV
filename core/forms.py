@@ -1204,18 +1204,57 @@ class GlosarioConceptoUpdateForm(forms.ModelForm):
 # FORMULARIOS: TABLAS NOM
 # =========================================================
 class TablaNOMCreateForm(forms.ModelForm):
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
+
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
     class Meta:
         model = TablaNOM
         fields = ["nombre_tabla", "notas", "imagen"]
         widgets = {
             "nombre_tabla": forms.TextInput(attrs={
                 "class": "form-control",
+                "maxlength": "20",
                 "placeholder": "Nombre de la tabla"
             }),
             "notas": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Notas o descripción de la tabla",
-                "rows": 5
+                "maxlength": "300",
+                "rows": 5,
+                "placeholder": "Notas o descripción de la tabla"
             }),
             "imagen": forms.ClearableFileInput(attrs={
                 "class": "form-control"
@@ -1223,15 +1262,16 @@ class TablaNOMCreateForm(forms.ModelForm):
         }
 
     def clean_nombre_tabla(self):
-        valor = (self.cleaned_data.get("nombre_tabla") or "").strip()
-        if not valor:
-            raise forms.ValidationError("El nombre de la tabla es obligatorio.")
+        valor = self.cleaned_data.get("nombre_tabla")
+        valor = self._validate_text(valor, "Nombre de la tabla", 20, True)
+
         if TablaNOM.objects.filter(nombre_tabla__iexact=valor).exists():
             raise forms.ValidationError("Ya existe una tabla con ese nombre.")
         return valor
 
     def clean_notas(self):
-        return (self.cleaned_data.get("notas") or "").strip()
+        valor = self.cleaned_data.get("notas")
+        return self._validate_text(valor, "Notas de la tabla", 300, True)
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -1239,20 +1279,58 @@ class TablaNOMCreateForm(forms.ModelForm):
             raise forms.ValidationError("La imagen es obligatoria.")
         return imagen
 
-
 class TablaNOMUpdateForm(forms.ModelForm):
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
+
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
     class Meta:
         model = TablaNOM
         fields = ["nombre_tabla", "notas", "imagen"]
         widgets = {
             "nombre_tabla": forms.TextInput(attrs={
                 "class": "form-control",
+                "maxlength": "20",
                 "placeholder": "Nombre de la tabla"
             }),
             "notas": forms.Textarea(attrs={
                 "class": "form-control",
-                "placeholder": "Notas o descripción de la tabla",
-                "rows": 5
+                "maxlength": "300",
+                "rows": 5,
+                "placeholder": "Notas o descripción de la tabla"
             }),
             "imagen": forms.ClearableFileInput(attrs={
                 "class": "form-control"
@@ -1260,9 +1338,8 @@ class TablaNOMUpdateForm(forms.ModelForm):
         }
 
     def clean_nombre_tabla(self):
-        valor = (self.cleaned_data.get("nombre_tabla") or "").strip()
-        if not valor:
-            raise forms.ValidationError("El nombre de la tabla es obligatorio.")
+        valor = self.cleaned_data.get("nombre_tabla")
+        valor = self._validate_text(valor, "Nombre de la tabla", 20, True)
 
         qs = TablaNOM.objects.filter(nombre_tabla__iexact=valor)
         if self.instance and self.instance.pk:
@@ -1273,7 +1350,8 @@ class TablaNOMUpdateForm(forms.ModelForm):
         return valor
 
     def clean_notas(self):
-        return (self.cleaned_data.get("notas") or "").strip()
+        valor = self.cleaned_data.get("notas")
+        return self._validate_text(valor, "Notas de la tabla", 300, True)
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")

@@ -3923,11 +3923,10 @@ def recursos_tablas(request):
         seleccionada = TablaNOM.objects.filter(id=int(tabla_id)).first()
 
         if seleccionada and seleccionada.imagen:
-            nombre_archivo = os.path.basename(seleccionada.imagen.name or "").strip()
-
-            if nombre_archivo:
-                # ✅ usar static para las tablas NOM base
-                imagen_url = static(f"core/img/tablas_nom/{nombre_archivo}")
+            try:
+                imagen_url = seleccionada.imagen.url
+            except Exception:
+                imagen_url = ""
 
     context = {
         "tablas": tablas,
@@ -3941,6 +3940,8 @@ def recursos_tablas(request):
 @require_http_methods(["GET", "POST"])
 def recursos_alta_tabla(request):
     form = TablaNOMCreateForm(request.POST or None, request.FILES or None)
+    show_required_popup = False
+    missing_required_fields = []
 
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip().lower()
@@ -3963,9 +3964,33 @@ def recursos_alta_tabla(request):
             messages.success(request, "✅ Tabla NOM dada de alta correctamente.")
             return redirect("core:recursos_alta_tabla")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+        required_field_map = {
+            "nombre_tabla": "Nombre de la tabla",
+            "notas": "Notas de la tabla",
+            "imagen": "Imagen",
+        }
 
-    return render(request, "core/pages/recursos_alta_tabla.html", {"form": form})
+        for field_name, field_label in required_field_map.items():
+            if field_name == "imagen":
+                if not request.FILES.get("imagen"):
+                    missing_required_fields.append(field_label)
+            else:
+                raw_value = (request.POST.get(field_name) or "").strip()
+                if not raw_value:
+                    missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_required_popup = True
+
+    return render(
+        request,
+        "core/pages/recursos_alta_tabla.html",
+        {
+            "form": form,
+            "show_required_popup": show_required_popup,
+            "missing_required_fields": missing_required_fields,
+        }
+    )
 
 @require_admin
 @require_http_methods(["GET", "POST"])
@@ -3974,18 +3999,28 @@ def recursos_modificacion_tabla(request):
     q_nombre = (request.GET.get("nombre") or "").strip()
     mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
+    search_submitted = (request.GET.get("action") or "").strip() == "search"
 
-    mostrar_lista = any([q_id, q_nombre]) or mostrar_todos
-
+    error_id = None
     tablas = TablaNOM.objects.none()
-    if mostrar_lista:
+    mostrar_lista = False
+    show_edit_popup = False
+    missing_required_fields = []
+
+    if mostrar_todos and not search_submitted and not any([q_id, q_nombre]):
+        mostrar_lista = True
+        tablas = TablaNOM.objects.all().order_by("nombre_tabla")
+
+    elif search_submitted:
+        mostrar_lista = True
         qs = TablaNOM.objects.all().order_by("nombre_tabla")
 
         if q_id:
-            if q_id.isdigit():
-                qs = qs.filter(id=int(q_id))
-            else:
+            if not q_id.isdigit():
                 qs = TablaNOM.objects.none()
+                error_id = "El ID debe contener solo números enteros."
+            else:
+                qs = qs.filter(id=int(q_id))
 
         if q_nombre:
             qs = qs.filter(nombre_tabla__icontains=q_nombre)
@@ -4050,7 +4085,25 @@ def recursos_modificacion_tabla(request):
             messages.success(request, "Tabla actualizada correctamente.")
             return redirect(f"{reverse('core:recursos_modificacion_tabla')}?id={obj.id}")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+        required_field_map = {
+            "nombre_tabla": "Nombre de la tabla",
+            "notas": "Notas de la tabla",
+            "imagen": "Imagen",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            if field_name == "imagen":
+                uploaded = request.FILES.get("imagen")
+                current_exists = bool(seleccionada and seleccionada.imagen)
+                if not uploaded and not current_exists:
+                    missing_required_fields.append(field_label)
+            else:
+                raw_value = (request.POST.get(field_name) or "").strip()
+                if not raw_value:
+                    missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_edit_popup = True
 
     context = {
         "q_id": q_id,
@@ -4061,6 +4114,9 @@ def recursos_modificacion_tabla(request):
         "seleccionada": seleccionada,
         "form": form,
         "edit_mode": edit_mode,
+        "show_edit_popup": show_edit_popup,
+        "missing_required_fields": missing_required_fields,
+        "error_id": error_id,
     }
     return render(request, "core/pages/recursos_modificacion_tabla.html", context)
 

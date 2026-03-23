@@ -10,7 +10,7 @@
       Tablas NOM
     </h2>
 
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" id="searchFormTablas" novalidate>
       <div class="row g-3">
         <div class="col-12 col-md-10">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Buscar tabla</label>
@@ -106,6 +106,23 @@
   </div>
 </div>
 
+<div class="modal fade" id="searchRequiredModalTablas" tabindex="-1" aria-labelledby="searchRequiredModalTablasLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalTablasLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar al menos un dato para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% if seleccionada and imagen_url %}
 <div id="imageViewerOverlay" style="
   display:none;
@@ -169,6 +186,28 @@
 
 {% block scripts %}
 {{ block.super }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormTablas");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const qField = searchForm.querySelector('input[name="q"]');
+      const qValue = qField ? qField.value.trim() : "";
+
+      if (!qValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModalTablas");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+});
+</script>
 
 {% if seleccionada and imagen_url %}
 <script>

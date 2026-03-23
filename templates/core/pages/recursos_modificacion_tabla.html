@@ -10,12 +10,16 @@
       Modificación de Tablas NOM
     </h2>
 
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" id="searchFormModTablas" novalidate>
       <div class="row g-3">
 
         <div class="col-12 col-md-2">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID">
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID"
+                 inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+          {% if error_id %}
+            <div class="text-danger small mt-1">{{ error_id }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-10">
@@ -26,7 +30,7 @@
       </div>
 
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <button type="submit" name="action" value="search" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:recursos_modificacion_tabla' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
         <a href="{% url 'core:recursos_modificacion_tabla' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">
           Mostrar todos
@@ -109,28 +113,24 @@
           <form method="POST" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
 
-            {% if form.non_field_errors %}
-              <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-            {% endif %}
-
             <fieldset {% if not edit_mode %}disabled{% endif %}>
               <div class="row g-3">
                 <div class="col-12">
                   <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre de la tabla</label>
                   {{ form.nombre_tabla }}
-                  {% if form.nombre_tabla.errors %}<div class="text-danger">{{ form.nombre_tabla.errors }}</div>{% endif %}
+                  {% if form.nombre_tabla.errors %}<div class="text-danger small mt-1">{{ form.nombre_tabla.errors }}</div>{% endif %}
                 </div>
 
                 <div class="col-12">
                   <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Notas</label>
                   {{ form.notas }}
-                  {% if form.notas.errors %}<div class="text-danger">{{ form.notas.errors }}</div>{% endif %}
+                  {% if form.notas.errors %}<div class="text-danger small mt-1">{{ form.notas.errors }}</div>{% endif %}
                 </div>
 
                 <div class="col-12">
                   <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Imagen</label>
                   {{ form.imagen }}
-                  {% if form.imagen.errors %}<div class="text-danger">{{ form.imagen.errors }}</div>{% endif %}
+                  {% if form.imagen.errors %}<div class="text-danger small mt-1">{{ form.imagen.errors }}</div>{% endif %}
                 </div>
               </div>
             </fieldset>
@@ -163,4 +163,81 @@
 
   </div>
 </div>
+
+<div class="modal fade" id="searchRequiredModalModTablas" tabindex="-1" aria-labelledby="searchRequiredModalModTablasLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalModTablasLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar al menos un dato para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if show_edit_popup and missing_required_fields %}
+<div class="modal fade" id="editRequiredModalTabla" tabindex="-1" aria-labelledby="editRequiredModalTablaLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRequiredModalTablaLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormModTablas");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const idField = searchForm.querySelector('input[name="id"]');
+      const nombreField = searchForm.querySelector('input[name="nombre"]');
+
+      const idValue = idField ? idField.value.trim() : "";
+      const nombreValue = nombreField ? nombreField.value.trim() : "";
+
+      if (!idValue && !nombreValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModalModTablas");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+
+  {% if show_edit_popup and missing_required_fields %}
+    const editModalEl = document.getElementById("editRequiredModalTabla");
+    if (editModalEl) {
+      const editModal = new bootstrap.Modal(editModalEl);
+      editModal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}

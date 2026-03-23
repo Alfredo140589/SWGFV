@@ -13,27 +13,23 @@
     <form method="POST" enctype="multipart/form-data" novalidate>
       {% csrf_token %}
 
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-      {% endif %}
-
       <div class="row g-3">
         <div class="col-12">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Nombre de la tabla</label>
           {{ form.nombre_tabla }}
-          {% if form.nombre_tabla.errors %}<div class="text-danger">{{ form.nombre_tabla.errors }}</div>{% endif %}
+          {% if form.nombre_tabla.errors %}<div class="text-danger small mt-1">{{ form.nombre_tabla.errors }}</div>{% endif %}
         </div>
 
         <div class="col-12">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Notas</label>
           {{ form.notas }}
-          {% if form.notas.errors %}<div class="text-danger">{{ form.notas.errors }}</div>{% endif %}
+          {% if form.notas.errors %}<div class="text-danger small mt-1">{{ form.notas.errors }}</div>{% endif %}
         </div>
 
         <div class="col-12">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">Imagen</label>
           {{ form.imagen }}
-          {% if form.imagen.errors %}<div class="text-danger">{{ form.imagen.errors }}</div>{% endif %}
+          {% if form.imagen.errors %}<div class="text-danger small mt-1">{{ form.imagen.errors }}</div>{% endif %}
           <div class="form-text">
             Selecciona una imagen desde tus archivos locales.
           </div>
@@ -48,4 +44,43 @@
 
   </div>
 </div>
+
+{% if show_required_popup and missing_required_fields %}
+<div class="modal fade" id="requiredAltaTablaModal" tabindex="-1" aria-labelledby="requiredAltaTablaModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="requiredAltaTablaModalLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  {% if show_required_popup and missing_required_fields %}
+    const modalEl = document.getElementById("requiredAltaTablaModal");
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}
