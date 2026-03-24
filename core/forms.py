@@ -447,7 +447,6 @@ class CuentaUpdateForm(forms.ModelForm):
             "Apellido_Materno",
             "Telefono",
             "Correo_electronico",
-            "Tipo",
         ]
         widgets = {
             "Nombre": forms.TextInput(attrs={"class": "form-control"}),
@@ -455,7 +454,6 @@ class CuentaUpdateForm(forms.ModelForm):
             "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
             "Telefono": forms.TextInput(attrs={"class": "form-control"}),
             "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
-            "Tipo": forms.Select(attrs={"class": "form-select"}),
         }
 
     def clean_Correo_electronico(self):
