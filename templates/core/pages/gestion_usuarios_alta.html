@@ -76,7 +76,6 @@
   <div class="card shadow-sm bg-glass">
     <div class="card-body">
 
-      <!-- Encabezado -->
       <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-2">
         <div>
           <h2 class="m-0" style="color: var(--swgfv-primary); font-weight: 800;">Alta de Usuario</h2>
@@ -116,13 +115,7 @@
 
       <form id="formAltaUsuario" method="POST" novalidate>
         {% csrf_token %}
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger py-2 mb-2">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
 
-        <!-- ===== Estado y tipo ===== -->
         <div class="d-flex align-items-end justify-content-between flex-wrap gap-2">
           <div>
             <p class="section-title">Estado y tipo</p>
@@ -153,7 +146,6 @@
 
         <div class="section-divider"></div>
 
-        <!-- ===== Datos personales ===== -->
         <div>
           <p class="section-title">Datos personales</p>
           <p class="section-sub">Nombre y teléfono.</p>
@@ -187,7 +179,6 @@
 
         <div class="section-divider"></div>
 
-        <!-- ===== Acceso ===== -->
         <div>
           <p class="section-title">Acceso</p>
           <p class="section-sub">Correo y contraseña.</p>
@@ -219,4 +210,43 @@
   </div>
 
 </main>
+
+{% if show_required_popup and missing_required_fields %}
+<div class="modal fade" id="requiredAltaUsuarioModal" tabindex="-1" aria-labelledby="requiredAltaUsuarioModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="requiredAltaUsuarioModalLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  {% if show_required_popup and missing_required_fields %}
+    const modalEl = document.getElementById("requiredAltaUsuarioModal");
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}

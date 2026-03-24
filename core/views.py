@@ -957,14 +957,44 @@ def proyecto_modificacion(request):
 @require_http_methods(["GET", "POST"])
 def gestion_usuarios_alta(request):
     form = UsuarioCreateForm(request.POST or None)
+    show_required_popup = False
+    missing_required_fields = []
+
     if request.method == "POST":
         if form.is_valid():
             nuevo = form.save()
             log_event(request, "USER_CREATED", f"Creó usuario: {nuevo.Correo_electronico}", "Usuario", nuevo.ID_Usuario)
             messages.success(request, "Usuario dado de alta correctamente.")
             return redirect("core:gestion_usuarios_alta")
-        messages.error(request, "Revisa el formulario. Hay errores.")
-    return render(request, "core/pages/gestion_usuarios_alta.html", {"form": form})
+
+        required_field_map = {
+            "Nombre": "Nombre",
+            "Apellido_Paterno": "Apellido paterno",
+            "Apellido_Materno": "Apellido materno",
+            "Telefono": "Teléfono",
+            "Correo_electronico": "Correo electrónico",
+            "Tipo": "Tipo de usuario",
+            "password": "Contraseña",
+            "password_confirm": "Confirmación de contraseña",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_required_popup = True
+
+    return render(
+        request,
+        "core/pages/gestion_usuarios_alta.html",
+        {
+            "form": form,
+            "show_required_popup": show_required_popup,
+            "missing_required_fields": missing_required_fields,
+        }
+    )
 
 
 @require_admin
@@ -975,30 +1005,45 @@ def gestion_usuarios_modificacion(request):
     q_ap = (request.GET.get("ap") or "").strip()
     q_am = (request.GET.get("am") or "").strip()
     mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1"
-
     edit_mode = (request.GET.get("edit") or "").strip() == "1"
-    mostrar_lista = any([q_id, q_nombre, q_ap, q_am]) or mostrar_todos
+    search_submitted = (request.GET.get("action") or "").strip() == "search"
 
+    error_id = None
+    show_search_popup = False
+    show_edit_popup = False
+    missing_required_fields = []
+
+    mostrar_lista = False
     usuarios = Usuario.objects.none()
-    if mostrar_lista:
-        qs = Usuario.objects.all().order_by("ID_Usuario")
 
-        if q_id:
-            if q_id.isdigit():
-                qs = qs.filter(ID_Usuario=int(q_id))
-            else:
-                qs = Usuario.objects.none()
+    if mostrar_todos and not search_submitted and not any([q_id, q_nombre, q_ap, q_am]):
+        mostrar_lista = True
+        usuarios = Usuario.objects.all().order_by("ID_Usuario")
 
-        if q_nombre:
-            qs = qs.filter(Nombre__icontains=q_nombre)
+    elif search_submitted:
+        if not any([q_id, q_nombre, q_ap, q_am]):
+            show_search_popup = True
+        else:
+            mostrar_lista = True
+            qs = Usuario.objects.all().order_by("ID_Usuario")
 
-        if q_ap:
-            qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+            if q_id:
+                if q_id.isdigit():
+                    qs = qs.filter(ID_Usuario=int(q_id))
+                else:
+                    qs = Usuario.objects.none()
+                    error_id = "El ID debe contener solo números enteros."
 
-        if q_am:
-            qs = qs.filter(Apellido_Materno__icontains=q_am)
+            if q_nombre:
+                qs = qs.filter(Nombre__icontains=q_nombre)
 
-        usuarios = qs
+            if q_ap:
+                qs = qs.filter(Apellido_Paterno__icontains=q_ap)
+
+            if q_am:
+                qs = qs.filter(Apellido_Materno__icontains=q_am)
+
+            usuarios = qs
 
     seleccionado = None
     form = None
@@ -1059,19 +1104,33 @@ def gestion_usuarios_modificacion(request):
         form = UsuarioUpdateForm(request.POST, instance=seleccionado)
 
         if form.is_valid():
-            email = (form.cleaned_data.get("Correo_electronico") or "").strip().lower()
-
-            if Usuario.objects.filter(Correo_electronico__iexact=email).exclude(ID_Usuario=seleccionado.ID_Usuario).exists():
-                form.add_error("Correo_electronico", "Ya existe otro usuario con ese correo.")
-            else:
-                obj = form.save(commit=False)
-                obj.Correo_electronico = email
+            obj = form.save(commit=False)
+            obj.Correo_electronico = (form.cleaned_data.get("Correo_electronico") or "").strip().lower()
+            obj.save()
+            if form.cleaned_data.get("new_password"):
+                obj.set_password(form.cleaned_data.get("new_password"))
                 obj.save()
-                log_event(request, "USER_UPDATED", f"Actualizó usuario: {obj.Correo_electronico}", "Usuario", obj.ID_Usuario)
-                messages.success(request, "Usuario actualizado correctamente.")
-                return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
 
-        messages.error(request, "Revisa el formulario. Hay errores.")
+            log_event(request, "USER_UPDATED", f"Actualizó usuario: {obj.Correo_electronico}", "Usuario", obj.ID_Usuario)
+            messages.success(request, "Usuario actualizado correctamente.")
+            return redirect(f"{reverse('core:gestion_usuarios_modificacion')}?id={seleccionado.ID_Usuario}")
+
+        required_field_map = {
+            "Nombre": "Nombre",
+            "Apellido_Paterno": "Apellido paterno",
+            "Apellido_Materno": "Apellido materno",
+            "Telefono": "Teléfono",
+            "Correo_electronico": "Correo electrónico",
+            "Tipo": "Tipo de usuario",
+        }
+
+        for field_name, field_label in required_field_map.items():
+            raw_value = (request.POST.get(field_name) or "").strip()
+            if not raw_value:
+                missing_required_fields.append(field_label)
+
+        if missing_required_fields:
+            show_edit_popup = True
 
     context = {
         "q_id": q_id,
@@ -1084,6 +1143,10 @@ def gestion_usuarios_modificacion(request):
         "seleccionado": seleccionado,
         "form": form,
         "edit_mode": edit_mode,
+        "show_search_popup": show_search_popup,
+        "show_edit_popup": show_edit_popup,
+        "missing_required_fields": missing_required_fields,
+        "error_id": error_id,
     }
     return render(request, "core/pages/gestion_usuarios_modificacion.html", context)
 

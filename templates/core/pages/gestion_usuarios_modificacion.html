@@ -21,12 +21,15 @@
       </div>
     {% endif %}
 
-    <!-- BUSQUEDA -->
-    <form method="GET" class="mb-4">
+    <form method="GET" class="mb-4" id="searchFormUsuarios" novalidate>
       <div class="row g-3">
         <div class="col-12 col-md-3">
           <label class="form-label fw-bold" style="color: var(--swgfv-primary);">ID</label>
-          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID Usuario">
+          <input type="text" name="id" value="{{ q_id }}" class="form-control" placeholder="ID Usuario"
+                 inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+          {% if error_id %}
+            <div class="text-danger small mt-1">{{ error_id }}</div>
+          {% endif %}
         </div>
 
         <div class="col-12 col-md-3">
@@ -46,7 +49,7 @@
       </div>
 
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+        <button type="submit" name="action" value="search" class="btn btn-swgfv px-4">Buscar</button>
         <a href="{% url 'core:gestion_usuarios_modificacion' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
         <a href="{% url 'core:gestion_usuarios_modificacion' %}?mostrar_todos=1" class="btn btn-outline-primary px-4">
           Mostrar todos
@@ -54,7 +57,6 @@
       </div>
     </form>
 
-    <!-- LISTA -->
     {% if mostrar_lista %}
       <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped align-middle">
@@ -101,7 +103,6 @@
       </div>
     {% endif %}
 
-    <!-- EDICION / LECTURA -->
     {% if seleccionado and form %}
       <hr class="mb-4">
 
@@ -125,12 +126,6 @@
 
       <form method="POST" novalidate>
         {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">
-            {{ form.non_field_errors }}
-          </div>
-        {% endif %}
 
         <fieldset {% if not edit_mode %}disabled{% endif %}>
           <div class="row g-3">
@@ -225,4 +220,85 @@
 
   </div>
 </div>
+
+<div class="modal fade" id="searchRequiredModalUsuarios" tabindex="-1" aria-labelledby="searchRequiredModalUsuariosLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="searchRequiredModalUsuariosLabel">Búsqueda incompleta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        Debes ingresar al menos un dato para realizar la búsqueda.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if show_edit_popup and missing_required_fields %}
+<div class="modal fade" id="editRequiredModalUsuario" tabindex="-1" aria-labelledby="editRequiredModalUsuarioLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRequiredModalUsuarioLabel">Faltan campos obligatorios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Debes completar los siguientes campos obligatorios:</p>
+        <ul class="mb-0">
+          {% for field_name in missing_required_fields %}
+            <li>{{ field_name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-swgfv" data-bs-dismiss="modal">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const searchForm = document.getElementById("searchFormUsuarios");
+
+  if (searchForm) {
+    searchForm.addEventListener("submit", function (e) {
+      const idField = searchForm.querySelector('input[name="id"]');
+      const nombreField = searchForm.querySelector('input[name="nombre"]');
+      const apField = searchForm.querySelector('input[name="ap"]');
+      const amField = searchForm.querySelector('input[name="am"]');
+
+      const idValue = idField ? idField.value.trim() : "";
+      const nombreValue = nombreField ? nombreField.value.trim() : "";
+      const apValue = apField ? apField.value.trim() : "";
+      const amValue = amField ? amField.value.trim() : "";
+
+      if (!idValue && !nombreValue && !apValue && !amValue) {
+        e.preventDefault();
+        const modalEl = document.getElementById("searchRequiredModalUsuarios");
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+
+  {% if show_edit_popup and missing_required_fields %}
+    const editModalEl = document.getElementById("editRequiredModalUsuario");
+    if (editModalEl) {
+      const editModal = new bootstrap.Modal(editModalEl);
+      editModal.show();
+    }
+  {% endif %}
+});
+</script>
 {% endblock %}

@@ -71,13 +71,29 @@ class UsuarioCreateForm(forms.ModelForm):
     password = forms.CharField(
         label="Contraseña",
         required=True,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Contraseña"}),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Contraseña",
+            "minlength": "8",
+        }),
     )
     password_confirm = forms.CharField(
         label="Confirmar contraseña",
         required=True,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Confirmar contraseña"}),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Confirmar contraseña",
+            "minlength": "8",
+        }),
     )
+
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
 
     class Meta:
         model = Usuario
@@ -91,29 +107,127 @@ class UsuarioCreateForm(forms.ModelForm):
             "Activo",
         ]
         widgets = {
-            "Nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Paterno": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
-            "Telefono": forms.TextInput(attrs={"class": "form-control"}),
-            "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
+            "Nombre": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Nombre",
+            }),
+            "Apellido_Paterno": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Apellido paterno",
+            }),
+            "Apellido_Materno": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Apellido materno",
+            }),
+            "Telefono": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "10",
+                "placeholder": "Teléfono",
+                "inputmode": "numeric",
+                "pattern": "[0-9]*",
+                "oninput": "this.value = this.value.replace(/[^0-9]/g, '')",
+            }),
+            "Correo_electronico": forms.EmailInput(attrs={
+                "class": "form-control",
+                "placeholder": "correo@dominio.com",
+            }),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
             "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
 
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
+    def clean_Nombre(self):
+        value = self.cleaned_data.get("Nombre")
+        value = self._validate_text(value, "Nombre", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Nombre: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Apellido_Paterno(self):
+        value = self.cleaned_data.get("Apellido_Paterno")
+        value = self._validate_text(value, "Apellido paterno", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Apellido paterno: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Apellido_Materno(self):
+        value = self.cleaned_data.get("Apellido_Materno")
+        value = self._validate_text(value, "Apellido materno", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Apellido materno: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Telefono(self):
+        value = (self.cleaned_data.get("Telefono") or "").strip()
+        if not value:
+            raise forms.ValidationError("Teléfono es obligatorio.")
+        if not value.isdigit():
+            raise forms.ValidationError("Teléfono: solo se permiten números enteros positivos.")
+        if len(value) > 10:
+            raise forms.ValidationError("Teléfono: máximo 10 caracteres.")
+        return value
+
     def clean_Correo_electronico(self):
         email = (self.cleaned_data.get("Correo_electronico") or "").strip().lower()
         if not email:
-            return email
+            raise forms.ValidationError("Correo electrónico es obligatorio.")
         if Usuario.objects.filter(Correo_electronico__iexact=email).exists():
             raise forms.ValidationError("Ya existe un usuario con ese correo.")
         return email
+
+    def clean_password(self):
+        value = (self.cleaned_data.get("password") or "").strip()
+        if not value:
+            raise forms.ValidationError("Contraseña es obligatoria.")
+        if len(value) < 8:
+            raise forms.ValidationError("Contraseña: mínimo 8 caracteres.")
+        self._validate_dangerous_patterns(value, "Contraseña")
+        self._validate_reserved_words(value, "Contraseña")
+        if not re.search(r"[A-ZÁÉÍÓÚÜÑ]", value):
+            raise forms.ValidationError("Contraseña: debe incluir al menos una mayúscula.")
+        if not re.search(r"[a-záéíóúüñ]", value):
+            raise forms.ValidationError("Contraseña: debe incluir al menos una minúscula.")
+        return value
 
     def clean(self):
         cleaned = super().clean()
         p1 = cleaned.get("password")
         p2 = cleaned.get("password_confirm")
+
         if p1 and p2 and p1 != p2:
             self.add_error("password_confirm", "Las contraseñas no coinciden.")
+
         return cleaned
 
     def save(self, commit=True):
@@ -123,18 +237,33 @@ class UsuarioCreateForm(forms.ModelForm):
             user.save()
         return user
 
-
 class UsuarioUpdateForm(forms.ModelForm):
     new_password = forms.CharField(
         label="Nueva contraseña (opcional)",
         required=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Nueva contraseña"}),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Nueva contraseña",
+            "minlength": "8",
+        }),
     )
     new_password_confirm = forms.CharField(
         label="Confirmar nueva contraseña",
         required=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Confirmar nueva contraseña"}),
+        widget=forms.PasswordInput(attrs={
+            "class": "form-control",
+            "placeholder": "Confirmar nueva contraseña",
+            "minlength": "8",
+        }),
     )
+
+    SQL_RESERVED_WORDS = {
+        "select", "insert", "update", "delete", "drop", "truncate", "alter",
+        "create", "replace", "rename", "exec", "execute", "union", "from",
+        "where", "join", "table", "database", "into", "values", "grant",
+        "revoke", "or", "and", "not", "null", "like", "having", "group",
+        "order", "by", "limit"
+    }
 
     class Meta:
         model = Usuario
@@ -148,36 +277,146 @@ class UsuarioUpdateForm(forms.ModelForm):
             "Activo",
         ]
         widgets = {
-            "Nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Paterno": forms.TextInput(attrs={"class": "form-control"}),
-            "Apellido_Materno": forms.TextInput(attrs={"class": "form-control"}),
-            "Telefono": forms.TextInput(attrs={"class": "form-control"}),
-            "Correo_electronico": forms.EmailInput(attrs={"class": "form-control"}),
+            "Nombre": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Nombre",
+            }),
+            "Apellido_Paterno": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Apellido paterno",
+            }),
+            "Apellido_Materno": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "20",
+                "placeholder": "Apellido materno",
+            }),
+            "Telefono": forms.TextInput(attrs={
+                "class": "form-control",
+                "maxlength": "10",
+                "placeholder": "Teléfono",
+                "inputmode": "numeric",
+                "pattern": "[0-9]*",
+                "oninput": "this.value = this.value.replace(/[^0-9]/g, '')",
+            }),
+            "Correo_electronico": forms.EmailInput(attrs={
+                "class": "form-control",
+                "placeholder": "correo@dominio.com",
+            }),
             "Tipo": forms.Select(attrs={"class": "form-select"}),
             "Activo": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
 
+    def _validate_reserved_words(self, value, label):
+        tokens = re.findall(r"[A-Za-z_]+", value.lower())
+        reserved_found = sorted({t for t in tokens if t in self.SQL_RESERVED_WORDS})
+        if reserved_found:
+            raise forms.ValidationError(f"{label}: contiene palabras no permitidas.")
+
+    def _validate_dangerous_patterns(self, value, label):
+        patterns = [r"--", r";", r"/\*", r"\*/", r"@@", r"<", r">", r"`", r"'", r'"']
+        for p in patterns:
+            if re.search(p, value):
+                raise forms.ValidationError(f"{label}: contiene caracteres no permitidos.")
+
+    def _validate_text(self, value, label, max_len, required=True):
+        value = (value or "").strip()
+
+        if required and not value:
+            raise forms.ValidationError(f"{label} es obligatorio.")
+
+        if not value:
+            return ""
+
+        if len(value) > max_len:
+            raise forms.ValidationError(f"{label}: máximo {max_len} caracteres.")
+
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+
+        return value
+
+    def clean_Nombre(self):
+        value = self.cleaned_data.get("Nombre")
+        value = self._validate_text(value, "Nombre", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Nombre: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Apellido_Paterno(self):
+        value = self.cleaned_data.get("Apellido_Paterno")
+        value = self._validate_text(value, "Apellido paterno", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Apellido paterno: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Apellido_Materno(self):
+        value = self.cleaned_data.get("Apellido_Materno")
+        value = self._validate_text(value, "Apellido materno", 20, True)
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+", value):
+            raise forms.ValidationError("Apellido materno: contiene caracteres no permitidos.")
+        return value
+
+    def clean_Telefono(self):
+        value = (self.cleaned_data.get("Telefono") or "").strip()
+        if not value:
+            raise forms.ValidationError("Teléfono es obligatorio.")
+        if not value.isdigit():
+            raise forms.ValidationError("Teléfono: solo se permiten números enteros positivos.")
+        if len(value) > 10:
+            raise forms.ValidationError("Teléfono: máximo 10 caracteres.")
+        return value
+
+    def clean_Correo_electronico(self):
+        email = (self.cleaned_data.get("Correo_electronico") or "").strip().lower()
+        if not email:
+            raise forms.ValidationError("Correo electrónico es obligatorio.")
+
+        qs = Usuario.objects.filter(Correo_electronico__iexact=email)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(ID_Usuario=self.instance.ID_Usuario)
+
+        if qs.exists():
+            raise forms.ValidationError("Ya existe otro usuario con ese correo.")
+        return email
+
+    def _validate_password_rules(self, value, label):
+        if len(value) < 8:
+            raise forms.ValidationError(f"{label}: mínimo 8 caracteres.")
+        self._validate_dangerous_patterns(value, label)
+        self._validate_reserved_words(value, label)
+        if not re.search(r"[A-ZÁÉÍÓÚÜÑ]", value):
+            raise forms.ValidationError(f"{label}: debe incluir al menos una mayúscula.")
+        if not re.search(r"[a-záéíóúüñ]", value):
+            raise forms.ValidationError(f"{label}: debe incluir al menos una minúscula.")
+        return value
+
     def clean(self):
         cleaned = super().clean()
-        p1 = cleaned.get("new_password")
-        p2 = cleaned.get("new_password_confirm")
+        p1 = (cleaned.get("new_password") or "").strip()
+        p2 = (cleaned.get("new_password_confirm") or "").strip()
 
         if p1 or p2:
-            if not p1 or not p2:
-                raise forms.ValidationError("Para cambiar la contraseña, llena ambos campos.")
-            if p1 != p2:
-                self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
+            if not p1:
+                self.add_error("new_password", "Nueva contraseña es obligatoria si deseas cambiarla.")
+            if not p2:
+                self.add_error("new_password_confirm", "Debes confirmar la nueva contraseña.")
+            if p1 and p2:
+                self._validate_password_rules(p1, "Nueva contraseña")
+                if p1 != p2:
+                    self.add_error("new_password_confirm", "Las contraseñas no coinciden.")
+
         return cleaned
 
     def save(self, commit=True):
         user: Usuario = super().save(commit=False)
-        new_password = self.cleaned_data.get("new_password")
+        new_password = (self.cleaned_data.get("new_password") or "").strip()
         if new_password:
             user.set_password(new_password)
         if commit:
             user.save()
         return user
-
 
 # ======================================================
 # CUENTA DE USUARIO
