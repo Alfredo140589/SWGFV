@@ -1243,7 +1243,7 @@ def dimensionamiento_calculo_modulos(request):
     paneles = PanelSolar.objects.all().order_by("marca", "modelo")
 
     # =========================================================
-    # LISTAS PARA EL TEMPLATE (meses y bimestres)
+    # LISTAS PARA EL TEMPLATE
     # =========================================================
     meses = [
         {"label": "Ene", "name": "consumo_ene", "key": "ene"},
@@ -1270,27 +1270,123 @@ def dimensionamiento_calculo_modulos(request):
     ]
 
     # =========================================================
-    # ✅ Determinar proyecto seleccionado (GET o POST)
+    # HELPERS
+    # =========================================================
+    def recalcular_resultado(np_registro: NumeroPaneles):
+        if not np_registro or not np_registro.panel or not np_registro.irradiancia:
+            return None
+
+        panel = np_registro.panel
+        irradiancia = np_registro.irradiancia
+        eff = float(np_registro.eficiencia or 0)
+
+        resultado_obj, _ = ResultadoPaneles.objects.get_or_create(
+            numero_paneles=np_registro,
+            defaults={
+                "no_modulos": 0,
+                "potencia_total": 0,
+                "generacion_por_periodo": {},
+                "generacion_anual": 0,
+            },
+        )
+
+        pot_panel_kw = float(panel.potencia or 0) / 1000.0
+
+        if np_registro.tipo_facturacion == "MENSUAL":
+            consumo_promedio = (
+                sum(float(v) for v in (np_registro.consumos or {}).values()) / 12.0
+            ) if np_registro.consumos else 0.0
+            dias_ref = 30.0
+        else:
+            consumo_promedio = (
+                sum(float(v) for v in (np_registro.consumos or {}).values()) / 6.0
+            ) if np_registro.consumos else 0.0
+            dias_ref = 60.0
+
+        hsp_ref = float(irradiancia.promedio or 0)
+        energia_por_modulo_ref = pot_panel_kw * hsp_ref * eff * dias_ref
+
+        if energia_por_modulo_ref > 0:
+            no_modulos = math.ceil((consumo_promedio / energia_por_modulo_ref) * 1.1)
+        else:
+            no_modulos = 0
+
+        potencia_total = round(no_modulos * pot_panel_kw, 4)
+
+        gen_por_periodo = {}
+        if np_registro.tipo_facturacion == "MENSUAL":
+            for k in ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]:
+                insol = float(getattr(irradiancia, k) or 0)
+                gen_por_periodo[k] = round(potencia_total * insol * eff * 30.0, 4)
+        else:
+            mapeo = {
+                "bim1": "feb",
+                "bim2": "abr",
+                "bim3": "jun",
+                "bim4": "ago",
+                "bim5": "oct",
+                "bim6": "dic",
+            }
+            for bim, mes in mapeo.items():
+                insol = float(getattr(irradiancia, mes) or 0)
+                gen_por_periodo[bim] = round(potencia_total * insol * eff * 60.0, 4)
+
+        generacion_anual = round(sum(gen_por_periodo.values()), 4)
+
+        resultado_obj.no_modulos = no_modulos
+        resultado_obj.potencia_total = potencia_total
+        resultado_obj.generacion_por_periodo = gen_por_periodo
+        resultado_obj.generacion_anual = generacion_anual
+        resultado_obj.save(update_fields=[
+            "no_modulos",
+            "potencia_total",
+            "generacion_por_periodo",
+            "generacion_anual",
+        ])
+        return resultado_obj
+
+    # =========================================================
+    # Proyecto seleccionado
     # =========================================================
     selected_raw = (request.POST.get("proyecto") or request.GET.get("proyecto_id") or "").strip()
     selected_proyecto_id = int(selected_raw) if selected_raw.isdigit() else None
 
-    # =========================================================
-    # ✅ GET/POST: cargar np_obj y resultado para mostrar abajo
-    # =========================================================
     np_obj = None
     resultado = None
+    proyecto_actual = None
+
+    # Precarga para el template
+    form_tipo_facturacion = ""
+    form_irradiancia_id = None
+    form_panel_id = None
+    form_eficiencia = ""
+    consumos_precarga = {}
 
     if selected_proyecto_id:
-        np_obj = NumeroPaneles.objects.select_related(
-            "proyecto", "irradiancia", "panel"
-        ).filter(proyecto_id=selected_proyecto_id).first()
+        proyecto_actual = Proyecto.objects.filter(id=selected_proyecto_id).first()
 
-        if np_obj:
-            resultado = ResultadoPaneles.objects.filter(numero_paneles=np_obj).first()
+        if proyecto_actual:
+            if session_tipo != "Administrador" and int(proyecto_actual.ID_Usuario_id) != int(session_id_usuario):
+                messages.error(request, "No tienes permisos para usar este proyecto.")
+                return redirect(reverse("core:dimensionamiento_calculo_modulos"))
+
+            np_obj = NumeroPaneles.objects.select_related(
+                "proyecto", "irradiancia", "panel"
+            ).filter(proyecto_id=selected_proyecto_id).first()
+
+            if np_obj:
+                # ✅ Precargar formulario con lo guardado
+                form_tipo_facturacion = "mensual" if np_obj.tipo_facturacion == "MENSUAL" else "bimestral"
+                form_irradiancia_id = np_obj.irradiancia_id
+                form_panel_id = np_obj.panel_id
+                form_eficiencia = np_obj.eficiencia
+                consumos_precarga = np_obj.consumos or {}
+
+                # ✅ Si ya existe registro guardado, reconstruir/asegurar resultado
+                resultado = recalcular_resultado(np_obj)
 
     # =========================
-    # ✅ POST: Guardar + Calcular
+    # POST: Guardar + Calcular
     # =========================
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip().lower()
@@ -1302,7 +1398,6 @@ def dimensionamiento_calculo_modulos(request):
             panel_id = (request.POST.get("panel") or "").strip()
             eficiencia = (request.POST.get("eficiencia") or "").strip()
 
-            # ✅ Eficiencia: SOLO 0.7 o 0.8
             try:
                 eff = float(eficiencia)
             except ValueError:
@@ -1320,7 +1415,6 @@ def dimensionamiento_calculo_modulos(request):
                 messages.error(request, "Revisa el formulario. Hay errores.")
                 return redirect(reverse("core:dimensionamiento_calculo_modulos"))
 
-            # Normalizar tipo_facturacion para BD
             if tipo_fact == "mensual":
                 tipo_fact_db = "MENSUAL"
                 consumos = {m["key"]: float(request.POST.get(m["name"]) or 0) for m in meses}
@@ -1331,7 +1425,6 @@ def dimensionamiento_calculo_modulos(request):
                 messages.error(request, "Tipo de facturación inválido.")
                 return redirect(reverse("core:dimensionamiento_calculo_modulos"))
 
-            # Validar proyecto + permisos
             proyecto = Proyecto.objects.filter(id=proyecto_id).first()
             if not proyecto:
                 messages.error(request, "Proyecto inválido.")
@@ -1351,7 +1444,6 @@ def dimensionamiento_calculo_modulos(request):
                 messages.error(request, "Panel inválido.")
                 return redirect(reverse("core:dimensionamiento_calculo_modulos"))
 
-            # Guardar/Actualizar NumeroPaneles
             obj, created = NumeroPaneles.objects.update_or_create(
                 proyecto=proyecto,
                 defaults={
@@ -1363,71 +1455,13 @@ def dimensionamiento_calculo_modulos(request):
                 },
             )
 
-            # ResultadoPaneles
-            resultado_obj, _ = ResultadoPaneles.objects.get_or_create(
-                numero_paneles=obj,
-                defaults={
-                    "no_modulos": 0,
-                    "potencia_total": 0,
-                    "generacion_por_periodo": {},
-                    "generacion_anual": 0,
-                },
-            )
-
-            # =========================================================
-            # ✅ CÁLCULO REAL
-            # =========================================================
-            eff = float(obj.eficiencia)  # 0.7 o 0.8
-            pot_panel_kw = float(panel.potencia) / 1000.0
-
-            if obj.tipo_facturacion == "MENSUAL":
-                consumo_promedio = (sum(float(v) for v in (obj.consumos or {}).values()) / 12.0) if obj.consumos else 0.0
-                dias_ref = 30.0
-            else:
-                consumo_promedio = (sum(float(v) for v in (obj.consumos or {}).values()) / 6.0) if obj.consumos else 0.0
-                dias_ref = 60.0
-
-            hsp_ref = float(irradiancia.promedio)
-            energia_por_modulo_ref = pot_panel_kw * hsp_ref * eff * dias_ref
-
-            if energia_por_modulo_ref > 0:
-                no_modulos = math.ceil((consumo_promedio / energia_por_modulo_ref) * 1.1)
-            else:
-                no_modulos = 0
-
-            potencia_total = round(no_modulos * pot_panel_kw, 4)
-
-            gen_por_periodo = {}
-            if obj.tipo_facturacion == "MENSUAL":
-                for k in ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]:
-                    insol = float(getattr(irradiancia, k))
-                    gen_por_periodo[k] = round(potencia_total * insol * eff * 30.0, 4)
-            else:
-                mapeo = {"bim1":"feb","bim2":"abr","bim3":"jun","bim4":"ago","bim5":"oct","bim6":"dic"}
-                for bim, mes in mapeo.items():
-                    insol = float(getattr(irradiancia, mes))
-                    gen_por_periodo[bim] = round(potencia_total * insol * eff * 60.0, 4)
-
-            generacion_anual = round(sum(gen_por_periodo.values()), 4)
-
-            resultado_obj.no_modulos = no_modulos
-            resultado_obj.potencia_total = potencia_total
-            resultado_obj.generacion_por_periodo = gen_por_periodo
-            resultado_obj.generacion_anual = generacion_anual
-            resultado_obj.save(update_fields=[
-                "no_modulos",
-                "potencia_total",
-                "generacion_por_periodo",
-                "generacion_anual",
-            ])
+            recalcular_resultado(obj)
 
             messages.success(request, "✅ Cálculo realizado correctamente.")
-
-            # ✅ redirigir para reconstruir resultados (GET)
             return redirect(f"{reverse('core:dimensionamiento_calculo_modulos')}?proyecto_id={proyecto.id}")
 
     # =========================================================
-    # ✅ SIEMPRE construir TABLA + datos para gráficas (GET o POST)
+    # Construir tabla + charts
     # =========================================================
     tabla_periodos = []
     chart_labels = []
@@ -1440,21 +1474,30 @@ def dimensionamiento_calculo_modulos(request):
 
         if np_obj.tipo_facturacion == "MENSUAL":
             orden = [
-                ("ene","Ene"),("feb","Feb"),("mar","Mar"),("abr","Abr"),("may","May"),("jun","Jun"),
-                ("jul","Jul"),("ago","Ago"),("sep","Sep"),("oct","Oct"),("nov","Nov"),("dic","Dic"),
+                ("ene", "Ene"), ("feb", "Feb"), ("mar", "Mar"), ("abr", "Abr"),
+                ("may", "May"), ("jun", "Jun"), ("jul", "Jul"), ("ago", "Ago"),
+                ("sep", "Sep"), ("oct", "Oct"), ("nov", "Nov"), ("dic", "Dic"),
             ]
         else:
-            orden = [("bim1","Bim 1"),("bim2","Bim 2"),("bim3","Bim 3"),("bim4","Bim 4"),("bim5","Bim 5"),("bim6","Bim 6")]
+            orden = [
+                ("bim1", "Bim 1"), ("bim2", "Bim 2"), ("bim3", "Bim 3"),
+                ("bim4", "Bim 4"), ("bim5", "Bim 5"), ("bim6", "Bim 6"),
+            ]
 
         for key, label in orden:
             c = float(cons.get(key, 0) or 0)
             g = float(genp.get(key, 0) or 0)
-            tabla_periodos.append({"label": label, "consumo": round(c, 3), "generacion": round(g, 3)})
+            tabla_periodos.append({
+                "label": label,
+                "consumo": round(c, 3),
+                "generacion": round(g, 3),
+            })
             chart_labels.append(label)
             chart_consumo.append(round(c, 3))
             chart_generacion.append(round(g, 3))
 
-    # ✅ Render normal (IMPORTANTE: ahora ya va todo al template)
+    puede_descargar_pdf = bool(np_obj and resultado)
+
     context = {
         "proyectos": proyectos,
         "irradiancias": irradiancias,
@@ -1465,12 +1508,20 @@ def dimensionamiento_calculo_modulos(request):
         "np_obj": np_obj,
         "resultado": resultado,
         "selected_proyecto_id": selected_proyecto_id,
+        "proyecto_actual": proyecto_actual,
 
-        # ✅ tabla + charts (para tu template con json_script)
+        "form_tipo_facturacion": form_tipo_facturacion,
+        "form_irradiancia_id": form_irradiancia_id,
+        "form_panel_id": form_panel_id,
+        "form_eficiencia": form_eficiencia,
+        "consumos_precarga": consumos_precarga,
+
         "tabla_periodos": tabla_periodos,
         "chart_labels": chart_labels,
         "chart_consumo": chart_consumo,
         "chart_generacion": chart_generacion,
+
+        "puede_descargar_pdf": puede_descargar_pdf,
     }
     return render(request, "core/pages/dimensionamiento_calculo_modulos.html", context)
 # =========================================================
