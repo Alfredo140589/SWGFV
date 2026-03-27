@@ -177,7 +177,7 @@ def _project_completion_status(proyecto: Proyecto):
     }
 
 # =========================================================
-# HELPER: IP + BITÁCORA (NO DEBE CAUSAR 500)
+# HELPER: IP + BITÁCORA
 # =========================================================
 def log_event(request, action: str, message: str, target_model: str = "", target_id=None):
     """

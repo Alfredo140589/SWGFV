@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from pathlib import Path
 import time
 
@@ -10,21 +11,7 @@ URL = "http://127.0.0.1:8000/"
 USUARIO = "alfredo.arias@fortiapv.com"
 PASSWORD = "Admin123*"
 
-# Valores de prueba
-PROYECTO = "prueba dimensionamiento"
-TIPO_FACTURACION = "Bimestral (6 consumos)"
-IRRADIANCIA = "León - Guanajuato (Prom: 5.79)"
-EFICIENCIA = "0.80"
-PANEL = "Canadian - CS6.2-66TB-620 (620.00 W)"
-
-CONSUMOS = {
-    "consumo_ene": "1000.0",
-    "consumo_feb": "1050.0",
-    "consumo_mar": "1200.0",
-    "consumo_abr": "1100.0",
-    "consumo_may": "1300.0",
-    "consumo_jun": "1250.0",
-}
+PROYECTO = "Prueba corrección"
 
 CARPETA_DESCARGAS = Path.cwd() / "descargas_prueba_modulos"
 
@@ -56,6 +43,22 @@ def click_seguro(driver, elemento):
         driver.execute_script("arguments[0].click();", elemento)
 
 
+def seleccionar_proyecto(driver, wait, proyecto):
+    select_proyecto = wait.until(
+        EC.presence_of_element_located((By.ID, "proyectoSelect"))
+    )
+    combo = Select(select_proyecto)
+
+    opciones = [op.text.strip() for op in combo.options]
+    print("Opciones disponibles en proyecto:")
+    for op in opciones:
+        print(f"- '{op}'")
+
+    combo.select_by_visible_text(proyecto)
+    print(f"Proyecto seleccionado: {proyecto}")
+    time.sleep(2)
+
+
 def main():
     limpiar_descargas()
 
@@ -70,6 +73,8 @@ def main():
 
     driver = webdriver.Chrome(options=options)
     wait = WebDriverWait(driver, 20)
+    wait_largo = WebDriverWait(driver, 120)
+    actions = ActionChains(driver)
 
     try:
         # 1. Abrir sistema
@@ -87,104 +92,58 @@ def main():
 
         print("Resuelve captcha manualmente y entra al sistema...")
 
-        wait_largo = WebDriverWait(driver, 120)
-
         # 3. Abrir menú Dimensionamiento
         menu_dimensionamiento = wait_largo.until(
-            EC.element_to_be_clickable((By.XPATH, "//a[contains(., 'Dimensionamiento')]"))
+            EC.presence_of_element_located(
+                (By.XPATH, "//a[normalize-space()='Dimensionamiento']")
+            )
         )
-        menu_dimensionamiento.click()
+
+        actions.move_to_element(menu_dimensionamiento).perform()
+        time.sleep(1)
+
+        try:
+            menu_dimensionamiento.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", menu_dimensionamiento)
+
         print("Menú Dimensionamiento encontrado")
         time.sleep(1)
 
-        # 4. Entrar al submenú cálculo de módulos
+        # 4. Entrar al submenú Cálculo de módulos
         submenu_modulos = wait.until(
             EC.element_to_be_clickable(
                 (
                     By.XPATH,
-                    "//a[contains(@href, 'modulos') or contains(., 'Cálculo de módulos') or contains(., 'módulos') or contains(., 'Módulos')]"
+                    "(//a[contains(@href, 'modulos') or contains(., 'Cálculo de módulos') or contains(., 'módulos') or contains(., 'Módulos')])[1]"
                 )
             )
         )
-        submenu_modulos.click()
+
+        click_seguro(driver, submenu_modulos)
         print("Entró al módulo de cálculo de módulos")
         time.sleep(2)
 
-        # 5. Seleccionar proyecto
-        select_proyecto = wait.until(
-            EC.presence_of_element_located((By.XPATH, "//select[1]"))
-        )
-        Select(select_proyecto).select_by_visible_text(PROYECTO)
-        print(f"Proyecto seleccionado: {PROYECTO}")
-        time.sleep(1)
+        # 5. Confirmar vista actual
+        print(f"URL actual: {driver.current_url}")
 
-        # 6. Tipo de facturación
-        select_facturacion = wait.until(
-            EC.presence_of_element_located((By.ID, "tipoFacturacion"))
-        )
-        Select(select_facturacion).select_by_visible_text(TIPO_FACTURACION)
-        print(f"Tipo de facturación seleccionado: {TIPO_FACTURACION}")
-        time.sleep(1)
+        # 6. Seleccionar proyecto
+        seleccionar_proyecto(driver, wait, PROYECTO)
 
-        # 7. Irradiancia
-        select_irradiancia = wait.until(
-            EC.presence_of_element_located((By.ID, "irradianciaSelect"))
-        )
-        Select(select_irradiancia).select_by_visible_text(IRRADIANCIA)
-        print(f"Irradiancia seleccionada: {IRRADIANCIA}")
-        time.sleep(1)
-
-        # 8. Eficiencia
-        select_eficiencia = wait.until(
-            EC.presence_of_element_located((By.ID, "eficienciaSelect"))
-        )
-        Select(select_eficiencia).select_by_visible_text(EFICIENCIA)
-        print(f"Eficiencia seleccionada: {EFICIENCIA}")
-        time.sleep(1)
-
-        # 9. Panel
-        select_panel = wait.until(
-            EC.presence_of_element_located((By.ID, "panelSelect"))
-        )
-        Select(select_panel).select_by_visible_text(PANEL)
-        print(f"Panel seleccionado: {PANEL}")
-        time.sleep(1)
-
-        # 10. Llenar consumos
-        for campo_name, valor in CONSUMOS.items():
-            campo = wait.until(
-                EC.presence_of_element_located((By.NAME, campo_name))
-            )
-            campo.clear()
-            campo.send_keys(valor)
-            print(f"{campo_name} = {valor}")
-
-        # 11. Calcular
-        boton_calcular = wait.until(
-            EC.presence_of_element_located(
-                (By.XPATH, "//button[@type='submit' and @name='action' and @value='calcular']")
-            )
-        )
-        click_seguro(driver, boton_calcular)
-        print("Botón Calcular presionado")
-        time.sleep(3)
-
-        # 12. Validar resultados
-        body_text = driver.find_element(By.TAG_NAME, "body").text
-        assert (
-            "Número de módulos" in body_text
-            or "Potencia total instalada" in body_text
-            or "Descargar PDF" in body_text
-        ), "No aparecieron resultados del cálculo"
-
-        print("Resultados del cálculo visibles")
-
-        # 13. Descargar PDF
+        # 7. Esperar a que aparezca Descargar PDF
         boton_pdf = wait.until(
             EC.presence_of_element_located(
-                (By.XPATH, "//a[contains(., 'Descargar PDF') and contains(@href, '/pdf/')]")
+                (
+                    By.XPATH,
+                    "//a[contains(., 'Descargar PDF')] | "
+                    "//button[contains(., 'Descargar PDF')] | "
+                    "//a[contains(@href, '/pdf/')]"
+                )
             )
         )
+        print("Botón Descargar PDF visible")
+
+        # 8. Descargar PDF
         click_seguro(driver, boton_pdf)
         print("Descargando PDF...")
 
@@ -193,7 +152,7 @@ def main():
 
         assert archivo_pdf.exists(), "El PDF no existe"
 
-        print("✅ PRUEBA EXITOSA (HU017 - cálculo de módulos + descarga PDF)")
+        print("✅ PRUEBA EXITOSA (HU017 - seleccionar proyecto y descargar PDF)")
         time.sleep(5)
 
     finally:

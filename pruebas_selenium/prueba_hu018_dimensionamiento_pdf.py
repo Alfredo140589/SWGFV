@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from pathlib import Path
 import time
 
@@ -10,8 +11,7 @@ URL = "http://127.0.0.1:8000/"
 USUARIO = "alfredo.arias@fortiapv.com"
 PASSWORD = "Admin123*"
 
-# CAMBIA este nombre por el nombre EXACTO del proyecto
-PROYECTO = "prueba dimensionamiento"
+PROYECTO = "Prueba corrección"
 
 CARPETA_DESCARGAS = Path.cwd() / "descargas_prueba_dimensionamiento"
 
@@ -43,6 +43,28 @@ def click_seguro(driver, elemento):
         driver.execute_script("arguments[0].click();", elemento)
 
 
+def seleccionar_proyecto_en_cualquier_combo(driver, wait, proyecto):
+    selects = wait.until(
+        EC.presence_of_all_elements_located((By.TAG_NAME, "select"))
+    )
+    print(f"Se encontraron {len(selects)} combos en la pantalla.")
+
+    for i, s in enumerate(selects, start=1):
+        try:
+            combo = Select(s)
+            opciones = [op.text.strip() for op in combo.options]
+            print(f"Combo {i}: {opciones}")
+
+            if proyecto in opciones:
+                combo.select_by_visible_text(proyecto)
+                print(f"Proyecto seleccionado en combo {i}: {proyecto}")
+                return
+        except Exception:
+            continue
+
+    raise Exception(f"No se encontró el proyecto '{proyecto}' en ningún combo")
+
+
 def main():
     limpiar_descargas()
 
@@ -57,6 +79,8 @@ def main():
 
     driver = webdriver.Chrome(options=options)
     wait = WebDriverWait(driver, 20)
+    wait_largo = WebDriverWait(driver, 120)
+    actions = ActionChains(driver)
 
     try:
         # 1. Abrir sistema
@@ -74,50 +98,48 @@ def main():
 
         print("Resuelve captcha manualmente y entra al sistema...")
 
-        wait_largo = WebDriverWait(driver, 120)
-
-        # 3. Abrir menú Dimensionamiento
+        # 3. Esperar a que cargue el menú principal
         menu_dimensionamiento = wait_largo.until(
-            EC.element_to_be_clickable((By.XPATH, "//a[contains(., 'Dimensionamiento')]"))
+            EC.presence_of_element_located(
+                (By.XPATH, "//a[normalize-space()='Dimensionamiento']")
+            )
         )
-        menu_dimensionamiento.click()
+
+        # Hover para abrir dropdown
+        actions.move_to_element(menu_dimensionamiento).perform()
+        time.sleep(1)
+
+        # También intentamos click por si el menú abre con click
+        try:
+            menu_dimensionamiento.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", menu_dimensionamiento)
+
         print("Menú Dimensionamiento encontrado")
         time.sleep(1)
 
-        # 4. Entrar al submenú Dimensionamiento
+        # 4. Elegir el submenú "Dimensionamiento" del dropdown
         submenu_dimensionamiento = wait.until(
             EC.element_to_be_clickable(
                 (
                     By.XPATH,
-                    "//a[contains(@href, 'dimensionamiento') or contains(., 'Dimensionamiento')]"
+                    "(//a[normalize-space()='Dimensionamiento'])[2]"
                 )
             )
         )
-        submenu_dimensionamiento.click()
+
+        click_seguro(driver, submenu_dimensionamiento)
         print("Entró al módulo de dimensionamiento")
         time.sleep(2)
 
-        # 5. Seleccionar proyecto
-        select_proyecto = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "//label[contains(., 'Selecciona el proyecto')]/following::select[1]"
-                )
-            )
-        )
+        # 5. Confirmar vista
+        print(f"URL actual: {driver.current_url}")
 
-        combo_proyecto = Select(select_proyecto)
-
-        print("Opciones disponibles en el combo de proyecto:")
-        for opcion in combo_proyecto.options:
-            print(f"- '{opcion.text.strip()}'")
-
-        combo_proyecto.select_by_visible_text(PROYECTO)
-        print(f"Proyecto seleccionado: {PROYECTO}")
+        # 6. Seleccionar proyecto
+        seleccionar_proyecto_en_cualquier_combo(driver, wait, PROYECTO)
         time.sleep(2)
 
-        # 6. Verificar que aparece el botón Descargar PDF
+        # 7. Buscar botón/link Descargar PDF
         boton_pdf = wait.until(
             EC.presence_of_element_located(
                 (
@@ -130,17 +152,16 @@ def main():
         )
         print("Botón Descargar PDF visible")
 
-        # 7. Descargar PDF
+        # 8. Descargar PDF
         click_seguro(driver, boton_pdf)
         print("Descargando PDF...")
 
         archivo_pdf = esperar_pdf(timeout=30)
         print(f"PDF descargado: {archivo_pdf.name}")
 
-        # 8. Validación final
         assert archivo_pdf.exists(), "El PDF no existe"
 
-        print("✅ PRUEBA EXITOSA (HU018 - descarga PDF de dimensionamiento)")
+        print("✅ PRUEBA EXITOSA (HU018 - seleccionar proyecto y descargar PDF)")
         time.sleep(5)
 
     finally:
