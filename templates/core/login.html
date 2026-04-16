@@ -6,6 +6,7 @@
 {% block head %}
 <style>
   * { box-sizing: border-box; }
+
   body {
     margin: 0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -101,12 +102,52 @@
     letter-spacing: 0.3px;
   }
 
-  input[type="text"], input[type="password"] {
+  input[type="text"],
+  input[type="password"] {
     width: 100%;
     padding: 10px;
     border: 1px solid #001F3F;
     border-radius: 8px;
     margin-bottom: 15px;
+  }
+
+  .password-wrapper {
+    position: relative;
+    margin-bottom: 15px;
+  }
+
+  .password-wrapper input {
+    width: 100%;
+    padding: 10px 46px 10px 10px;
+    border: 1px solid #001F3F;
+    border-radius: 8px;
+    margin-bottom: 0;
+  }
+
+  .toggle-password {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    padding: 0;
+    width: auto;
+    color: #001F3F;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toggle-password:hover {
+    background: transparent;
+    color: #0a58ca;
+  }
+
+  .toggle-password svg {
+    width: 22px;
+    height: 22px;
   }
 
   .recaptcha-wrapper {
@@ -115,7 +156,7 @@
     justify-content: center;
   }
 
-  button {
+  .main-submit {
     width: 100%;
     background-color: #C8102E;
     color: white;
@@ -129,7 +170,7 @@
     letter-spacing: 0.4px;
   }
 
-  button:hover {
+  .main-submit:hover {
     background-color: #a10b24;
   }
 
@@ -203,13 +244,28 @@
              value="{{ request.POST.usuario|default_if_none:'' }}" required>
 
       <label for="password">Contraseña:</label>
-      <input id="password" type="password" name="password" placeholder="Ingrese su contraseña" required>
+      <div class="password-wrapper">
+        <input id="password" type="password" name="password" placeholder="Ingrese su contraseña" required>
+        <button type="button" class="toggle-password" id="togglePassword" aria-label="Mostrar contraseña" title="Mostrar contraseña">
+          <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+
+          <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display:none;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.223-3.592m3.1-2.424A9.953 9.953 0 0112 5c4.477 0 8.268 2.943 9.542 7a9.97 9.97 0 01-4.132 5.411M15 12a3 3 0 00-3-3m0 0a2.99 2.99 0 00-2.12.879M12 9l-7 7m14 0L5 2" />
+          </svg>
+        </button>
+      </div>
 
       <div class="recaptcha-wrapper">
         <div class="g-recaptcha" data-sitekey="{{ RECAPTCHA_PUBLIC_KEY }}"></div>
       </div>
 
-      <button type="submit">Ingresar</button>
+      <button type="submit" class="main-submit">Ingresar</button>
 
       <div class="text-center mt-3">
         <a href="{% url 'core:recuperar' %}" class="text-decoration-none">
@@ -220,4 +276,27 @@
       <div class="footer">© 2025 Sistema de Administración Fotovoltaica</div>
     </form>
   </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const passwordInput = document.getElementById("password");
+  const toggleBtn = document.getElementById("togglePassword");
+  const eyeOpen = document.getElementById("eyeOpen");
+  const eyeClosed = document.getElementById("eyeClosed");
+
+  if (passwordInput && toggleBtn && eyeOpen && eyeClosed) {
+    toggleBtn.addEventListener("click", function () {
+      const isPassword = passwordInput.type === "password";
+      passwordInput.type = isPassword ? "text" : "password";
+      eyeOpen.style.display = isPassword ? "none" : "";
+      eyeClosed.style.display = isPassword ? "" : "none";
+      toggleBtn.setAttribute("aria-label", isPassword ? "Ocultar contraseña" : "Mostrar contraseña");
+      toggleBtn.setAttribute("title", isPassword ? "Ocultar contraseña" : "Mostrar contraseña");
+    });
+  }
+});
+</script>
 {% endblock %}

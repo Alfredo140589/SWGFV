@@ -1232,11 +1232,7 @@ class DimensionamientoForm(forms.ModelForm):
 
 
 class DimensionamientoDetalleForm(forms.ModelForm):
-    """
-    OJO:
-    - En UI solo se usará UNO (inversor o micro_inversor) según el tipo.
-    - Igual dejamos ambos campos para poder validar y guardar.
-    """
+
     class Meta:
         model = DimensionamientoDetalle
         fields = ["inversor", "micro_inversor", "no_cadenas", "modulos_por_cadena", "indice"]
