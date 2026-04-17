@@ -58,9 +58,16 @@
       </div>
 
       <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
-        <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
-        <a href="{% url 'core:proyecto_consulta' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
-        <a href="{% url 'core:proyecto_alta' %}" class="btn btn-outline-primary px-4">Nuevo proyecto</a>
+         <button type="submit" class="btn btn-swgfv px-4">Buscar</button>
+         <a href="{% url 'core:proyecto_consulta' %}" class="btn btn-outline-secondary px-4">Limpiar</a>
+
+         {% if es_admin %}
+                <a href="{% url 'core:proyecto_consulta' %}?mostrar_todos=1" class="btn btn-outline-dark px-4">
+                  Mostrar todos
+          </a>
+             {% endif %}
+
+            <a href="{% url 'core:proyecto_alta' %}" class="btn btn-outline-primary px-4">Nuevo proyecto</a>
       </div>
     </form>
 

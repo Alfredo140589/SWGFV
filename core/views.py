@@ -641,6 +641,8 @@ def proyecto_consulta(request):
         ).order_by("-id")
         qs_base = proyectos_dropdown
 
+    mostrar_todos = (request.GET.get("mostrar_todos") or "").strip() == "1" and es_admin
+
     form = ProyectoConsultaForm(
         request.GET or None,
         proyectos_dropdown=proyectos_dropdown,
@@ -658,7 +660,18 @@ def proyecto_consulta(request):
     q_usuario = ""
 
     if request.GET:
-        if form.is_valid():
+        if mostrar_todos:
+            qs = qs_base
+            mostrar_lista = True
+
+            proyectos = list(qs)
+
+            for p in proyectos:
+                estado = _project_completion_status(p)
+                p.pdf_completo = estado["completo"]
+                p.pdf_faltantes = estado["faltantes"]
+
+        elif form.is_valid():
             proyecto_select = (form.cleaned_data.get("proyecto") or "").strip()
             q_id = (form.cleaned_data.get("id") or "").strip()
             q_nombre = (form.cleaned_data.get("nombre") or "").strip()
@@ -727,6 +740,7 @@ def proyecto_consulta(request):
             "q_empresa": q_empresa,
             "q_usuario": q_usuario,
             "show_required_popup": show_required_popup,
+            "mostrar_todos": mostrar_todos,
         }
     )
 
@@ -3124,10 +3138,30 @@ def calculo_ac(request):
                     hubo_error = True
                     continue
 
+                # ==========================
+                # CÁLCULO AMPERAJE AC
+                # ==========================
+
+                factor = Decimal("1.25")
+                raiz3 = Decimal("1.732050")
+
+                # 1 y 2 fases usan MISMA fórmula
                 if numero_fases in (1, 2):
-                    amperaje_calculado = (potencia_equipo / voltaje_num) * Decimal("1.25")
+                    amperaje_calculado = (potencia_equipo / voltaje_num) * factor
+
+                # 3 fases usa raíz de 3
+                elif numero_fases == 3:
+                    amperaje_calculado = (potencia_equipo / (voltaje_num * raiz3)) * factor
+
                 else:
-                    amperaje_calculado = (potencia_equipo / (voltaje_num * Decimal("1.732050"))) * Decimal("1.25")
+                    messages.error(request, "Número de fases inválido.")
+                    hubo_error = True
+                    continue
+
+                amperaje_calculado = amperaje_calculado.quantize(
+                    Decimal("1"),
+                    rounding=ROUND_UP
+                )
 
                 amperaje_proteccion = resolver_proteccion_comercial(amperaje_calculado)
 
